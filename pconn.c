@@ -37,7 +37,6 @@
 #include <errno.h>
 #include <gnutls/gnutls.h>
 #include <iv.h>
-#include <pthread.h>
 #include "pconn.h"
 
 #define STATE_HANDSHAKE		1
@@ -45,28 +44,9 @@
 #define STATE_TX_CONGESTION	3
 #define STATE_DEAD		4
 
-static pthread_mutex_t gnutls_init_mutex = PTHREAD_MUTEX_INITIALIZER;
-static int gnutls_init_count;
-
 static char prio[] =
 	"NONE:+VERS-TLS1.2:+SHA1:+ANON-ECDH:+AES-128-CBC:+SIGN-RSA-SHA1:"
 	"+COMP-NULL:+CURVE-SECP256R1:%SAFE_RENEGOTIATION";
-
-static void gtls_get(void)
-{
-	pthread_mutex_lock(&gnutls_init_mutex);
-	if (!gnutls_init_count++)
-		gnutls_global_init();
-	pthread_mutex_unlock(&gnutls_init_mutex);
-}
-
-static void gtls_put(void)
-{
-	pthread_mutex_lock(&gnutls_init_mutex);
-	if (!--gnutls_init_count)
-		gnutls_global_deinit();
-	pthread_mutex_unlock(&gnutls_init_mutex);
-}
 
 static void gtls_perror(const char *str, int error)
 {
@@ -222,8 +202,6 @@ int pconn_start(struct pconn *pc)
 	int ret;
 	const char *err;
 
-	gtls_get();
-
 	if (pc->role == PCONN_ROLE_CLIENT) {
 		ret = gnutls_anon_allocate_client_credentials(&pc->c_anon);
 		if (ret) {
@@ -316,8 +294,6 @@ err_free:
 		gnutls_anon_free_server_credentials(pc->s_anon);
 
 err:
-	gtls_put();
-
 	return -1;
 }
 
@@ -353,8 +329,6 @@ void pconn_destroy(struct pconn *pc)
 		gnutls_anon_free_client_credentials(pc->c_anon);
 	else
 		gnutls_anon_free_server_credentials(pc->s_anon);
-
-	gtls_put();
 
 	iv_fd_unregister(&pc->ifd);
 

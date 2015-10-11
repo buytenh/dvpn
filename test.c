@@ -73,6 +73,8 @@ int main(void)
 
 	iv_init();
 
+	gnutls_global_init();
+
 	sc.fd = fd[0];
 	sc.role = PCONN_ROLE_SERVER;
 	sc.cookie = &sc;
@@ -90,6 +92,8 @@ int main(void)
 	pconn_start(&cc);
 
 	iv_main();
+
+	gnutls_global_deinit();
 
 	return 0;
 }
