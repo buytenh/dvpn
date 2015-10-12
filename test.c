@@ -19,6 +19,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <arpa/inet.h>
 #include <errno.h>
 #include <gnutls/gnutls.h>
 #include <iv.h>
@@ -26,6 +27,58 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include "pconn.h"
+
+static int tcp_socketpair(int *fd)
+{
+	struct sockaddr_in addr;
+	int sfd;
+	int cfd;
+
+	addr.sin_family = AF_INET;
+	addr.sin_addr.s_addr = htonl(0x7f000002);
+	addr.sin_port = htons(random() | 32768 | 16384);
+
+	sfd = socket(PF_INET, SOCK_STREAM, 0);
+	if (sfd < 0) {
+		perror("socket");
+		goto out;
+	}
+
+	if (bind(sfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+		perror("bind");
+		goto free_sfd;
+	}
+
+	if (listen(sfd, 1) < 0) {
+		perror("listen");
+		goto free_sfd;
+	}
+
+	cfd = socket(PF_INET, SOCK_STREAM, 0);
+	if (cfd < 0) {
+		perror("socket");
+		goto free_sfd;
+	}
+
+	if (connect(cfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+		perror("connect");
+		goto free_cfd;
+	}
+
+	fd[0] = sfd;
+	fd[1] = cfd;
+
+	return 0;
+
+free_cfd:
+	close(cfd);
+
+free_sfd:
+	close(sfd);
+
+out:
+	return -1;
+}
 
 static struct pconn sc;
 static struct pconn cc;
@@ -64,7 +117,9 @@ int main(void)
 {
 	int fd[2];
 
-	if (socketpair(PF_LOCAL, SOCK_STREAM, 0, fd) < 0) {
+	srandom(time(NULL) ^ getpid());
+
+	if (tcp_socketpair(fd) < 0) {
 		perror("socketpair");
 		return 1;
 	}
