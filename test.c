@@ -22,6 +22,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <gnutls/gnutls.h>
+#include <gnutls/x509.h>
 #include <iv.h>
 #include <pthread.h>
 #include <sys/socket.h>
@@ -108,6 +109,8 @@ static gnutls_x509_privkey_t skey;
 static struct pconn sc;
 static gnutls_x509_privkey_t ckey;
 static struct pconn cc;
+static struct iv_timer tim;
+static int connsend;
 
 static int server_verify_key_id(void *cookie, const uint8_t *id, int len)
 {
@@ -125,7 +128,9 @@ static void server_handshake_done(void *cookie)
 
 static void server_record_received(void *cookie, const uint8_t *rec, int len)
 {
-	fprintf(stderr, "server_record_received\n");
+	fprintf(stderr, "server_record_received: [");
+	write(2, rec, len);
+	fprintf(stderr, "]\n");
 }
 
 static void server_connection_lost(void *ptr)
@@ -149,12 +154,35 @@ static void client_handshake_done(void *cookie)
 
 static void client_record_received(void *cookie, const uint8_t *rec, int len)
 {
-	fprintf(stderr, "client_record_received\n");
+	fprintf(stderr, "client_record_received: [");
+	write(2, rec, len);
+	fprintf(stderr, "]\n");
 }
 
 static void client_connection_lost(void *ptr)
 {
 	fprintf(stderr, "client_connection_lost\n");
+}
+
+static void send_timer(void *_dummy)
+{
+	if (connsend == 8) {
+		pconn_destroy(&sc);
+		pconn_destroy(&cc);
+		return;
+	}
+
+	if (connsend & 1)
+		pconn_record_send(&cc, (void *)"hello, server", 13);
+	else
+		pconn_record_send(&sc, (void *)"hello, client", 13);
+
+	connsend++;
+
+	iv_validate_now();
+	tim.expires = iv_now;
+	tim.expires.tv_sec++;
+	iv_timer_register(&tim);
 }
 
 int main(void)
@@ -200,7 +228,20 @@ int main(void)
 	cc.connection_lost = client_connection_lost;
 	pconn_start(&cc);
 
+	IV_TIMER_INIT(&tim);
+	iv_validate_now();
+	tim.expires = iv_now;
+	tim.expires.tv_sec += 2;
+	tim.cookie = NULL;
+	tim.handler = send_timer;
+	iv_timer_register(&tim);
+
 	iv_main();
+
+	iv_deinit();
+
+	gnutls_x509_privkey_deinit(skey);
+	gnutls_x509_privkey_deinit(ckey);
 
 	gnutls_global_deinit();
 
