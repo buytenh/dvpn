@@ -27,6 +27,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include "pconn.h"
+#include "x509.h"
 
 static int tcp_socketpair(int *fd)
 {
@@ -92,7 +93,9 @@ out:
 	return -1;
 }
 
+static gnutls_x509_privkey_t skey;
 static struct pconn sc;
+static gnutls_x509_privkey_t ckey;
 static struct pconn cc;
 
 static void server_handshake_done(void *cookie, const uint8_t *fp, int len)
@@ -142,16 +145,24 @@ int main(void)
 
 	gnutls_global_init();
 
+	if (x509_read_privkey(&skey, "server.key") < 0)
+		return 1;
+
 	sc.fd = fd[0];
 	sc.role = PCONN_ROLE_SERVER;
+	sc.key = skey;
 	sc.cookie = &sc;
 	sc.handshake_done = server_handshake_done;
 	sc.record_received = server_record_received;
 	sc.connection_lost = server_connection_lost;
 	pconn_start(&sc);
 
+	if (x509_read_privkey(&ckey, "client.key") < 0)
+		return 1;
+
 	cc.fd = fd[1];
 	cc.role = PCONN_ROLE_CLIENT;
+	cc.key = ckey;
 	cc.cookie = &cc;
 	cc.handshake_done = client_handshake_done;
 	cc.record_received = client_record_received;

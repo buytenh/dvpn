@@ -11,5 +11,5 @@ gencert:	gencert.c x509.c x509.h
 genkey:		genkey.c x509.c x509.h
 		gcc -Wall -o genkey genkey.c x509.c -lgnutls
 
-test:		test.c pconn.c pconn.h
-		gcc -Wall -o test test.c pconn.c -lgnutls -livykis
+test:		test.c pconn.c pconn.h x509.c x509.h
+		gcc -Wall -o test test.c pconn.c x509.c -lgnutls -livykis

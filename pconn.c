@@ -19,13 +19,16 @@
 
 /*
  * TODO:
+ * - gnutls_certificate_set_verify_function()
+ * - pass key id in ->handshake_done()
+ * - regenerate certificate when it expires
+ *
  * - proper flow control handling
  * - graceful connection shutdown
  * - work out state machine for shutdown and renegotiation
  * - add error passing to ->connection_lost()
  * - cache socket i/o readiness status, possibly coalesce into own buffers
  * - coalesce on output, set a task to flush out
- * - certificate authentication
  * - byte/time limits, renegotiation
  *   - limit min (limit at which we'll accept a remote reneg)
  *   - limit soft (initiate a reneg at this point)
@@ -36,8 +39,10 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <gnutls/gnutls.h>
+#include <gnutls/x509.h>
 #include <iv.h>
 #include "pconn.h"
+#include "x509.h"
 
 #define STATE_HANDSHAKE		1
 #define STATE_RUNNING		2
@@ -45,8 +50,8 @@
 #define STATE_DEAD		4
 
 static char prio[] =
-	"NONE:+VERS-TLS1.2:+SHA1:+ANON-ECDH:+AES-128-CBC:+SIGN-RSA-SHA1:"
-	"+COMP-NULL:+CURVE-SECP256R1:%SAFE_RENEGOTIATION";
+	"NONE:+CIPHER-ALL:+DHE-RSA:+ECDHE-RSA:+MAC-ALL:+COMP-NULL:"
+	"+VERS-TLS1.2:+SIGN-ALL:+CURVE-SECP256R1:%SAFE_RENEGOTIATION";
 
 static void gtls_perror(const char *str, int error)
 {
@@ -198,24 +203,28 @@ static void handle_record_send(void *_pc)
 
 int pconn_start(struct pconn *pc)
 {
-	unsigned int flags;
 	int ret;
+	gnutls_x509_crt_t cert;
+	unsigned int flags;
 	const char *err;
 
-	if (pc->role == PCONN_ROLE_CLIENT) {
-		ret = gnutls_anon_allocate_client_credentials(&pc->c_anon);
-		if (ret) {
-			gtls_perror("gnutls_anon_allocate_client_credentials",
-				    ret);
-			goto err;
-		}
-	} else {
-		ret = gnutls_anon_allocate_server_credentials(&pc->s_anon);
-		if (ret) {
-			gtls_perror("gnutls_anon_allocate_server_credentials",
-				    ret);
-			goto err;
-		}
+	ret = gnutls_certificate_allocate_credentials(&pc->cert);
+	if (ret) {
+		gtls_perror("gnutls_certificate_allocate_credentials", ret);
+		goto err;
+	}
+
+	ret = x509_generate_cert(&cert, pc->key);
+	if (ret < 0) {
+		goto err_free;
+	}
+
+	ret = gnutls_certificate_set_x509_key(pc->cert, &cert, 1, pc->key);
+	gnutls_x509_crt_deinit(cert);
+
+	if (ret) {
+		gtls_perror("gnutls_certificate_set_x509_key", ret);
+		goto err_free;
 	}
 
 	flags = GNUTLS_NONBLOCK | GNUTLS_NO_EXTENSIONS;
@@ -228,6 +237,12 @@ int pconn_start(struct pconn *pc)
 	if (ret) {
 		gtls_perror("gnutls_init", ret);
 		goto err_free;
+	}
+
+	if (pc->role == PCONN_ROLE_SERVER) {
+		gnutls_certificate_server_set_request(pc->sess,
+						      GNUTLS_CERT_REQUIRE);
+		gnutls_certificate_send_x509_rdn_sequence(pc->sess, 1);
 	}
 
 	ret = gnutls_priority_set_direct(pc->sess, prio, &err);
@@ -246,14 +261,8 @@ int pconn_start(struct pconn *pc)
 		goto err_deinit;
 	}
 
-	if (pc->role == PCONN_ROLE_CLIENT) {
-		ret = gnutls_credentials_set(pc->sess, GNUTLS_CRD_ANON,
-					     pc->c_anon);
-	} else {
-		ret = gnutls_credentials_set(pc->sess, GNUTLS_CRD_ANON,
-					     pc->s_anon);
-	}
-
+	ret = gnutls_credentials_set(pc->sess, GNUTLS_CRD_CERTIFICATE,
+				     pc->cert);
 	if (ret) {
 		gtls_perror("gnutls_credentials_set", ret);
 		goto err_deinit;
@@ -288,10 +297,7 @@ err_deinit:
 	gnutls_deinit(pc->sess);
 
 err_free:
-	if (pc->role == PCONN_ROLE_CLIENT)
-		gnutls_anon_free_client_credentials(pc->c_anon);
-	else
-		gnutls_anon_free_server_credentials(pc->s_anon);
+	gnutls_certificate_free_credentials(pc->cert);
 
 err:
 	return -1;
@@ -325,10 +331,7 @@ void pconn_destroy(struct pconn *pc)
 {
 	gnutls_deinit(pc->sess);
 
-	if (pc->role == PCONN_ROLE_CLIENT)
-		gnutls_anon_free_client_credentials(pc->c_anon);
-	else
-		gnutls_anon_free_server_credentials(pc->s_anon);
+	gnutls_certificate_free_credentials(pc->cert);
 
 	iv_fd_unregister(&pc->ifd);
 

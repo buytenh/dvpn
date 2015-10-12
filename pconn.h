@@ -25,19 +25,17 @@
 #include <stdint.h>
 
 struct pconn {
-	int		fd;
-	int		role;
-	void		*cookie;
-	void		(*handshake_done)(void *cookie,
-					  const uint8_t *fp, int len);
-	void		(*record_received)(void *cookie,
-					   const uint8_t *rec, int len);
-	void		(*connection_lost)(void *cookie);
+	int			fd;
+	int			role;
+	gnutls_x509_privkey_t	key;
+	void			*cookie;
+	void			(*handshake_done)(void *cookie,
+						  const uint8_t *fp, int len);
+	void			(*record_received)(void *cookie,
+						   const uint8_t *rec, int len);
+	void			(*connection_lost)(void *cookie);
 
-	union {
-		gnutls_anon_client_credentials_t c_anon;
-		gnutls_anon_server_credentials_t s_anon;
-	};
+	gnutls_certificate_credentials_t cert;
 	gnutls_session_t	sess;
 	struct iv_fd		ifd;
 	int			state;
