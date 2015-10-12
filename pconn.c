@@ -275,11 +275,13 @@ static void handle_record_send(void *_pc)
 	if (ret == GNUTLS_E_AGAIN)
 		return;
 
-	if (ret) {
+	if (ret < 0) {
 		gtls_perror("gnutls_record_send", ret);
 		connection_abort(pc);
 		return;
 	}
+
+	// @@@ handle less bytes having been sent than passed in
 
 	iv_fd_set_handler_out(&pc->ifd, NULL);
 
@@ -426,6 +428,8 @@ int pconn_record_send(struct pconn *pc, const uint8_t *record, int len)
 		gtls_perror("gnutls_record_send", ret);
 		connection_abort(pc);
 	}
+
+	// @@@ handle less bytes having been sent than passed in
 
 	return 0;
 }
