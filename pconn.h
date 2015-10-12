@@ -44,8 +44,8 @@ struct pconn {
 	struct iv_timer		handshake_timeout;
 };
 
-#define PCONN_ROLE_CLIENT	0
-#define PCONN_ROLE_SERVER	1
+#define PCONN_ROLE_SERVER	0
+#define PCONN_ROLE_CLIENT	1
 
 int pconn_start(struct pconn *pc);
 int pconn_record_send(struct pconn *pc, const uint8_t *record, int len);

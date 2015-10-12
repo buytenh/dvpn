@@ -219,7 +219,7 @@ int pconn_start(struct pconn *pc)
 	}
 
 	flags = GNUTLS_NONBLOCK | GNUTLS_NO_EXTENSIONS;
-	if (pc->role == PCONN_ROLE_CLIENT)
+	if (pc->role == PCONN_ROLE_SERVER)
 		flags |= GNUTLS_SERVER;
 	else
 		flags |= GNUTLS_CLIENT;
