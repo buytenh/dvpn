@@ -29,6 +29,7 @@
  *   - limit min (limit at which we'll accept a remote reneg)
  *   - limit soft (initiate a reneg at this point)
  *   - limit hard (close the connection if this limit is exceeded)
+ * - implement vector push/pull functions
  */
 
 #include <stdio.h>
@@ -244,6 +245,7 @@ again:
 
 	pc->record_received(pc->cookie, buf, ret);
 
+	// @@@ do this from a task
 	if (gnutls_record_check_pending(pc->sess))
 		goto again;
 }
@@ -338,7 +340,7 @@ static int start_handshake(struct pconn *pc)
 	gnutls_certificate_set_verify_function(pc->cert, pconn_verify_cert);
 
 	ret = x509_generate_cert(&cert, pc->key);
-	if (ret < 0)
+	if (ret)
 		goto err_free;
 
 	ret = gnutls_certificate_set_x509_key(pc->cert, &cert, 1, pc->key);
