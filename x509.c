@@ -127,7 +127,8 @@ int x509_generate_cert(gnutls_x509_crt_t *crt, gnutls_x509_privkey_t key)
 	if (ret < 0)
 		goto err_free_pub;
 
-	ret = gnutls_x509_crt_set_key_usage(*crt, GNUTLS_KEY_KEY_ENCIPHERMENT);
+	ret = gnutls_x509_crt_set_key_usage(*crt,
+		GNUTLS_KEY_DIGITAL_SIGNATURE | GNUTLS_KEY_KEY_ENCIPHERMENT);
 	if (ret < 0)
 		goto err_free_pub;
 
