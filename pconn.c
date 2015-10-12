@@ -82,7 +82,7 @@ static void connection_abort(struct pconn *pc)
 	iv_fd_set_handler_in(&pc->ifd, NULL);
 	iv_fd_set_handler_out(&pc->ifd, NULL);
 
-	if (pc->state == STATE_HANDSHAKE)
+	if (iv_timer_registered(&pc->handshake_timeout))
 		iv_timer_unregister(&pc->handshake_timeout);
 
 	pc->state = STATE_DEAD;
@@ -332,6 +332,6 @@ void pconn_destroy(struct pconn *pc)
 
 	iv_fd_unregister(&pc->ifd);
 
-	if (pc->state == STATE_HANDSHAKE)
+	if (iv_timer_registered(&pc->handshake_timeout))
 		iv_timer_unregister(&pc->handshake_timeout);
 }
