@@ -19,7 +19,6 @@
 
 /*
  * TODO:
- * - regenerate certificate when it expires
  * - proper flow control handling
  * - graceful connection shutdown
  * - work out state machine for shutdown and renegotiation
@@ -259,12 +258,10 @@ static void handle_record_send(void *_pc)
 	}
 }
 
-int pconn_start(struct pconn *pc)
+static int start_handshake(struct pconn *pc)
 {
 	int ret;
 	gnutls_x509_crt_t cert;
-	unsigned int flags;
-	const char *err;
 
 	ret = gnutls_certificate_allocate_credentials(&pc->cert);
 	if (ret) {
@@ -275,9 +272,8 @@ int pconn_start(struct pconn *pc)
 	gnutls_certificate_set_verify_function(pc->cert, pconn_verify_cert);
 
 	ret = x509_generate_cert(&cert, pc->key);
-	if (ret < 0) {
+	if (ret < 0)
 		goto err_free;
-	}
 
 	ret = gnutls_certificate_set_x509_key(pc->cert, &cert, 1, pc->key);
 	gnutls_x509_crt_deinit(cert);
@@ -286,6 +282,37 @@ int pconn_start(struct pconn *pc)
 		gtls_perror("gnutls_certificate_set_x509_key", ret);
 		goto err_free;
 	}
+
+	ret = gnutls_credentials_set(pc->sess, GNUTLS_CRD_CERTIFICATE,
+				     pc->cert);
+	if (ret) {
+		gtls_perror("gnutls_credentials_set", ret);
+		goto err_free;
+	}
+
+	pc->state = STATE_HANDSHAKE;
+
+	iv_validate_now();
+	pc->handshake_timeout.expires = iv_now;
+	pc->handshake_timeout.expires.tv_sec += 10;
+	iv_timer_register(&pc->handshake_timeout);
+
+	handle_handshake((void *)pc);
+
+	return 0;
+
+err_free:
+	gnutls_certificate_free_credentials(pc->cert);
+
+err:
+	return -1;
+}
+
+int pconn_start(struct pconn *pc)
+{
+	unsigned int flags;
+	int ret;
+	const char *err;
 
 	flags = GNUTLS_NONBLOCK | GNUTLS_NO_EXTENSIONS;
 	if (pc->role == PCONN_ROLE_SERVER)
@@ -296,7 +323,7 @@ int pconn_start(struct pconn *pc)
 	ret = gnutls_init(&pc->sess, flags);
 	if (ret) {
 		gtls_perror("gnutls_init", ret);
-		goto err_free;
+		goto err;
 	}
 
 	if (pc->role == PCONN_ROLE_SERVER) {
@@ -307,28 +334,17 @@ int pconn_start(struct pconn *pc)
 
 	ret = gnutls_priority_set_direct(pc->sess, prio, &err);
 	if (ret) {
+		const char *p;
+
 		gtls_perror("gnutls_priority_set_direct", ret);
 
-		if (0) {
-			const char *p;
-
-			fprintf(stderr, "%s\n", prio);
-			for (p = prio; p < err; p++)
-				fprintf(stderr, " ");
-			fprintf(stderr, "^ error in priority string\n");
-		}
+		fprintf(stderr, "%s\n", prio);
+		for (p = prio; p < err; p++)
+			fprintf(stderr, " ");
+		fprintf(stderr, "^ error in priority string\n");
 
 		goto err_deinit;
 	}
-
-	ret = gnutls_credentials_set(pc->sess, GNUTLS_CRD_CERTIFICATE,
-				     pc->cert);
-	if (ret) {
-		gtls_perror("gnutls_credentials_set", ret);
-		goto err_deinit;
-	}
-
-	gnutls_dh_set_prime_bits(pc->sess, 4096);
 
 	gnutls_transport_set_ptr(pc->sess, pc);
 	gnutls_transport_set_pull_function(pc->sess, pconn_rx);
@@ -339,25 +355,18 @@ int pconn_start(struct pconn *pc)
 	pc->ifd.cookie = pc;
 	iv_fd_register(&pc->ifd);
 
-	pc->state = STATE_HANDSHAKE;
-
 	IV_TIMER_INIT(&pc->handshake_timeout);
-	iv_validate_now();
-	pc->handshake_timeout.expires = iv_now;
-	pc->handshake_timeout.expires.tv_sec += 10;
 	pc->handshake_timeout.cookie = pc;
 	pc->handshake_timeout.handler = handshake_timeout;
-	iv_timer_register(&pc->handshake_timeout);
 
-	handle_handshake((void *)pc);
+	ret = start_handshake(pc);
+	if (ret)
+		goto err_deinit;
 
 	return 0;
 
 err_deinit:
 	gnutls_deinit(pc->sess);
-
-err_free:
-	gnutls_certificate_free_credentials(pc->cert);
 
 err:
 	return -1;

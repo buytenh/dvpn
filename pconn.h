@@ -36,9 +36,9 @@ struct pconn {
 						   const uint8_t *rec, int len);
 	void			(*connection_lost)(void *cookie);
 
-	gnutls_certificate_credentials_t cert;
 	gnutls_session_t	sess;
 	struct iv_fd		ifd;
+	gnutls_certificate_credentials_t cert;
 	int			state;
 	struct iv_timer		handshake_timeout;
 };
