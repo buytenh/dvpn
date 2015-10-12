@@ -60,7 +60,22 @@ static ssize_t pconn_rx(gnutls_transport_ptr_t _pc, void *buf, size_t len)
 	struct pconn *pc = _pc;
 	int ret;
 
+#if 1
+	if (random() < 0.45 * RAND_MAX) {
+		gnutls_transport_set_errno(pc->sess, EAGAIN);
+		return -1;
+	}
+
+	if (random() < 0.82 * RAND_MAX) {
+		gnutls_transport_set_errno(pc->sess, EINTR);
+		return -1;
+	}
+
+	ret = recv(pc->ifd.fd, buf, 1, 0);
+#else
 	ret = recv(pc->ifd.fd, buf, len, 0);
+#endif
+
 	if (ret < 0)
 		gnutls_transport_set_errno(pc->sess, errno);
 
@@ -72,7 +87,22 @@ static ssize_t pconn_tx(gnutls_transport_ptr_t _pc, const void *buf, size_t len)
 	struct pconn *pc = _pc;
 	int ret;
 
+#if 1
+	if (random() < 0.45 * RAND_MAX) {
+		gnutls_transport_set_errno(pc->sess, EAGAIN);
+		return -1;
+	}
+
+	if (random() < 0.82 * RAND_MAX) {
+		gnutls_transport_set_errno(pc->sess, EINTR);
+		return -1;
+	}
+
+	ret = send(pc->ifd.fd, buf, 1, 0);
+#else
 	ret = send(pc->ifd.fd, buf, len, 0);
+#endif
+
 	if (ret < 0)
 		gnutls_transport_set_errno(pc->sess, errno);
 
