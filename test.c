@@ -45,28 +45,28 @@ static int tcp_socketpair(int *fd)
 	lfd = socket(PF_INET, SOCK_STREAM, 0);
 	if (lfd < 0) {
 		perror("socket");
-		goto out;
+		goto err;
 	}
 
 	if (bind(lfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 		perror("bind");
-		goto free_lfd;
+		goto err_free_lfd;
 	}
 
 	if (listen(lfd, 1) < 0) {
 		perror("listen");
-		goto free_lfd;
+		goto err_free_lfd;
 	}
 
 	cfd = socket(PF_INET, SOCK_STREAM, 0);
 	if (cfd < 0) {
 		perror("socket");
-		goto free_lfd;
+		goto err_free_lfd;
 	}
 
 	if (connect(cfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 		perror("connect");
-		goto free_cfd;
+		goto err_free_cfd;
 	}
 
 	addrlen = sizeof(addr);
@@ -74,7 +74,7 @@ static int tcp_socketpair(int *fd)
 	sfd = accept(lfd, (struct sockaddr *)&addr, &addrlen);
 	if (sfd < 0) {
 		perror("accept");
-		goto free_cfd;
+		goto err_free_cfd;
 	}
 
 	close(lfd);
@@ -84,13 +84,13 @@ static int tcp_socketpair(int *fd)
 
 	return 0;
 
-free_cfd:
+err_free_cfd:
 	close(cfd);
 
-free_lfd:
+err_free_lfd:
 	close(lfd);
 
-out:
+err:
 	return -1;
 }
 
@@ -166,22 +166,29 @@ static void client_connection_lost(void *ptr)
 
 static void send_timer(void *_dummy)
 {
-	if (connsend == 8) {
+	if (connsend == 250) {
 		pconn_destroy(&sc);
 		pconn_destroy(&cc);
 		return;
 	}
 
-	if (connsend & 1)
-		pconn_record_send(&cc, (void *)"hello, server", 13);
-	else
-		pconn_record_send(&sc, (void *)"hello, client", 13);
+	if (connsend & 1) {
+		if (cc.state == 2)
+			pconn_record_send(&cc, (void *)"hello, server", 13);
+	} else {
+		if (sc.state == 2)
+			pconn_record_send(&sc, (void *)"hello, client", 13);
+	}
 
 	connsend++;
 
 	iv_validate_now();
 	tim.expires = iv_now;
-	tim.expires.tv_sec++;
+	tim.expires.tv_nsec += 10000000;
+	if (tim.expires.tv_nsec >= 1000000000) {
+		tim.expires.tv_sec++;
+		tim.expires.tv_nsec -= 1000000000;
+	}
 	iv_timer_register(&tim);
 }
 
@@ -231,7 +238,6 @@ int main(void)
 	IV_TIMER_INIT(&tim);
 	iv_validate_now();
 	tim.expires = iv_now;
-	tim.expires.tv_sec += 2;
 	tim.cookie = NULL;
 	tim.handler = send_timer;
 	iv_timer_register(&tim);
