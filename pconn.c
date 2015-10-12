@@ -85,6 +85,7 @@ static int pconn_verify_cert(gnutls_session_t sess)
 	const gnutls_datum_t *cert_list;
 	unsigned int cert_list_size;
 	gnutls_x509_crt_t peercert;
+	int ret;
 	gnutls_pubkey_t peerkey;
 	uint8_t buf[256];
 	size_t len;
@@ -100,17 +101,40 @@ static int pconn_verify_cert(gnutls_session_t sess)
 	cert_list = gnutls_certificate_get_peers(pc->sess, &cert_list_size);
 	if (cert_list_size != 1) {
 		fprintf(stderr, "pconn_verify_cert: unexpected cert count\n");
-		return 1;
+		goto err;
 	}
 
-	gnutls_x509_crt_init(&peercert);
-	gnutls_x509_crt_import(peercert, &cert_list[0], GNUTLS_X509_FMT_DER);
+	ret = gnutls_x509_crt_init(&peercert);
+	if (ret) {
+		gtls_perror("gnutls_x509_crt_init", ret);
+		goto err;
+	}
 
-	gnutls_pubkey_init(&peerkey);
-	gnutls_pubkey_import_x509(peerkey, peercert, 0);
+	ret = gnutls_x509_crt_import(peercert, &cert_list[0],
+				     GNUTLS_X509_FMT_DER);
+	if (ret) {
+		gtls_perror("gnutls_x509_crt_import", ret);
+		goto err_free_crt;
+	}
+
+	ret = gnutls_pubkey_init(&peerkey);
+	if (ret) {
+		gtls_perror("gnutls_pubkey_init", ret);
+		goto err_free_crt;
+	}
+
+	ret = gnutls_pubkey_import_x509(peerkey, peercert, 0);
+	if (ret) {
+		gtls_perror("gnutls_pubkey_import_x509", ret);
+		goto err_free_key;
+	}
+
 	len = sizeof(buf);
-	gnutls_pubkey_get_key_id(peerkey, 0, buf, &len);
-	gnutls_pubkey_deinit(peerkey);
+	ret = gnutls_pubkey_get_key_id(peerkey, 0, buf, &len);
+	if (ret) {
+		gtls_perror("gnutls_pubkey_get_key_id", ret);
+		goto err_free_key;
+	}
 
 	if (0) {
 		int i;
@@ -134,9 +158,19 @@ static int pconn_verify_cert(gnutls_session_t sess)
 		}
 	}
 
+	gnutls_pubkey_deinit(peerkey);
 	gnutls_x509_crt_deinit(peercert);
 
 	return pc->verify_key_id(pc->cookie, buf, len);
+
+err_free_key:
+	gnutls_pubkey_deinit(peerkey);
+
+err_free_crt:
+	gnutls_x509_crt_deinit(peercert);
+
+err:
+	return 1;
 }
 
 static void connection_abort(struct pconn *pc)
