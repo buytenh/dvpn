@@ -19,10 +19,7 @@
 
 /*
  * TODO:
- * - gnutls_certificate_set_verify_function()
- * - pass key id in ->handshake_done()
  * - regenerate certificate when it expires
- *
  * - proper flow control handling
  * - graceful connection shutdown
  * - work out state machine for shutdown and renegotiation
@@ -39,6 +36,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <gnutls/gnutls.h>
+#include <gnutls/abstract.h>
 #include <gnutls/x509.h>
 #include <iv.h>
 #include "pconn.h"
@@ -80,6 +78,66 @@ static ssize_t pconn_tx(gnutls_transport_ptr_t _pc, const void *buf, size_t len)
 		gnutls_transport_set_errno(pc->sess, errno);
 
 	return ret;
+}
+
+static int pconn_verify_cert(gnutls_session_t sess)
+{
+	struct pconn *pc = gnutls_transport_get_ptr(sess);
+	const gnutls_datum_t *cert_list;
+	unsigned int cert_list_size;
+	gnutls_x509_crt_t peercert;
+	gnutls_pubkey_t peerkey;
+	uint8_t buf[256];
+	size_t len;
+
+	/*
+	 * TBD: @@@
+	 * - verify key length
+	 * - verify that certificate signature is correct
+	 * - verify signature time validity
+	 * - verify that signature corresponds to given public key
+	 */
+
+	cert_list = gnutls_certificate_get_peers(pc->sess, &cert_list_size);
+	if (cert_list_size != 1) {
+		fprintf(stderr, "pconn_verify_cert: unexpected cert count\n");
+		return 1;
+	}
+
+	gnutls_x509_crt_init(&peercert);
+	gnutls_x509_crt_import(peercert, &cert_list[0], GNUTLS_X509_FMT_DER);
+
+	gnutls_pubkey_init(&peerkey);
+	gnutls_pubkey_import_x509(peerkey, peercert, 0);
+	len = sizeof(buf);
+	gnutls_pubkey_get_key_id(peerkey, 0, buf, &len);
+	gnutls_pubkey_deinit(peerkey);
+
+	if (0) {
+		int i;
+
+		fprintf(stderr, "%p: ", pc);
+		for (i = 0; i < len; i++) {
+			fprintf(stderr, "%.2x", buf[i]);
+			if (i < len - 1)
+				fprintf(stderr, ":");
+		}
+		fprintf(stderr, "\n");
+	}
+
+	if (0) {
+		gnutls_datum_t cinfo;
+
+		if (gnutls_x509_crt_print(peercert, GNUTLS_CRT_PRINT_FULL,
+					  &cinfo) == 0) {
+			printf("\t%s\n", cinfo.data);
+			free(cinfo.data);
+		}
+	}
+
+	gnutls_x509_crt_deinit(peercert);
+
+	return pc->verify_key_id(pc->cookie, buf, len);
 }
 
 static void connection_abort(struct pconn *pc)
@@ -169,7 +227,7 @@ static void handle_handshake(void *_pc)
 
 	iv_timer_unregister(&pc->handshake_timeout);
 
-	pc->handshake_done(pc->cookie, NULL, 0);
+	pc->handshake_done(pc->cookie);
 }
 
 static void handle_record_send(void *_pc)
@@ -213,6 +271,8 @@ int pconn_start(struct pconn *pc)
 		gtls_perror("gnutls_certificate_allocate_credentials", ret);
 		goto err;
 	}
+
+	gnutls_certificate_set_verify_function(pc->cert, pconn_verify_cert);
 
 	ret = x509_generate_cert(&cert, pc->key);
 	if (ret < 0) {

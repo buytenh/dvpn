@@ -29,8 +29,9 @@ struct pconn {
 	int			role;
 	gnutls_x509_privkey_t	key;
 	void			*cookie;
-	void			(*handshake_done)(void *cookie,
-						  const uint8_t *fp, int len);
+	int			(*verify_key_id)(void *cookie,
+						 const uint8_t *id, int len);
+	void			(*handshake_done)(void *cookie);
 	void			(*record_received)(void *cookie,
 						   const uint8_t *rec, int len);
 	void			(*connection_lost)(void *cookie);

@@ -93,39 +93,68 @@ out:
 	return -1;
 }
 
+static void printhex(const uint8_t *a, int len)
+{
+	int i;
+
+	for (i = 0; i < len; i++) {
+		fprintf(stderr, "%.2x", a[i]);
+		if (i < len - 1)
+			fprintf(stderr, ":");
+	}
+}
+
 static gnutls_x509_privkey_t skey;
 static struct pconn sc;
 static gnutls_x509_privkey_t ckey;
 static struct pconn cc;
 
-static void server_handshake_done(void *cookie, const uint8_t *fp, int len)
+static int server_verify_key_id(void *cookie, const uint8_t *id, int len)
 {
-	printf("server_handshake_done\n");
+	fprintf(stderr, "server_verify_key_id: ");
+	printhex(id, len);
+	fprintf(stderr, "\n");
+
+	return 0;
+}
+
+static void server_handshake_done(void *cookie)
+{
+	fprintf(stderr, "server_handshake_done\n");
 }
 
 static void server_record_received(void *cookie, const uint8_t *rec, int len)
 {
-	printf("server_record_received\n");
+	fprintf(stderr, "server_record_received\n");
 }
 
 static void server_connection_lost(void *ptr)
 {
-	printf("server_connection_lost\n");
+	fprintf(stderr, "server_connection_lost\n");
 }
 
-static void client_handshake_done(void *cookie, const uint8_t *fp, int len)
+static int client_verify_key_id(void *cookie, const uint8_t *id, int len)
 {
-	printf("client_handshake_done\n");
+	fprintf(stderr, "client_verify_key_id: ");
+	printhex(id, len);
+	fprintf(stderr, "\n");
+
+	return 0;
+}
+
+static void client_handshake_done(void *cookie)
+{
+	fprintf(stderr, "client_handshake_done\n");
 }
 
 static void client_record_received(void *cookie, const uint8_t *rec, int len)
 {
-	printf("client_record_received\n");
+	fprintf(stderr, "client_record_received\n");
 }
 
 static void client_connection_lost(void *ptr)
 {
-	printf("client_connection_lost\n");
+	fprintf(stderr, "client_connection_lost\n");
 }
 
 int main(void)
@@ -139,7 +168,7 @@ int main(void)
 		return 1;
 	}
 
-	printf("hi!\n");
+	fprintf(stderr, "hi!\n");
 
 	iv_init();
 
@@ -152,6 +181,7 @@ int main(void)
 	sc.role = PCONN_ROLE_SERVER;
 	sc.key = skey;
 	sc.cookie = &sc;
+	sc.verify_key_id = server_verify_key_id;
 	sc.handshake_done = server_handshake_done;
 	sc.record_received = server_record_received;
 	sc.connection_lost = server_connection_lost;
@@ -164,6 +194,7 @@ int main(void)
 	cc.role = PCONN_ROLE_CLIENT;
 	cc.key = ckey;
 	cc.cookie = &cc;
+	cc.verify_key_id = client_verify_key_id;
 	cc.handshake_done = client_handshake_done;
 	cc.record_received = client_record_received;
 	cc.connection_lost = client_connection_lost;
