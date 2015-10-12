@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
 	gnutls_x509_privkey_t key;
 	int ret;
 	int fd;
-	uint8_t buf[4096];
+	uint8_t buf[8192];
 	size_t size;
 
 	if (argc < 3 || sscanf(argv[2], "%d", &bits) != 1) {
