@@ -31,39 +31,51 @@
 static int tcp_socketpair(int *fd)
 {
 	struct sockaddr_in addr;
-	int sfd;
+	int lfd;
 	int cfd;
+	socklen_t addrlen;
+	int sfd;
 
 	addr.sin_family = AF_INET;
 	addr.sin_addr.s_addr = htonl(0x7f000002);
 	addr.sin_port = htons(random() | 32768 | 16384);
 
-	sfd = socket(PF_INET, SOCK_STREAM, 0);
-	if (sfd < 0) {
+	lfd = socket(PF_INET, SOCK_STREAM, 0);
+	if (lfd < 0) {
 		perror("socket");
 		goto out;
 	}
 
-	if (bind(sfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+	if (bind(lfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 		perror("bind");
-		goto free_sfd;
+		goto free_lfd;
 	}
 
-	if (listen(sfd, 1) < 0) {
+	if (listen(lfd, 1) < 0) {
 		perror("listen");
-		goto free_sfd;
+		goto free_lfd;
 	}
 
 	cfd = socket(PF_INET, SOCK_STREAM, 0);
 	if (cfd < 0) {
 		perror("socket");
-		goto free_sfd;
+		goto free_lfd;
 	}
 
 	if (connect(cfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 		perror("connect");
 		goto free_cfd;
 	}
+
+	addrlen = sizeof(addr);
+
+	sfd = accept(lfd, (struct sockaddr *)&addr, &addrlen);
+	if (sfd < 0) {
+		perror("accept");
+		goto free_cfd;
+	}
+
+	close(lfd);
 
 	fd[0] = sfd;
 	fd[1] = cfd;
@@ -73,8 +85,8 @@ static int tcp_socketpair(int *fd)
 free_cfd:
 	close(cfd);
 
-free_sfd:
-	close(sfd);
+free_lfd:
+	close(lfd);
 
 out:
 	return -1;
