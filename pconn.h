@@ -41,6 +41,15 @@ struct pconn {
 	gnutls_certificate_credentials_t cert;
 	int			state;
 	struct iv_timer		handshake_timeout;
+
+	int			io_error;
+	struct iv_task		rx_task;
+	uint8_t			rx_buf[32768];
+	int			rx_bytes;
+	int			rx_eof;
+	struct iv_task		tx_task;
+	uint8_t			tx_buf[32768];
+	int			tx_bytes;
 };
 
 #define PCONN_ROLE_SERVER	0

@@ -23,13 +23,11 @@
  * - graceful connection shutdown
  * - work out state machine for shutdown and renegotiation
  * - add error passing to ->connection_lost()
- * - cache socket i/o readiness status, possibly coalesce into own buffers
- * - coalesce on output, set a task to flush out
  * - byte/time limits, renegotiation
  *   - limit min (limit at which we'll accept a remote reneg)
  *   - limit soft (initiate a reneg at this point)
  *   - limit hard (close the connection if this limit is exceeded)
- * - implement vector push/pull functions
+ * - implement rx_start/rx_end to avoid memmoves
  */
 
 #include <stdio.h>
@@ -39,6 +37,7 @@
 #include <gnutls/abstract.h>
 #include <gnutls/x509.h>
 #include <iv.h>
+#include <string.h>
 #include "pconn.h"
 #include "x509.h"
 
@@ -47,67 +46,374 @@
 #define STATE_TX_CONGESTION	3
 #define STATE_DEAD		4
 
-static char prio[] =
-	"NONE:+CIPHER-ALL:+ECDHE-RSA:+MAC-ALL:+COMP-NULL:+VERS-TLS1.2:"
-	"+SIGN-ALL:+CURVE-SECP256R1:%SAFE_RENEGOTIATION";
+static void pconn_pull(void *_pc);
+static void pconn_push(void *_pc);
 
 static void gtls_perror(const char *str, int error)
 {
 	fprintf(stderr, "%s: %s\n", str, gnutls_strerror(error));
 }
 
-static ssize_t pconn_rx(gnutls_transport_ptr_t _pc, void *buf, size_t len)
+static int pconn_flush_tx(struct pconn *pc)
 {
-	struct pconn *pc = _pc;
 	int ret;
 
-#if 1
-	if (random() < 0.45 * RAND_MAX) {
-		gnutls_transport_set_errno(pc->sess, EAGAIN);
-		return -1;
+	if (pc->io_error)
+		return 1;
+
+	if (pc->ifd.handler_out != NULL || pc->tx_bytes == 0)
+		return 0;
+
+	do {
+		ret = send(pc->ifd.fd, pc->tx_buf, pc->tx_bytes, 0);
+	} while (ret < 0 && errno == EINTR);
+
+	if (ret < 0) {
+		if (errno == EAGAIN) {
+			iv_fd_set_handler_out(&pc->ifd, pconn_push);
+			return 0;
+		}
+
+		pc->io_error = errno;
+		return 1;
 	}
 
-	if (random() < 0.82 * RAND_MAX) {
-		gnutls_transport_set_errno(pc->sess, EINTR);
-		return -1;
+	pc->tx_bytes -= ret;
+	if (pc->tx_bytes) {
+		memmove(pc->tx_buf, pc->tx_buf + ret, pc->tx_bytes);
+		iv_fd_set_handler_out(&pc->ifd, pconn_push);
 	}
 
-	ret = recv(pc->ifd.fd, buf, 1, 0);
-#else
-	ret = recv(pc->ifd.fd, buf, len, 0);
-#endif
-
-	if (ret < 0)
-		gnutls_transport_set_errno(pc->sess, errno);
-
-	return ret;
+	return 0;
 }
 
-static ssize_t pconn_tx(gnutls_transport_ptr_t _pc, const void *buf, size_t len)
+static void connection_abort(struct pconn *pc)
+{
+	iv_fd_set_handler_in(&pc->ifd, NULL);
+	iv_fd_set_handler_out(&pc->ifd, NULL);
+
+	pc->state = STATE_DEAD;
+
+	if (iv_timer_registered(&pc->handshake_timeout))
+		iv_timer_unregister(&pc->handshake_timeout);
+
+	if (iv_task_registered(&pc->rx_task))
+		iv_task_unregister(&pc->rx_task);
+
+	if (iv_task_registered(&pc->tx_task))
+		iv_task_unregister(&pc->tx_task);
+
+	pc->connection_lost(pc);
+}
+
+static void do_handshake(struct pconn *pc)
+{
+	int ret;
+
+	ret = gnutls_handshake(pc->sess);
+	if ((!ret || ret == GNUTLS_E_AGAIN) && pconn_flush_tx(pc))
+		ret = gnutls_handshake(pc->sess);
+
+	if (ret) {
+		if (ret != GNUTLS_E_AGAIN) {
+			gtls_perror("gnutls_handshake", ret);
+			connection_abort(pc);
+		}
+		return;
+	}
+
+	gnutls_record_disable_padding(pc->sess);
+
+	pc->state = STATE_RUNNING;
+
+	iv_timer_unregister(&pc->handshake_timeout);
+
+	if (gnutls_record_check_pending(pc->sess) || pc->rx_bytes || pc->rx_eof)
+		iv_task_register(&pc->rx_task);
+
+	pc->handshake_done(pc->cookie);
+}
+
+static void do_record_recv(struct pconn *pc)
+{
+	uint8_t buf[32768];
+	int ret;
+
+	ret = gnutls_record_recv(pc->sess, buf, sizeof(buf));
+
+	if (ret == GNUTLS_E_AGAIN)
+		return;
+
+	if (ret == GNUTLS_E_REHANDSHAKE) {
+		fprintf(stderr, "received HelloRequest\n");
+		iv_task_register(&pc->rx_task);
+		return;
+	}
+
+	if (ret <= 0) {
+		if (ret)
+			gtls_perror("gnutls_record_recv", ret);
+		connection_abort(pc);
+		return;
+	}
+
+	if (gnutls_record_check_pending(pc->sess) || pc->rx_bytes || pc->rx_eof)
+		iv_task_register(&pc->rx_task);
+
+	pc->record_received(pc->cookie, buf, ret);
+}
+
+static void do_record_send(struct pconn *pc)
+{
+	int ret;
+
+	ret = gnutls_record_send(pc->sess, NULL, 0);
+	if ((ret > 0 || ret == GNUTLS_E_AGAIN) && pconn_flush_tx(pc))
+		ret = gnutls_record_send(pc->sess, NULL, 0);
+
+	if (ret == GNUTLS_E_AGAIN)
+		return;
+
+	if (ret) {
+		gtls_perror("gnutls_record_send", ret);
+		connection_abort(pc);
+		return;
+	}
+
+	// @@@ handle fewer bytes having been sent than passed in
+
+	if (pc->state == STATE_TX_CONGESTION) {
+		pc->state = STATE_RUNNING;
+	} else {
+		fprintf(stderr, "handle_record_send: called in state %d\n",
+			pc->state);
+		connection_abort(pc);
+	}
+}
+
+static void rx_task_handler(void *_pc)
+{
+	struct pconn *pc = _pc;
+
+	if (pc->state == STATE_HANDSHAKE &&
+	    gnutls_record_get_direction(pc->sess) == 0 &&
+	    (pc->io_error || pc->rx_bytes || pc->rx_eof)) {
+		do_handshake(pc);
+		return;
+	}
+
+	if ((pc->state == STATE_RUNNING || pc->state == STATE_TX_CONGESTION) &&
+	    (gnutls_record_check_pending(pc->sess) || pc->io_error ||
+	     pc->rx_bytes || pc->rx_eof)) {
+		do_record_recv(pc);
+		return;
+	}
+
+	abort();
+}
+
+static void tx_task_handler(void *_pc)
+{
+	struct pconn *pc = _pc;
+
+	if (pc->state == STATE_HANDSHAKE &&
+	    gnutls_record_get_direction(pc->sess) == 1 &&
+	    (pc->io_error || pc->tx_bytes < sizeof(pc->tx_buf))) {
+		do_handshake(pc);
+		return;
+	}
+
+	if (pc->state == STATE_TX_CONGESTION &&
+	    (pc->io_error || pc->tx_bytes < sizeof(pc->tx_buf))) {
+		do_record_send(pc);
+		return;
+	}
+
+	abort();
+}
+
+static void pconn_pull(void *_pc)
 {
 	struct pconn *pc = _pc;
 	int ret;
 
-#if 1
-	if (random() < 0.45 * RAND_MAX) {
+	do {
+		ret = recv(pc->ifd.fd, pc->rx_buf + pc->rx_bytes,
+				sizeof(pc->rx_buf) - pc->rx_bytes, 0);
+	} while (ret < 0 && errno == EINTR);
+
+	if (ret <= 0) {
+		if (ret == 0 || errno != EAGAIN) {
+			if (ret < 0)
+				pc->io_error = errno;
+			else
+				pc->rx_eof = 1;
+
+			iv_fd_set_handler_in(&pc->ifd, NULL);
+			iv_fd_set_handler_out(&pc->ifd, NULL);
+
+			if (!iv_task_registered(&pc->rx_task))
+				iv_task_register(&pc->rx_task);
+
+			if (!iv_task_registered(&pc->tx_task))
+				iv_task_register(&pc->tx_task);
+		}
+
+		return;
+	}
+
+	if (!pc->rx_bytes) {
+		if ((pc->state == STATE_HANDSHAKE &&
+		     gnutls_record_get_direction(pc->sess) == 0) ||
+		    pc->state == STATE_RUNNING ||
+		    pc->state == STATE_TX_CONGESTION) {
+			iv_task_register(&pc->rx_task);
+		}
+	}
+
+	pc->rx_bytes += ret;
+	if (pc->rx_bytes == sizeof(pc->rx_buf))
+		iv_fd_set_handler_in(&pc->ifd, NULL);
+}
+
+static ssize_t
+pconn_pull_func(gnutls_transport_ptr_t _pc, void *buf, size_t len)
+{
+	struct pconn *pc = _pc;
+
+	if (pc->io_error) {
+		gnutls_transport_set_errno(pc->sess, pc->io_error);
+		return -1;
+	}
+
+	if (pc->rx_bytes) {
+		int tocopy;
+
+		if (pc->rx_bytes == sizeof(pc->rx_buf))
+			iv_fd_set_handler_in(&pc->ifd, pconn_pull);
+
+		tocopy = pc->rx_bytes;
+		if (tocopy > len)
+			tocopy = len;
+		memcpy(buf, pc->rx_buf, tocopy);
+
+		pc->rx_bytes -= tocopy;
+		if (pc->rx_bytes)
+			memmove(pc->rx_buf, pc->rx_buf + tocopy, pc->rx_bytes);
+
+		// @@@ pull more data from socket if buffer was full?
+
+		return tocopy;
+	}
+
+	if (pc->rx_eof)
+		return 0;
+
+	gnutls_transport_set_errno(pc->sess, EAGAIN);
+
+	return -1;
+}
+
+static void pconn_push(void *_pc)
+{
+	struct pconn *pc = _pc;
+	int ret;
+
+	do {
+		ret = send(pc->ifd.fd, pc->tx_buf, pc->tx_bytes, 0);
+	} while (ret < 0 && errno == EINTR);
+
+	if (ret < 0) {
+		if (errno != EAGAIN) {
+			pc->io_error = errno;
+
+			iv_fd_set_handler_in(&pc->ifd, NULL);
+			iv_fd_set_handler_out(&pc->ifd, NULL);
+
+			if (!iv_task_registered(&pc->rx_task))
+				iv_task_register(&pc->rx_task);
+
+			if (!iv_task_registered(&pc->tx_task))
+				iv_task_register(&pc->tx_task);
+		}
+
+		return;
+	}
+
+	if (pc->tx_bytes == sizeof(pc->tx_buf)) {
+		if ((pc->state == STATE_HANDSHAKE &&
+		     gnutls_record_get_direction(pc->sess) == 1) ||
+		    pc->state == STATE_TX_CONGESTION) {
+			iv_task_register(&pc->tx_task);
+		}
+	}
+
+	pc->tx_bytes -= ret;
+	if (pc->tx_bytes)
+		memmove(pc->tx_buf, pc->tx_buf + ret, pc->tx_bytes);
+	else
+		iv_fd_set_handler_out(&pc->ifd, NULL);
+}
+
+static ssize_t
+pconn_push_func(gnutls_transport_ptr_t _pc, const void *buf, size_t len)
+{
+	struct pconn *pc = _pc;
+	int copied;
+	int tocopy;
+	int ret;
+
+	if (pc->io_error) {
+		gnutls_transport_set_errno(pc->sess, pc->io_error);
+		return -1;
+	}
+
+	if (pc->tx_bytes == sizeof(pc->tx_buf)) {
 		gnutls_transport_set_errno(pc->sess, EAGAIN);
 		return -1;
 	}
 
-	if (random() < 0.82 * RAND_MAX) {
-		gnutls_transport_set_errno(pc->sess, EINTR);
+	copied = 0;
+
+again:
+	tocopy = sizeof(pc->tx_buf) - pc->tx_bytes;
+	if (tocopy > len)
+		tocopy = len;
+
+	memcpy(pc->tx_buf + pc->tx_bytes, buf, tocopy);
+	pc->tx_bytes += tocopy;
+	copied += tocopy;
+	buf += tocopy;
+	len -= tocopy;
+
+	if (pc->ifd.handler_out != NULL || pc->tx_bytes < sizeof(pc->tx_buf))
+		return copied;
+
+	do {
+		ret = send(pc->ifd.fd, pc->tx_buf, pc->tx_bytes, 0);
+	} while (ret < 0 && errno == EINTR);
+
+	if (ret < 0 && errno != EAGAIN) {
+		pc->io_error = errno;
+		gnutls_transport_set_errno(pc->sess, errno);
 		return -1;
 	}
 
-	ret = send(pc->ifd.fd, buf, 1, 0);
-#else
-	ret = send(pc->ifd.fd, buf, len, 0);
-#endif
+	if (ret > 0) {
+		pc->tx_bytes -= ret;
+		if (pc->tx_bytes) {
+			memmove(pc->tx_buf, pc->tx_buf + ret,
+				pc->tx_bytes);
+		}
+	}
 
-	if (ret < 0)
-		gnutls_transport_set_errno(pc->sess, errno);
+	if (pc->tx_bytes)
+		iv_fd_set_handler_out(&pc->ifd, pconn_push);
 
-	return ret;
+	if (len && pc->tx_bytes < sizeof(pc->tx_buf))
+		goto again;
+
+	return copied;
 }
 
 static int pconn_verify_cert(gnutls_session_t sess)
@@ -204,126 +510,11 @@ err:
 	return 1;
 }
 
-static void connection_abort(struct pconn *pc)
-{
-	iv_fd_set_handler_in(&pc->ifd, NULL);
-	iv_fd_set_handler_out(&pc->ifd, NULL);
-
-	if (iv_timer_registered(&pc->handshake_timeout))
-		iv_timer_unregister(&pc->handshake_timeout);
-
-	pc->state = STATE_DEAD;
-
-	pc->connection_lost(pc);
-}
-
-static void handle_record_recv(void *_pc)
-{
-	struct pconn *pc = _pc;
-	uint8_t buf[16384];
-	int ret;
-
-again:
-	do {
-		ret = gnutls_record_recv(pc->sess, buf, sizeof(buf));
-	} while (ret == GNUTLS_E_INTERRUPTED);
-
-	if (ret == GNUTLS_E_AGAIN)
-		return;
-
-	if (ret == GNUTLS_E_REHANDSHAKE) {
-		fprintf(stderr, "received HelloRequest\n");
-		return;
-	}
-
-	if (ret <= 0) {
-		if (ret)
-			gtls_perror("gnutls_record_recv", ret);
-		connection_abort(pc);
-		return;
-	}
-
-	pc->record_received(pc->cookie, buf, ret);
-
-	// @@@ do this from a task
-	if (gnutls_record_check_pending(pc->sess))
-		goto again;
-}
-
 static void handshake_timeout(void *_pc)
 {
 	struct pconn *pc = _pc;
 
 	connection_abort(pc);
-}
-
-static void handle_handshake(void *_pc)
-{
-	struct pconn *pc = _pc;
-	int ret;
-
-	do {
-		ret = gnutls_handshake(pc->sess);
-	} while (ret == GNUTLS_E_INTERRUPTED);
-
-	if (ret == GNUTLS_E_AGAIN) {
-		if (gnutls_record_get_direction(pc->sess) == 0) {
-			iv_fd_set_handler_in(&pc->ifd, handle_handshake);
-			iv_fd_set_handler_out(&pc->ifd, NULL);
-		} else {
-			iv_fd_set_handler_in(&pc->ifd, NULL);
-			iv_fd_set_handler_out(&pc->ifd, handle_handshake);
-		}
-		return;
-	}
-
-	if (ret) {
-		gtls_perror("gnutls_handshake", ret);
-		connection_abort(pc);
-		return;
-	}
-
-	gnutls_record_disable_padding(pc->sess);
-
-	iv_fd_set_handler_in(&pc->ifd, handle_record_recv);
-	iv_fd_set_handler_out(&pc->ifd, NULL);
-
-	pc->state = STATE_RUNNING;
-
-	iv_timer_unregister(&pc->handshake_timeout);
-
-	pc->handshake_done(pc->cookie);
-}
-
-static void handle_record_send(void *_pc)
-{
-	struct pconn *pc = _pc;
-	int ret;
-
-	do {
-		ret = gnutls_record_send(pc->sess, NULL, 0);
-	} while (ret == GNUTLS_E_INTERRUPTED);
-
-	if (ret == GNUTLS_E_AGAIN)
-		return;
-
-	if (ret < 0) {
-		gtls_perror("gnutls_record_send", ret);
-		connection_abort(pc);
-		return;
-	}
-
-	// @@@ handle less bytes having been sent than passed in
-
-	iv_fd_set_handler_out(&pc->ifd, NULL);
-
-	if (pc->state == STATE_TX_CONGESTION) {
-		pc->state = STATE_RUNNING;
-	} else {
-		fprintf(stderr, "handle_record_send: called in state %d\n",
-			pc->state);
-		connection_abort(pc);
-	}
 }
 
 static int start_handshake(struct pconn *pc)
@@ -365,7 +556,7 @@ static int start_handshake(struct pconn *pc)
 	pc->handshake_timeout.expires.tv_sec += 10;
 	iv_timer_register(&pc->handshake_timeout);
 
-	handle_handshake((void *)pc);
+	do_handshake(pc);
 
 	return 0;
 
@@ -378,6 +569,9 @@ err:
 
 int pconn_start(struct pconn *pc)
 {
+	static char prio[] =
+		"NONE:+CIPHER-ALL:+ECDHE-RSA:+MAC-ALL:+COMP-NULL:"
+		"+VERS-TLS1.2:+SIGN-ALL:+CURVE-SECP256R1:%SAFE_RENEGOTIATION";
 	unsigned int flags;
 	int ret;
 	const char *err;
@@ -415,17 +609,31 @@ int pconn_start(struct pconn *pc)
 	}
 
 	gnutls_transport_set_ptr(pc->sess, pc);
-	gnutls_transport_set_pull_function(pc->sess, pconn_rx);
-	gnutls_transport_set_push_function(pc->sess, pconn_tx);
+	gnutls_transport_set_pull_function(pc->sess, pconn_pull_func);
+	gnutls_transport_set_push_function(pc->sess, pconn_push_func);
 
 	IV_FD_INIT(&pc->ifd);
 	pc->ifd.fd = pc->fd;
 	pc->ifd.cookie = pc;
+	pc->ifd.handler_in = pconn_pull;
 	iv_fd_register(&pc->ifd);
 
 	IV_TIMER_INIT(&pc->handshake_timeout);
 	pc->handshake_timeout.cookie = pc;
 	pc->handshake_timeout.handler = handshake_timeout;
+
+	pc->io_error = 0;
+
+	IV_TASK_INIT(&pc->rx_task);
+	pc->rx_task.cookie = pc;
+	pc->rx_task.handler = rx_task_handler;
+	pc->rx_bytes = 0;
+	pc->rx_eof = 0;
+
+	IV_TASK_INIT(&pc->tx_task);
+	pc->tx_task.cookie = pc;
+	pc->tx_task.handler = tx_task_handler;
+	pc->tx_bytes = 0;
 
 	ret = start_handshake(pc);
 	if (ret)
@@ -449,19 +657,18 @@ int pconn_record_send(struct pconn *pc, const uint8_t *record, int len)
 		return -1;
 	}
 
-	do {
-		ret = gnutls_record_send(pc->sess, record, len);
-	} while (ret == GNUTLS_E_INTERRUPTED);
+	ret = gnutls_record_send(pc->sess, record, len);
+	if ((ret > 0 || ret == GNUTLS_E_AGAIN) && pconn_flush_tx(pc))
+		ret = gnutls_record_send(pc->sess, NULL, 0);
 
 	if (ret == GNUTLS_E_AGAIN) {
 		pc->state = STATE_TX_CONGESTION;
-		iv_fd_set_handler_out(&pc->ifd, handle_record_send);
 	} else if (ret < 0) {
 		gtls_perror("gnutls_record_send", ret);
 		connection_abort(pc);
 	}
 
-	// @@@ handle less bytes having been sent than passed in
+	// @@@ handle fewer bytes having been sent than passed in
 
 	return 0;
 }
@@ -476,4 +683,10 @@ void pconn_destroy(struct pconn *pc)
 
 	if (iv_timer_registered(&pc->handshake_timeout))
 		iv_timer_unregister(&pc->handshake_timeout);
+
+	if (iv_task_registered(&pc->rx_task))
+		iv_task_unregister(&pc->rx_task);
+
+	if (iv_task_registered(&pc->tx_task))
+		iv_task_unregister(&pc->tx_task);
 }
