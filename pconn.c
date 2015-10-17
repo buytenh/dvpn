@@ -46,11 +46,6 @@
 #define STATE_TX_CONGESTION	3
 #define STATE_DEAD		4
 
-static void gtls_perror(const char *str, int error)
-{
-	fprintf(stderr, "%s: %s\n", str, gnutls_strerror(error));
-}
-
 static void pconn_fd_handler_in(void *_pc)
 {
 	struct pconn *pc = _pc;
@@ -268,6 +263,11 @@ static int pconn_tx_flush(struct pconn *pc)
 	return 0;
 }
 
+static void gtls_perror(const char *str, int error)
+{
+	fprintf(stderr, "%s: %s\n", str, gnutls_strerror(error));
+}
+
 static void pconn_connection_abort(struct pconn *pc)
 {
 	iv_fd_set_handler_in(&pc->ifd, NULL);
@@ -285,13 +285,6 @@ static void pconn_connection_abort(struct pconn *pc)
 		iv_task_unregister(&pc->tx_task);
 
 	pc->connection_lost(pc);
-}
-
-static void pconn_handshake_timeout(void *_pc)
-{
-	struct pconn *pc = _pc;
-
-	pconn_connection_abort(pc);
 }
 
 static void pconn_do_handshake(struct pconn *pc)
@@ -320,6 +313,13 @@ static void pconn_do_handshake(struct pconn *pc)
 		iv_task_register(&pc->rx_task);
 
 	pc->handshake_done(pc->cookie);
+}
+
+static void pconn_handshake_timeout(void *_pc)
+{
+	struct pconn *pc = _pc;
+
+	pconn_connection_abort(pc);
 }
 
 static void pconn_do_record_recv(struct pconn *pc)
