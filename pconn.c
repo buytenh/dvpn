@@ -19,6 +19,7 @@
 
 /*
  * TODO:
+ * - use state validation functions to enforce all state machine transitions
  * - proper flow control handling
  * - graceful connection shutdown
  * - work out state machine for shutdown and renegotiation
@@ -46,10 +47,121 @@
 #define STATE_TX_CONGESTION	3
 #define STATE_DEAD		4
 
+static int verify_state_pollin(struct pconn *pc)
+{
+	/*
+	 * Don't read after we've seen an I/O error.
+	 */
+	if (pc->state == STATE_DEAD || pc->io_error)
+		return 0;
+
+	/*
+	 * Don't read if our input buffer is full or if we've
+	 * seen EOF.
+	 */
+	if (pc->rx_bytes == sizeof(pc->rx_buf) || pc->rx_eof)
+		return 0;
+
+	return 1;
+}
+
+static int verify_state_pollout(struct pconn *pc)
+{
+	/*
+	 * Don't write after we've seen an I/O error.
+	 */
+	if (pc->state == STATE_DEAD || pc->io_error)
+		return 0;
+
+	/*
+	 * Don't write if there is nothing to send.
+	 */
+	if (!pc->tx_bytes)
+		return 0;
+
+	return 1;
+}
+
+static int verify_state_rx_task(struct pconn *pc)
+{
+	if (pc->state == STATE_HANDSHAKE &&
+	    gnutls_record_get_direction(pc->sess) == 0 &&
+	    (pc->io_error || pc->rx_bytes || pc->rx_eof)) {
+		return 1;
+	}
+
+	if ((pc->state == STATE_RUNNING || pc->state == STATE_TX_CONGESTION) &&
+	    (gnutls_record_check_pending(pc->sess) || pc->io_error ||
+	     pc->rx_bytes || pc->rx_eof)) {
+		return 1;
+	}
+
+	return 0;
+}
+
+static int verify_state_tx_task(struct pconn *pc)
+{
+	if (pc->state == STATE_HANDSHAKE &&
+	    gnutls_record_get_direction(pc->sess) == 1 &&
+	    (pc->io_error || pc->tx_bytes < sizeof(pc->tx_buf))) {
+		return 1;
+	}
+
+	if (pc->state == STATE_TX_CONGESTION &&
+	    (pc->io_error || pc->tx_bytes < sizeof(pc->tx_buf))) {
+		return 1;
+	}
+
+	return 0;
+}
+
+static void verify_state(struct pconn *pc)
+{
+	int st;
+
+	st = verify_state_pollin(pc);
+	if (!st && pc->ifd.handler_in != NULL) {
+		fprintf(stderr, "error: handler_in should be NULL\n");
+		abort();
+	} else if (st && pc->ifd.handler_in == NULL) {
+		fprintf(stderr, "error: handler_in is unexpectedly NULL\n");
+		abort();
+	}
+
+	st = verify_state_pollout(pc);
+	if (!st && pc->ifd.handler_out != NULL) {
+		fprintf(stderr, "error: handler_out should be NULL\n");
+		abort();
+	} else if (st && pc->ifd.handler_out == NULL) {
+		fprintf(stderr, "warning: handler_out is unexpectedly NULL\n");
+	}
+
+	st = verify_state_rx_task(pc);
+	if (!st && iv_task_registered(&pc->rx_task)) {
+		fprintf(stderr, "error: rx_task is unexpectedly registered\n");
+		abort();
+	} else if (st && !iv_task_registered(&pc->rx_task)) {
+		fprintf(stderr, "error: rx_task should be registered\n");
+		// => OR RUNNING (i.e. it's fine if we are in the middle of it)
+		abort();
+	}
+
+	st = verify_state_tx_task(pc);
+	if (!st && iv_task_registered(&pc->tx_task)) {
+		fprintf(stderr, "error: tx_task is unexpectedly registered\n");
+		abort();
+	} else if (st && !iv_task_registered(&pc->tx_task)) {
+		fprintf(stderr, "error: tx_task should be registered\n");
+		abort();
+	}
+}
+
 static void pconn_fd_handler_in(void *_pc)
 {
 	struct pconn *pc = _pc;
 	int ret;
+
+	verify_state(pc);
 
 	do {
 		ret = recv(pc->ifd.fd, pc->rx_buf + pc->rx_bytes,
@@ -73,6 +185,8 @@ static void pconn_fd_handler_in(void *_pc)
 				iv_task_register(&pc->tx_task);
 		}
 
+		verify_state(pc);
+
 		return;
 	}
 
@@ -88,6 +202,8 @@ static void pconn_fd_handler_in(void *_pc)
 	pc->rx_bytes += ret;
 	if (pc->rx_bytes == sizeof(pc->rx_buf))
 		iv_fd_set_handler_in(&pc->ifd, NULL);
+
+	verify_state(pc);
 }
 
 static ssize_t
@@ -133,6 +249,8 @@ static void pconn_fd_handler_out(void *_pc)
 	struct pconn *pc = _pc;
 	int ret;
 
+	verify_state(pc);
+
 	do {
 		ret = send(pc->ifd.fd, pc->tx_buf, pc->tx_bytes, 0);
 	} while (ret < 0 && errno == EINTR);
@@ -151,6 +269,8 @@ static void pconn_fd_handler_out(void *_pc)
 				iv_task_register(&pc->tx_task);
 		}
 
+		verify_state(pc);
+
 		return;
 	}
 
@@ -167,6 +287,8 @@ static void pconn_fd_handler_out(void *_pc)
 		memmove(pc->tx_buf, pc->tx_buf + ret, pc->tx_bytes);
 	else
 		iv_fd_set_handler_out(&pc->ifd, NULL);
+
+	verify_state(pc);
 }
 
 static ssize_t
@@ -251,6 +373,9 @@ static int pconn_tx_flush(struct pconn *pc)
 		}
 
 		pc->io_error = errno;
+
+		verify_state(pc);
+
 		return 1;
 	}
 
@@ -259,6 +384,8 @@ static int pconn_tx_flush(struct pconn *pc)
 		memmove(pc->tx_buf, pc->tx_buf + ret, pc->tx_bytes);
 		iv_fd_set_handler_out(&pc->ifd, pconn_fd_handler_out);
 	}
+
+	verify_state(pc);
 
 	return 0;
 }
@@ -312,6 +439,8 @@ static void pconn_do_handshake(struct pconn *pc)
 	if (gnutls_record_check_pending(pc->sess) || pc->rx_bytes || pc->rx_eof)
 		iv_task_register(&pc->rx_task);
 
+	verify_state(pc);
+
 	pc->handshake_done(pc->cookie);
 }
 
@@ -329,16 +458,12 @@ static void pconn_do_record_recv(struct pconn *pc)
 
 	ret = gnutls_record_recv(pc->sess, buf, sizeof(buf));
 
-	if (ret == GNUTLS_E_AGAIN)
-		return;
-
-	if (ret == GNUTLS_E_REHANDSHAKE) {
-		fprintf(stderr, "received HelloRequest\n");
-		iv_task_register(&pc->rx_task);
+	if (ret == GNUTLS_E_AGAIN) {
+		verify_state(pc);
 		return;
 	}
 
-	if (ret <= 0) {
+	if ((ret < 0 && ret != GNUTLS_E_REHANDSHAKE) || ret == 0) {
 		if (ret)
 			gtls_perror("gnutls_record_recv", ret);
 		pconn_connection_abort(pc);
@@ -348,7 +473,13 @@ static void pconn_do_record_recv(struct pconn *pc)
 	if (gnutls_record_check_pending(pc->sess) || pc->rx_bytes || pc->rx_eof)
 		iv_task_register(&pc->rx_task);
 
-	pc->record_received(pc->cookie, buf, ret);
+	verify_state(pc);
+
+	if (ret == GNUTLS_E_REHANDSHAKE) {
+		fprintf(stderr, "received HelloRequest\n");
+	} else {
+		pc->record_received(pc->cookie, buf, ret);
+	}
 }
 
 static void pconn_do_record_send(struct pconn *pc)
@@ -359,8 +490,10 @@ static void pconn_do_record_send(struct pconn *pc)
 	if ((ret > 0 || ret == GNUTLS_E_AGAIN) && pconn_tx_flush(pc))
 		ret = gnutls_record_send(pc->sess, NULL, 0);
 
-	if (ret == GNUTLS_E_AGAIN)
+	if (ret == GNUTLS_E_AGAIN) {
+		verify_state(pc);
 		return;
+	}
 
 	if (ret) {
 		gtls_perror("gnutls_record_send", ret);
@@ -372,6 +505,7 @@ static void pconn_do_record_send(struct pconn *pc)
 
 	if (pc->state == STATE_TX_CONGESTION) {
 		pc->state = STATE_RUNNING;
+		verify_state(pc);
 	} else {
 		fprintf(stderr, "handle_record_send: called in state %d\n",
 			pc->state);
@@ -555,6 +689,8 @@ static int pconn_start_handshake(struct pconn *pc)
 
 	pconn_do_handshake(pc);
 
+	verify_state(pc);
+
 	return 0;
 
 err_free:
@@ -649,6 +785,8 @@ int pconn_record_send(struct pconn *pc, const uint8_t *record, int len)
 {
 	int ret;
 
+	verify_state(pc);
+
 	if (pc->state != STATE_RUNNING) {
 		fprintf(stderr, "got packet in [%d]\n", pc->state);
 		return -1;
@@ -660,6 +798,7 @@ int pconn_record_send(struct pconn *pc, const uint8_t *record, int len)
 
 	if (ret == GNUTLS_E_AGAIN) {
 		pc->state = STATE_TX_CONGESTION;
+		verify_state(pc);
 	} else if (ret < 0) {
 		gtls_perror("gnutls_record_send", ret);
 		pconn_connection_abort(pc);
@@ -672,6 +811,8 @@ int pconn_record_send(struct pconn *pc, const uint8_t *record, int len)
 
 void pconn_destroy(struct pconn *pc)
 {
+	verify_state(pc);
+
 	gnutls_deinit(pc->sess);
 
 	gnutls_certificate_free_credentials(pc->cert);
