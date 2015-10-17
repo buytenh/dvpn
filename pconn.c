@@ -180,7 +180,6 @@ pconn_gtls_push_func(gnutls_transport_ptr_t _pc, const void *buf, size_t len)
 	struct pconn *pc = _pc;
 	int copied;
 	int tocopy;
-	int ret;
 
 	if (pc->io_error) {
 		gnutls_transport_set_errno(pc->sess, pc->io_error);
@@ -205,32 +204,33 @@ again:
 	buf += tocopy;
 	len -= tocopy;
 
-	if (pc->ifd.handler_out != NULL || pc->tx_bytes < sizeof(pc->tx_buf))
-		return copied;
+	if (pc->ifd.handler_out == NULL && pc->tx_bytes == sizeof(pc->tx_buf)) {
+		int ret;
 
-	do {
-		ret = send(pc->ifd.fd, pc->tx_buf, pc->tx_bytes, 0);
-	} while (ret < 0 && errno == EINTR);
+		do {
+			ret = send(pc->ifd.fd, pc->tx_buf, pc->tx_bytes, 0);
+		} while (ret < 0 && errno == EINTR);
 
-	if (ret < 0 && errno != EAGAIN) {
-		pc->io_error = errno;
-		gnutls_transport_set_errno(pc->sess, errno);
-		return -1;
-	}
-
-	if (ret > 0) {
-		pc->tx_bytes -= ret;
-		if (pc->tx_bytes) {
-			memmove(pc->tx_buf, pc->tx_buf + ret,
-				pc->tx_bytes);
+		if (ret < 0 && errno != EAGAIN) {
+			pc->io_error = errno;
+			gnutls_transport_set_errno(pc->sess, errno);
+			return -1;
 		}
+
+		if (ret > 0) {
+			pc->tx_bytes -= ret;
+			if (pc->tx_bytes) {
+				memmove(pc->tx_buf, pc->tx_buf + ret,
+					pc->tx_bytes);
+			}
+		}
+
+		if (pc->tx_bytes)
+			iv_fd_set_handler_out(&pc->ifd, pconn_fd_handler_out);
+
+		if (len && pc->tx_bytes < sizeof(pc->tx_buf))
+			goto again;
 	}
-
-	if (pc->tx_bytes)
-		iv_fd_set_handler_out(&pc->ifd, pconn_fd_handler_out);
-
-	if (len && pc->tx_bytes < sizeof(pc->tx_buf))
-		goto again;
 
 	return copied;
 }
