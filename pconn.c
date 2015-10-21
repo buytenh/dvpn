@@ -79,6 +79,16 @@ static int verify_state_pollout(struct pconn *pc)
 	if (!pc->tx_bytes)
 		return 0;
 
+	/*
+	 * We shouldn't schedule POLLOUT until we have seen a partial
+	 * write (or EAGAIN) on this socket, but we don't keep track of
+	 * having seen partial writes, so we will sometimes get false
+	 * positive errors here, where verify_state() will complain that
+	 * a POLLOUT handler should be registered while there isn't, and
+	 * the reason for that being that we haven't seen a partial
+	 * write yet.
+	 */
+
 	return 1;
 }
 
