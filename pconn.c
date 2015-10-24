@@ -806,15 +806,18 @@ int pconn_record_send(struct pconn *pc, const uint8_t *record, int len)
 	if ((ret > 0 || ret == GNUTLS_E_AGAIN) && pconn_tx_flush(pc))
 		ret = gnutls_record_send(pc->sess, NULL, 0);
 
-	if (ret == GNUTLS_E_AGAIN) {
-		pc->state = STATE_TX_CONGESTION;
-		verify_state(pc);
-	} else if (ret < 0) {
+	if (ret < 0 && ret != GNUTLS_E_AGAIN) {
 		gtls_perror("gnutls_record_send", ret);
 		pconn_connection_abort(pc);
+		return -1;
 	}
 
+	if (ret == GNUTLS_E_AGAIN)
+		pc->state = STATE_TX_CONGESTION;
+
 	// @@@ handle fewer bytes having been sent than passed in
+
+	verify_state(pc);
 
 	return 0;
 }
