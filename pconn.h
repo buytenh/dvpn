@@ -40,7 +40,6 @@ struct pconn {
 	struct iv_fd		ifd;
 	gnutls_certificate_credentials_t cert;
 	int			state;
-	struct iv_timer		handshake_timeout;
 
 	int			io_error;
 	struct iv_task		rx_task;

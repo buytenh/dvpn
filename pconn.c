@@ -19,16 +19,18 @@
 
 /*
  * TODO:
+ * - implement rx_start/rx_end to avoid memmoves
+ * - certificate caching
  * - use state validation functions to enforce all state machine transitions
- * - proper flow control handling
- * - graceful connection shutdown
- * - work out state machine for shutdown and renegotiation
- * - add error passing to ->connection_lost()
  * - byte/time limits, renegotiation
+ *   - work out state machine for renegotiation
  *   - limit min (limit at which we'll accept a remote reneg)
  *   - limit soft (initiate a reneg at this point)
  *   - limit hard (close the connection if this limit is exceeded)
- * - implement rx_start/rx_end to avoid memmoves
+ * - add error passing to ->connection_lost()
+ * - proper flow control handling
+ * - graceful connection shutdown
+ *   - work out state machine for shutdown
  */
 
 #include <stdio.h>
@@ -418,9 +420,6 @@ static void pconn_connection_abort(struct pconn *pc)
 
 	pc->state = STATE_DEAD;
 
-	if (iv_timer_registered(&pc->handshake_timeout))
-		iv_timer_unregister(&pc->handshake_timeout);
-
 	if (iv_task_registered(&pc->rx_task))
 		iv_task_unregister(&pc->rx_task);
 
@@ -450,21 +449,12 @@ static void pconn_do_handshake(struct pconn *pc)
 
 	pc->state = STATE_RUNNING;
 
-	iv_timer_unregister(&pc->handshake_timeout);
-
 	if (gnutls_record_check_pending(pc->sess) || pc->rx_bytes || pc->rx_eof)
 		iv_task_register(&pc->rx_task);
 
 	verify_state(pc);
 
 	pc->handshake_done(pc->cookie);
-}
-
-static void pconn_handshake_timeout(void *_pc)
-{
-	struct pconn *pc = _pc;
-
-	pconn_connection_abort(pc);
 }
 
 static void pconn_do_record_recv(struct pconn *pc)
@@ -699,11 +689,6 @@ static int pconn_start_handshake(struct pconn *pc)
 
 	pc->state = STATE_HANDSHAKE;
 
-	iv_validate_now();
-	pc->handshake_timeout.expires = iv_now;
-	pc->handshake_timeout.expires.tv_sec += 10;
-	iv_timer_register(&pc->handshake_timeout);
-
 	pconn_do_handshake(pc);
 
 	verify_state(pc);
@@ -767,10 +752,6 @@ int pconn_start(struct pconn *pc)
 	pc->ifd.cookie = pc;
 	pc->ifd.handler_in = pconn_fd_handler_in;
 	iv_fd_register(&pc->ifd);
-
-	IV_TIMER_INIT(&pc->handshake_timeout);
-	pc->handshake_timeout.cookie = pc;
-	pc->handshake_timeout.handler = pconn_handshake_timeout;
 
 	pc->io_error = 0;
 
@@ -838,9 +819,6 @@ void pconn_destroy(struct pconn *pc)
 	gnutls_certificate_free_credentials(pc->cert);
 
 	iv_fd_unregister(&pc->ifd);
-
-	if (iv_timer_registered(&pc->handshake_timeout))
-		iv_timer_unregister(&pc->handshake_timeout);
 
 	if (iv_task_registered(&pc->rx_task))
 		iv_task_unregister(&pc->rx_task);
