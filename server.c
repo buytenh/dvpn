@@ -54,6 +54,17 @@ static void printhex(const uint8_t *a, int len)
 	}
 }
 
+static void client_kill(struct client *cl, int destroy_tun)
+{
+	pconn_destroy(&cl->conn);
+	close(cl->conn.fd);
+
+	if (destroy_tun)
+		tun_interface_unregister(&cl->tun);
+
+	free(cl);
+}
+
 static int verify_key_id(void *_cl, const uint8_t *id, int len)
 {
 	fprintf(stderr, "key id: ");
@@ -69,12 +80,8 @@ static void handshake_done(void *_cl)
 
 	fprintf(stderr, "%p: handshake done\n", cl);
 
-	if (tun_interface_register(&cl->tun) < 0) {
-		pconn_destroy(&cl->conn);
-		close(cl->conn.fd);
-		free(cl);
-		return;
-	}
+	if (tun_interface_register(&cl->tun) < 0)
+		client_kill(cl, 0);
 }
 
 static void record_received(void *_cl, const uint8_t *rec, int len)
@@ -91,7 +98,8 @@ static void record_received(void *_cl, const uint8_t *rec, int len)
 	if (rlen != len + 2)
 		return;
 
-	tun_interface_send_packet(&cl->tun, rec + 2, rlen);
+	if (tun_interface_send_packet(&cl->tun, rec + 2, rlen) < 0)
+		client_kill(cl, 1);
 }
 
 static void connection_lost(void *_cl)
@@ -100,10 +108,7 @@ static void connection_lost(void *_cl)
 
 	fprintf(stderr, "%p: connection lost\n", cl);
 
-	pconn_destroy(&cl->conn);
-	close(cl->conn.fd);
-	tun_interface_unregister(&cl->tun);
-	free(cl);
+	client_kill(cl, 1);
 }
 
 static void got_packet(void *_cl, uint8_t *buf, int len)
@@ -117,7 +122,8 @@ static void got_packet(void *_cl, uint8_t *buf, int len)
 	sndbuf[1] = len & 0xff;
 	memcpy(sndbuf + 2, buf, len);
 
-	pconn_record_send(&cl->conn, sndbuf, len + 2);
+	if (pconn_record_send(&cl->conn, sndbuf, len + 2))
+		client_kill(cl, 1);
 }
 
 static void got_connection(void *_dummy)
