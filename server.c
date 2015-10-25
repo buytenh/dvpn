@@ -29,6 +29,9 @@
 #include "pconn.h"
 #include "x509.h"
 
+#define STATE_HANDSHAKE		1
+#define STATE_CONNECTED		2
+
 static int serverport = 19275;
 static const char *itfname;
 static gnutls_x509_privkey_t key;
@@ -38,6 +41,7 @@ struct iv_signal sigint;
 
 struct client
 {
+	int			state;
 	struct pconn		conn;
 	struct tun_interface	tun;
 	// @@@ add keepalive timer
@@ -54,12 +58,12 @@ static void printhex(const uint8_t *a, int len)
 	}
 }
 
-static void client_kill(struct client *cl, int destroy_tun)
+static void client_kill(struct client *cl)
 {
 	pconn_destroy(&cl->conn);
 	close(cl->conn.fd);
 
-	if (destroy_tun)
+	if (cl->state == STATE_CONNECTED)
 		tun_interface_unregister(&cl->tun);
 
 	free(cl);
@@ -80,8 +84,12 @@ static void handshake_done(void *_cl)
 
 	fprintf(stderr, "%p: handshake done\n", cl);
 
-	if (tun_interface_register(&cl->tun) < 0)
-		client_kill(cl, 0);
+	if (tun_interface_register(&cl->tun) < 0) {
+		client_kill(cl);
+		return;
+	}
+
+	cl->state = STATE_CONNECTED;
 }
 
 static void record_received(void *_cl, const uint8_t *rec, int len)
@@ -99,7 +107,7 @@ static void record_received(void *_cl, const uint8_t *rec, int len)
 		return;
 
 	if (tun_interface_send_packet(&cl->tun, rec + 2, rlen) < 0)
-		client_kill(cl, 1);
+		client_kill(cl);
 }
 
 static void connection_lost(void *_cl)
@@ -108,7 +116,7 @@ static void connection_lost(void *_cl)
 
 	fprintf(stderr, "%p: connection lost\n", cl);
 
-	client_kill(cl, 1);
+	client_kill(cl);
 }
 
 static void got_packet(void *_cl, uint8_t *buf, int len)
@@ -123,7 +131,7 @@ static void got_packet(void *_cl, uint8_t *buf, int len)
 	memcpy(sndbuf + 2, buf, len);
 
 	if (pconn_record_send(&cl->conn, sndbuf, len + 2))
-		client_kill(cl, 1);
+		client_kill(cl);
 }
 
 static void got_connection(void *_dummy)
@@ -146,6 +154,8 @@ static void got_connection(void *_dummy)
 		close(fd);
 		return;
 	}
+
+	cl->state = STATE_HANDSHAKE;
 
 	cl->conn.fd = fd;
 	cl->conn.role = PCONN_ROLE_SERVER;
