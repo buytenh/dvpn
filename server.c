@@ -29,23 +29,29 @@
 #include "pconn.h"
 #include "x509.h"
 
-#define STATE_HANDSHAKE		1
-#define STATE_CONNECTED		2
-
-static int serverport = 19275;
-static const char *itfname;
-static gnutls_x509_privkey_t key;
-
-struct iv_fd listen_fd;
-struct iv_signal sigint;
-
 struct client
 {
 	int			state;
 	struct pconn		conn;
 	struct tun_interface	tun;
-	// @@@ add keepalive timer
+	struct timespec		rx_timeout;
+	struct iv_timer		rx_timer;
+	struct timespec		tx_timeout;
+	struct iv_timer		tx_timer;
 };
+
+#define STATE_HANDSHAKE		1
+#define STATE_CONNECTED		2
+
+#define HANDSHAKE_TIMEOUT	10
+#define KEEPALIVE_INTERVAL	30
+
+static int serverport;
+static const char *itfname;
+static gnutls_x509_privkey_t key;
+
+struct iv_fd listen_fd;
+struct iv_signal sigint;
 
 static void printhex(const uint8_t *a, int len)
 {
@@ -65,6 +71,12 @@ static void client_kill(struct client *cl)
 
 	if (cl->state == STATE_CONNECTED)
 		tun_interface_unregister(&cl->tun);
+
+	if (iv_timer_registered(&cl->rx_timer))
+		iv_timer_unregister(&cl->rx_timer);
+
+	if (iv_timer_registered(&cl->tx_timer))
+		iv_timer_unregister(&cl->tx_timer);
 
 	free(cl);
 }
@@ -90,6 +102,17 @@ static void handshake_done(void *_cl)
 	}
 
 	cl->state = STATE_CONNECTED;
+
+	iv_validate_now();
+
+	cl->rx_timeout = iv_now;
+	cl->rx_timeout.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
+
+	cl->tx_timeout = iv_now;
+	cl->tx_timeout.tv_sec += KEEPALIVE_INTERVAL;
+
+	cl->tx_timer.expires = cl->tx_timeout;
+	iv_timer_register(&cl->tx_timer);
 }
 
 static void record_received(void *_cl, const uint8_t *rec, int len)
@@ -98,6 +121,10 @@ static void record_received(void *_cl, const uint8_t *rec, int len)
 	int rlen;
 
 	fprintf(stderr, "%p: record received, len = %d\n", cl, len);
+
+	iv_validate_now();
+	cl->rx_timeout = iv_now;
+	cl->rx_timeout.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
 
 	if (len < 2)
 		return;
@@ -126,11 +153,62 @@ static void got_packet(void *_cl, uint8_t *buf, int len)
 
 	fprintf(stderr, "%p: sending record, len = %d\n", cl, len + 2);
 
+	iv_validate_now();
+	cl->tx_timeout = iv_now;
+	cl->tx_timeout.tv_sec += KEEPALIVE_INTERVAL;
+
 	sndbuf[0] = len >> 8;
 	sndbuf[1] = len & 0xff;
 	memcpy(sndbuf + 2, buf, len);
 
 	if (pconn_record_send(&cl->conn, sndbuf, len + 2))
+		client_kill(cl);
+}
+
+static int timespec_lt(struct timespec *a, struct timespec *b)
+{
+	if (a->tv_sec < b->tv_sec)
+		return 1;
+
+	if (a->tv_sec == b->tv_sec && a->tv_nsec < b->tv_nsec)
+		return 1;
+
+	return 0;
+}
+
+static void rx_timeout(void *_cl)
+{
+	struct client *cl = _cl;
+
+	iv_validate_now();
+
+	if (timespec_lt(&iv_now, &cl->rx_timeout)) {
+		cl->rx_timer.expires = cl->rx_timeout;
+		iv_timer_register(&cl->rx_timer);
+		return;
+	}
+
+	fprintf(stderr, "%p: rx timeout\n", cl);
+
+	client_kill(cl);
+}
+
+static void tx_timeout(void *_cl)
+{
+	static uint8_t keepalive[] = { 0x00, 0x00 };
+	struct client *cl = _cl;
+
+	iv_validate_now();
+
+	if (timespec_lt(&iv_now, &cl->tx_timeout)) {
+		cl->tx_timer.expires = cl->tx_timeout;
+		iv_timer_register(&cl->tx_timer);
+		return;
+	}
+
+	fprintf(stderr, "%p: tx timeout\n", cl);
+
+	if (pconn_record_send(&cl->conn, keepalive, 2))
 		client_kill(cl);
 }
 
@@ -170,6 +248,23 @@ static void got_connection(void *_dummy)
 	cl->tun.itfname = itfname;
 	cl->tun.cookie = cl;
 	cl->tun.got_packet = got_packet;
+
+	iv_validate_now();
+	cl->rx_timeout = iv_now;
+	cl->tx_timeout = iv_now;
+
+	IV_TIMER_INIT(&cl->rx_timer);
+	cl->rx_timer.expires = iv_now;
+	cl->rx_timer.expires.tv_sec += HANDSHAKE_TIMEOUT;
+	cl->rx_timer.cookie = cl;
+	cl->rx_timer.handler = rx_timeout;
+	iv_timer_register(&cl->rx_timer);
+
+	IV_TIMER_INIT(&cl->tx_timer);
+	cl->tx_timer.expires = iv_now;
+	cl->tx_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	cl->tx_timer.cookie = cl;
+	cl->tx_timer.handler = tx_timeout;
 }
 
 static void got_sigint(void *_dummy)
