@@ -166,6 +166,27 @@ static void verify_state(struct pconn *pc)
 	}
 }
 
+static void got_io_error(struct pconn *pc)
+{
+	iv_fd_set_handler_in(&pc->ifd, NULL);
+	iv_fd_set_handler_out(&pc->ifd, NULL);
+
+	if (!iv_task_registered(&pc->rx_task) &&
+	    ((pc->state == STATE_HANDSHAKE &&
+	      gnutls_record_get_direction(pc->sess) == 0) ||
+	     pc->state == STATE_RUNNING ||
+	     pc->state == STATE_TX_CONGESTION)) {
+		iv_task_register(&pc->rx_task);
+	}
+
+	if (!iv_task_registered(&pc->tx_task) &&
+	    ((pc->state == STATE_HANDSHAKE &&
+	      gnutls_record_get_direction(pc->sess) == 1) ||
+	     pc->state == STATE_TX_CONGESTION)) {
+		iv_task_register(&pc->tx_task);
+	}
+}
+
 static void pconn_fd_handler_in(void *_pc)
 {
 	struct pconn *pc = _pc;
@@ -185,14 +206,7 @@ static void pconn_fd_handler_in(void *_pc)
 			else
 				pc->rx_eof = 1;
 
-			iv_fd_set_handler_in(&pc->ifd, NULL);
-			iv_fd_set_handler_out(&pc->ifd, NULL);
-
-			if (!iv_task_registered(&pc->rx_task))
-				iv_task_register(&pc->rx_task);
-
-			if (!iv_task_registered(&pc->tx_task))
-				iv_task_register(&pc->tx_task);
+			got_io_error(pc);
 		}
 
 		verify_state(pc);
@@ -268,15 +282,7 @@ static void pconn_fd_handler_out(void *_pc)
 	if (ret < 0) {
 		if (errno != EAGAIN) {
 			pc->io_error = errno;
-
-			iv_fd_set_handler_in(&pc->ifd, NULL);
-			iv_fd_set_handler_out(&pc->ifd, NULL);
-
-			if (!iv_task_registered(&pc->rx_task))
-				iv_task_register(&pc->rx_task);
-
-			if (!iv_task_registered(&pc->tx_task))
-				iv_task_register(&pc->tx_task);
+			got_io_error(pc);
 		}
 
 		verify_state(pc);
@@ -577,6 +583,7 @@ static int pconn_verify_cert(gnutls_session_t sess)
 
 	/*
 	 * TBD: @@@
+	 * - verify that key is different from our key
 	 * - verify key length
 	 * - verify that certificate signature is correct
 	 * - verify signature time validity
