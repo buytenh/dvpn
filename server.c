@@ -208,8 +208,16 @@ static void tx_timeout(void *_cl)
 
 	fprintf(stderr, "%p: tx timeout\n", cl);
 
-	if (pconn_record_send(&cl->conn, keepalive, 2))
+	if (pconn_record_send(&cl->conn, keepalive, 2)) {
 		client_kill(cl);
+		return;
+	}
+
+	cl->tx_timeout = iv_now;
+	cl->tx_timeout.tv_sec += KEEPALIVE_INTERVAL;
+
+	cl->tx_timer.expires = cl->tx_timeout;
+	iv_timer_register(&cl->tx_timer);
 }
 
 static void got_connection(void *_dummy)
