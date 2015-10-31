@@ -126,7 +126,7 @@ static void record_received(void *_cl, const uint8_t *rec, int len)
 	cl->rx_timeout = iv_now;
 	cl->rx_timeout.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
 
-	if (len < 2)
+	if (len <= 2)
 		return;
 
 	rlen = (rec[0] << 8) | rec[1];
