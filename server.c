@@ -243,7 +243,6 @@ static void got_connection(void *_dummy)
 	cl->conn.handshake_done = handshake_done;
 	cl->conn.record_received = record_received;
 	cl->conn.connection_lost = connection_lost;
-	pconn_start(&cl->conn);
 
 	cl->tun.itfname = itfname;
 	cl->tun.cookie = cl;
@@ -265,6 +264,8 @@ static void got_connection(void *_dummy)
 	cl->tx_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
 	cl->tx_timer.cookie = cl;
 	cl->tx_timer.handler = tx_timeout;
+
+	pconn_start(&cl->conn);
 }
 
 static void got_sigint(void *_dummy)
