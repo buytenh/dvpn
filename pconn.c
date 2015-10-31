@@ -426,7 +426,7 @@ static void pconn_connection_abort(struct pconn *pc)
 	if (iv_task_registered(&pc->tx_task))
 		iv_task_unregister(&pc->tx_task);
 
-	pc->connection_lost(pc);
+	pc->connection_lost(pc->cookie);
 }
 
 static void pconn_do_handshake(struct pconn *pc)
