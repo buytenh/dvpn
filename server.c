@@ -34,8 +34,8 @@ struct client
 	int			state;
 	struct pconn		conn;
 	struct tun_interface	tun;
-	struct iv_timer		rx_timer;
-	struct iv_timer		tx_timer;
+	struct iv_timer		rx_timeout;
+	struct iv_timer		keepalive_timer;
 };
 
 #define STATE_HANDSHAKE		1
@@ -70,11 +70,11 @@ static void client_kill(struct client *cl)
 	if (cl->state == STATE_CONNECTED)
 		tun_interface_unregister(&cl->tun);
 
-	if (iv_timer_registered(&cl->rx_timer))
-		iv_timer_unregister(&cl->rx_timer);
+	if (iv_timer_registered(&cl->rx_timeout))
+		iv_timer_unregister(&cl->rx_timeout);
 
-	if (iv_timer_registered(&cl->tx_timer))
-		iv_timer_unregister(&cl->tx_timer);
+	if (iv_timer_registered(&cl->keepalive_timer))
+		iv_timer_unregister(&cl->keepalive_timer);
 
 	free(cl);
 }
@@ -103,14 +103,14 @@ static void handshake_done(void *_cl)
 
 	iv_validate_now();
 
-	iv_timer_unregister(&cl->rx_timer);
-	cl->rx_timer.expires = iv_now;
-	cl->rx_timer.expires.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
-	iv_timer_register(&cl->rx_timer);
+	iv_timer_unregister(&cl->rx_timeout);
+	cl->rx_timeout.expires = iv_now;
+	cl->rx_timeout.expires.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
+	iv_timer_register(&cl->rx_timeout);
 
-	cl->tx_timer.expires = iv_now;
-	cl->tx_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
-	iv_timer_register(&cl->tx_timer);
+	cl->keepalive_timer.expires = iv_now;
+	cl->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	iv_timer_register(&cl->keepalive_timer);
 }
 
 static void record_received(void *_cl, const uint8_t *rec, int len)
@@ -122,10 +122,10 @@ static void record_received(void *_cl, const uint8_t *rec, int len)
 
 	iv_validate_now();
 
-	iv_timer_unregister(&cl->rx_timer);
-	cl->rx_timer.expires = iv_now;
-	cl->rx_timer.expires.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
-	iv_timer_register(&cl->rx_timer);
+	iv_timer_unregister(&cl->rx_timeout);
+	cl->rx_timeout.expires = iv_now;
+	cl->rx_timeout.expires.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
+	iv_timer_register(&cl->rx_timeout);
 
 	if (len <= 2)
 		return;
@@ -154,10 +154,10 @@ static void got_packet(void *_cl, uint8_t *buf, int len)
 
 	fprintf(stderr, "%p: sending record, len = %d\n", cl, len + 2);
 
-	iv_timer_unregister(&cl->tx_timer);
-	cl->tx_timer.expires = iv_now;
-	cl->tx_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
-	iv_timer_register(&cl->tx_timer);
+	iv_timer_unregister(&cl->keepalive_timer);
+	cl->keepalive_timer.expires = iv_now;
+	cl->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	iv_timer_register(&cl->keepalive_timer);
 
 	sndbuf[0] = len >> 8;
 	sndbuf[1] = len & 0xff;
@@ -176,12 +176,12 @@ static void rx_timeout(void *_cl)
 	client_kill(cl);
 }
 
-static void tx_timeout(void *_cl)
+static void send_keepalive(void *_cl)
 {
 	static uint8_t keepalive[] = { 0x00, 0x00 };
 	struct client *cl = _cl;
 
-	fprintf(stderr, "%p: tx timeout\n", cl);
+	fprintf(stderr, "%p: sending keepalive\n", cl);
 
 	if (pconn_record_send(&cl->conn, keepalive, 2)) {
 		client_kill(cl);
@@ -190,9 +190,9 @@ static void tx_timeout(void *_cl)
 
 	iv_validate_now();
 
-	cl->tx_timer.expires = iv_now;
-	cl->tx_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
-	iv_timer_register(&cl->tx_timer);
+	cl->keepalive_timer.expires = iv_now;
+	cl->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	iv_timer_register(&cl->keepalive_timer);
 }
 
 static void got_connection(void *_dummy)
@@ -233,16 +233,16 @@ static void got_connection(void *_dummy)
 
 	iv_validate_now();
 
-	IV_TIMER_INIT(&cl->rx_timer);
-	cl->rx_timer.expires = iv_now;
-	cl->rx_timer.expires.tv_sec += HANDSHAKE_TIMEOUT;
-	cl->rx_timer.cookie = cl;
-	cl->rx_timer.handler = rx_timeout;
-	iv_timer_register(&cl->rx_timer);
+	IV_TIMER_INIT(&cl->rx_timeout);
+	cl->rx_timeout.expires = iv_now;
+	cl->rx_timeout.expires.tv_sec += HANDSHAKE_TIMEOUT;
+	cl->rx_timeout.cookie = cl;
+	cl->rx_timeout.handler = rx_timeout;
+	iv_timer_register(&cl->rx_timeout);
 
-	IV_TIMER_INIT(&cl->tx_timer);
-	cl->tx_timer.cookie = cl;
-	cl->tx_timer.handler = tx_timeout;
+	IV_TIMER_INIT(&cl->keepalive_timer);
+	cl->keepalive_timer.cookie = cl;
+	cl->keepalive_timer.handler = send_keepalive;
 
 	pconn_start(&cl->conn);
 }
