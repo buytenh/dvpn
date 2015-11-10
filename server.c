@@ -34,9 +34,7 @@ struct client
 	int			state;
 	struct pconn		conn;
 	struct tun_interface	tun;
-	struct timespec		rx_timeout;
 	struct iv_timer		rx_timer;
-	struct timespec		tx_timeout;
 	struct iv_timer		tx_timer;
 };
 
@@ -105,13 +103,13 @@ static void handshake_done(void *_cl)
 
 	iv_validate_now();
 
-	cl->rx_timeout = iv_now;
-	cl->rx_timeout.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
+	iv_timer_unregister(&cl->rx_timer);
+	cl->rx_timer.expires = iv_now;
+	cl->rx_timer.expires.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
+	iv_timer_register(&cl->rx_timer);
 
-	cl->tx_timeout = iv_now;
-	cl->tx_timeout.tv_sec += KEEPALIVE_INTERVAL;
-
-	cl->tx_timer.expires = cl->tx_timeout;
+	cl->tx_timer.expires = iv_now;
+	cl->tx_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
 	iv_timer_register(&cl->tx_timer);
 }
 
@@ -123,8 +121,11 @@ static void record_received(void *_cl, const uint8_t *rec, int len)
 	fprintf(stderr, "%p: record received, len = %d\n", cl, len);
 
 	iv_validate_now();
-	cl->rx_timeout = iv_now;
-	cl->rx_timeout.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
+
+	iv_timer_unregister(&cl->rx_timer);
+	cl->rx_timer.expires = iv_now;
+	cl->rx_timer.expires.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
+	iv_timer_register(&cl->rx_timer);
 
 	if (len <= 2)
 		return;
@@ -153,9 +154,10 @@ static void got_packet(void *_cl, uint8_t *buf, int len)
 
 	fprintf(stderr, "%p: sending record, len = %d\n", cl, len + 2);
 
-	iv_validate_now();
-	cl->tx_timeout = iv_now;
-	cl->tx_timeout.tv_sec += KEEPALIVE_INTERVAL;
+	iv_timer_unregister(&cl->tx_timer);
+	cl->tx_timer.expires = iv_now;
+	cl->tx_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	iv_timer_register(&cl->tx_timer);
 
 	sndbuf[0] = len >> 8;
 	sndbuf[1] = len & 0xff;
@@ -165,28 +167,9 @@ static void got_packet(void *_cl, uint8_t *buf, int len)
 		client_kill(cl);
 }
 
-static int timespec_lt(struct timespec *a, struct timespec *b)
-{
-	if (a->tv_sec < b->tv_sec)
-		return 1;
-
-	if (a->tv_sec == b->tv_sec && a->tv_nsec < b->tv_nsec)
-		return 1;
-
-	return 0;
-}
-
 static void rx_timeout(void *_cl)
 {
 	struct client *cl = _cl;
-
-	iv_validate_now();
-
-	if (timespec_lt(&iv_now, &cl->rx_timeout)) {
-		cl->rx_timer.expires = cl->rx_timeout;
-		iv_timer_register(&cl->rx_timer);
-		return;
-	}
 
 	fprintf(stderr, "%p: rx timeout\n", cl);
 
@@ -198,14 +181,6 @@ static void tx_timeout(void *_cl)
 	static uint8_t keepalive[] = { 0x00, 0x00 };
 	struct client *cl = _cl;
 
-	iv_validate_now();
-
-	if (timespec_lt(&iv_now, &cl->tx_timeout)) {
-		cl->tx_timer.expires = cl->tx_timeout;
-		iv_timer_register(&cl->tx_timer);
-		return;
-	}
-
 	fprintf(stderr, "%p: tx timeout\n", cl);
 
 	if (pconn_record_send(&cl->conn, keepalive, 2)) {
@@ -213,10 +188,10 @@ static void tx_timeout(void *_cl)
 		return;
 	}
 
-	cl->tx_timeout = iv_now;
-	cl->tx_timeout.tv_sec += KEEPALIVE_INTERVAL;
+	iv_validate_now();
 
-	cl->tx_timer.expires = cl->tx_timeout;
+	cl->tx_timer.expires = iv_now;
+	cl->tx_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
 	iv_timer_register(&cl->tx_timer);
 }
 
@@ -257,8 +232,6 @@ static void got_connection(void *_dummy)
 	cl->tun.got_packet = got_packet;
 
 	iv_validate_now();
-	cl->rx_timeout = iv_now;
-	cl->tx_timeout = iv_now;
 
 	IV_TIMER_INIT(&cl->rx_timer);
 	cl->rx_timer.expires = iv_now;
@@ -268,8 +241,6 @@ static void got_connection(void *_dummy)
 	iv_timer_register(&cl->rx_timer);
 
 	IV_TIMER_INIT(&cl->tx_timer);
-	cl->tx_timer.expires = iv_now;
-	cl->tx_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
 	cl->tx_timer.cookie = cl;
 	cl->tx_timer.handler = tx_timeout;
 
