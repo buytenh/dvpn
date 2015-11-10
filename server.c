@@ -56,9 +56,9 @@ static void printhex(const uint8_t *a, int len)
 	int i;
 
 	for (i = 0; i < len; i++) {
-		fprintf(stderr, "%.2x", a[i]);
+		printf("%.2x", a[i]);
 		if (i < len - 1)
-			fprintf(stderr, ":");
+			printf(":");
 	}
 }
 
@@ -81,9 +81,9 @@ static void client_kill(struct client *cl)
 
 static int verify_key_id(void *_cl, const uint8_t *id, int len)
 {
-	fprintf(stderr, "key id: ");
+	printf("key id: ");
 	printhex(id, len);
-	fprintf(stderr, "\n");
+	printf("\n");
 
 	return 0;
 }
