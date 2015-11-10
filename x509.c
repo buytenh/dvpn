@@ -145,10 +145,6 @@ int x509_generate_cert(gnutls_x509_crt_t *crt, gnutls_x509_privkey_t key)
 	if (ret < 0)
 		goto err_free_pub;
 
-	/*
-	 * @@@ FIXME: this leaks memory on gnutls 3.3.18 (8 bytes
-	 * per call on x86_64).
-	 */
 	ret = gnutls_pubkey_get_preferred_hash_algorithm(pubkey, &dig, NULL);
 	if (ret < 0)
 		goto err_free_pub;
