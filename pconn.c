@@ -392,8 +392,6 @@ static int pconn_tx_flush(struct pconn *pc)
 
 		pc->io_error = errno;
 
-		verify_state(pc);
-
 		return 1;
 	}
 
