@@ -131,7 +131,7 @@ static void record_received(void *_cl, const uint8_t *rec, int len)
 		return;
 
 	rlen = (rec[0] << 8) | rec[1];
-	if (rlen != len + 2)
+	if (rlen + 2 != len)
 		return;
 
 	if (tun_interface_send_packet(&cl->tun, rec + 2, rlen) < 0)
