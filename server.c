@@ -197,7 +197,7 @@ static void send_keepalive(void *_cl)
 
 static void got_connection(void *_dummy)
 {
-	struct sockaddr_in addr;
+	struct sockaddr_in6 addr;
 	socklen_t addrlen;
 	int fd;
 	struct client *cl;
@@ -260,7 +260,7 @@ static void got_sigint(void *_dummy)
 int main(void)
 {
 	int fd;
-	struct sockaddr_in addr;
+	struct sockaddr_in6 addr;
 	int yes;
 
 	gnutls_global_init();
@@ -272,15 +272,17 @@ int main(void)
 	if (x509_read_privkey(&key, "server.key") < 0)
 		return 1;
 
-	fd = socket(PF_INET, SOCK_STREAM, 0);
+	fd = socket(PF_INET6, SOCK_STREAM, 0);
 	if (fd < 0) {
 		perror("socket");
 		return 1;
 	}
 
-	addr.sin_family = AF_INET;
-	addr.sin_port = htons(serverport);
-	addr.sin_addr.s_addr = INADDR_ANY;
+	addr.sin6_family = AF_INET6;
+	addr.sin6_port = htons(serverport);
+	addr.sin6_flowinfo = 0;
+	addr.sin6_addr = in6addr_any;
+	addr.sin6_scope_id = 0;
 	if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 		perror("bind");
 		return 1;
