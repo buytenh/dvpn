@@ -154,6 +154,8 @@ static void got_packet(void *_cl, uint8_t *buf, int len)
 
 	fprintf(stderr, "%p: sending record, len = %d\n", cl, len + 2);
 
+	iv_validate_now();
+
 	iv_timer_unregister(&cl->keepalive_timer);
 	cl->keepalive_timer.expires = iv_now;
 	cl->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
