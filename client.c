@@ -96,10 +96,10 @@ static void send_keepalive(void *_sc)
 	if (sc->state != STATE_CONNECTED)
 		abort();
 
-	iv_validate_now();
-
 	if (pconn_record_send(&sc->pconn, keepalive, 2)) {
 		sc->state = STATE_WAITING_RETRY;
+
+		iv_validate_now();
 
 		iv_timer_unregister(&sc->rx_timeout);
 		sc->rx_timeout.expires = iv_now;
@@ -112,7 +112,6 @@ static void send_keepalive(void *_sc)
 		return;
 	}
 
-	sc->keepalive_timer.expires = iv_now;
 	sc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
 	iv_timer_register(&sc->keepalive_timer);
 }
