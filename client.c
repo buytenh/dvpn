@@ -45,8 +45,8 @@ struct server_conn
 	gnutls_x509_privkey_t	key;
 
 	int			state;
-	struct iv_timer		rx_timeout;
 	struct tun_interface	tun;
+	struct iv_timer		rx_timeout;
 	union {
 		struct {
 			struct addrinfo		hints;
@@ -432,17 +432,17 @@ static int server_conn_register(struct server_conn *sc)
 {
 	sc->state = STATE_RESOLVE;
 
-	IV_TIMER_INIT(&sc->rx_timeout);
-	iv_validate_now();
-	sc->rx_timeout.expires = iv_now;
-	sc->rx_timeout.cookie = sc;
-	sc->rx_timeout.handler = rx_timeout_expired;
-
 	sc->tun.itfname = sc->itf;
 	sc->tun.cookie = sc;
 	sc->tun.got_packet = got_packet;
 	if (tun_interface_register(&sc->tun) < 0)
 		return 1;
+
+	IV_TIMER_INIT(&sc->rx_timeout);
+	iv_validate_now();
+	sc->rx_timeout.expires = iv_now;
+	sc->rx_timeout.cookie = sc;
+	sc->rx_timeout.handler = rx_timeout_expired;
 
 	if (start_resolve(sc) < 0) {
 		sc->rx_timeout.expires.tv_sec += RESOLVE_TIMEOUT;
@@ -458,9 +458,9 @@ static int server_conn_register(struct server_conn *sc)
 
 static void server_conn_unregister(struct server_conn *sc)
 {
-	iv_timer_unregister(&sc->rx_timeout);
-
 	tun_interface_unregister(&sc->tun);
+
+	iv_timer_unregister(&sc->rx_timeout);
 
 	if (sc->state == STATE_RESOLVE) {
 		iv_getaddrinfo_cancel(&sc->addrinfo);
