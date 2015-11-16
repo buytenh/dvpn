@@ -222,8 +222,7 @@ static void connect_done(void *_sc)
 	if (ret == EINPROGRESS)
 		return;
 
-	if (iv_timer_registered(&sc->rx_timeout))
-		iv_timer_unregister(&sc->rx_timeout);
+	iv_timer_unregister(&sc->rx_timeout);
 
 	if (iv_fd_registered(&sc->connectfd))
 		iv_fd_unregister(&sc->connectfd);
