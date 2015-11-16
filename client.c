@@ -458,8 +458,7 @@ static int server_conn_register(struct server_conn *sc)
 
 static void server_conn_unregister(struct server_conn *sc)
 {
-	if (iv_timer_registered(&sc->rx_timeout))
-		iv_timer_unregister(&sc->rx_timeout);
+	iv_timer_unregister(&sc->rx_timeout);
 
 	tun_interface_unregister(&sc->tun);
 
