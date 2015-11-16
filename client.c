@@ -473,8 +473,7 @@ static void server_conn_unregister(struct server_conn *sc)
 	} else if (sc->state == STATE_CONNECTED) {
 		pconn_destroy(&sc->pconn);
 		close(sc->pconn.fd);
-		if (iv_timer_registered(&sc->keepalive_timer))
-			iv_timer_unregister(&sc->keepalive_timer);
+		iv_timer_unregister(&sc->keepalive_timer);
 	} else if (sc->state == STATE_WAITING_RETRY) {
 	} else {
 		abort();
