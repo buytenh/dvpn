@@ -119,17 +119,81 @@ static void send_keepalive(void *_sc)
 
 static void handshake_done(void *_sc)
 {
+	struct server_conn *sc = _sc;
+
 	fprintf(stderr, "handshake_done\n");
+
+	sc->state = STATE_CONNECTED;
+
+	iv_validate_now();
+
+	iv_timer_unregister(&sc->rx_timeout);
+	sc->rx_timeout.expires = iv_now;
+	sc->rx_timeout.expires.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
+	iv_timer_register(&sc->rx_timeout);
+
+	sc->keepalive_timer.expires = iv_now;
+	sc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	iv_timer_register(&sc->keepalive_timer);
 }
 
 static void record_received(void *_sc, const uint8_t *rec, int len)
 {
-	fprintf(stderr, "record_received\n");
+	struct server_conn *sc = _sc;
+	int rlen;
+
+	fprintf(stderr, "record_received, len = %d\n", len);
+
+	iv_validate_now();
+
+	iv_timer_unregister(&sc->rx_timeout);
+	sc->rx_timeout.expires = iv_now;
+
+	if (len <= 2)
+		goto out;
+
+	rlen = (rec[0] << 8) | rec[1];
+	if (rlen + 2 != len)
+		goto out;
+
+	if (tun_interface_send_packet(&sc->tun, rec + 2, rlen) < 0) {
+		sc->state = STATE_WAITING_RETRY;
+
+		sc->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
+		iv_timer_register(&sc->rx_timeout);
+
+		pconn_destroy(&sc->pconn);
+		close(sc->pconn.fd);
+
+		iv_timer_unregister(&sc->keepalive_timer);
+
+		return;
+	}
+
+out:
+	sc->rx_timeout.expires.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
+	iv_timer_register(&sc->rx_timeout);
 }
 
 static void connection_lost(void *_sc)
 {
+	struct server_conn *sc = _sc;
+
 	fprintf(stderr, "connection_lost\n");
+
+	sc->state = STATE_WAITING_RETRY;
+
+	iv_validate_now();
+
+	iv_timer_unregister(&sc->rx_timeout);
+	sc->rx_timeout.expires = iv_now;
+	sc->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
+	iv_timer_register(&sc->rx_timeout);
+
+	pconn_destroy(&sc->pconn);
+	close(sc->pconn.fd);
+
+	iv_timer_unregister(&sc->keepalive_timer);
 }
 
 static void connect_done(void *_sc)
@@ -250,7 +314,39 @@ err:
 
 static void got_packet(void *_sc, uint8_t *buf, int len)
 {
-	fprintf(stderr, "got_packet\n");
+	struct server_conn *sc = _sc;
+	uint8_t sndbuf[len + 2];
+
+	if (sc->state != STATE_CONNECTED)
+		return;
+
+	fprintf(stderr, "sending record, len = %d\n", len + 2);
+
+	iv_timer_unregister(&sc->keepalive_timer);
+
+	sndbuf[0] = len >> 8;
+	sndbuf[1] = len & 0xff;
+	memcpy(sndbuf + 2, buf, len);
+
+	iv_validate_now();
+
+	if (pconn_record_send(&sc->pconn, sndbuf, len + 2)) {
+		pconn_destroy(&sc->pconn);
+		close(sc->pconn.fd);
+
+		sc->state = STATE_WAITING_RETRY;
+
+		iv_timer_unregister(&sc->rx_timeout);
+		sc->rx_timeout.expires = iv_now;
+		sc->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
+		iv_timer_register(&sc->rx_timeout);
+
+		return;
+	}
+
+	sc->keepalive_timer.expires = iv_now;
+	sc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	iv_timer_register(&sc->keepalive_timer);
 }
 
 static void rx_timeout_expired(void *_sc)
