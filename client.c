@@ -53,7 +53,7 @@ struct server_conn
 			struct iv_getaddrinfo	addrinfo;
 		};
 		struct {
-			struct iv_fd		connfd;
+			struct iv_fd		connectfd;
 		};
 		struct {
 			struct pconn		pconn;
@@ -209,7 +209,7 @@ static void connection_lost(void *_sc)
 static void connect_done(void *_sc)
 {
 	struct server_conn *sc = _sc;
-	int fd = sc->connfd.fd;
+	int fd = sc->connectfd.fd;
 	socklen_t len;
 	int ret;
 
@@ -225,8 +225,8 @@ static void connect_done(void *_sc)
 	if (iv_timer_registered(&sc->rx_timeout))
 		iv_timer_unregister(&sc->rx_timeout);
 
-	if (iv_fd_registered(&sc->connfd))
-		iv_fd_unregister(&sc->connfd);
+	if (iv_fd_registered(&sc->connectfd))
+		iv_fd_unregister(&sc->connectfd);
 
 	iv_validate_now();
 
@@ -298,10 +298,10 @@ static void resolve_complete(void *_sc, int rc, struct addrinfo *res)
 
 	sc->state = STATE_CONNECT;
 
-	IV_FD_INIT(&sc->connfd);
-	sc->connfd.fd = fd;
-	sc->connfd.cookie = sc;
-	sc->connfd.handler_out = connect_done;
+	IV_FD_INIT(&sc->connectfd);
+	sc->connectfd.fd = fd;
+	sc->connectfd.cookie = sc;
+	sc->connectfd.handler_out = connect_done;
 
 	if (ret == 0) {
 		connect_done(sc);
@@ -313,7 +313,7 @@ static void resolve_complete(void *_sc, int rc, struct addrinfo *res)
 		sc->rx_timeout.expires.tv_sec += CONNECT_TIMEOUT;
 		iv_timer_register(&sc->rx_timeout);
 
-		iv_fd_register(&sc->connfd);
+		iv_fd_register(&sc->connectfd);
 	}
 
 	return;
@@ -410,8 +410,8 @@ static void rx_timeout_expired(void *_sc)
 		if (sc->state == STATE_RESOLVE) {
 			iv_getaddrinfo_cancel(&sc->addrinfo);
 		} else if (sc->state == STATE_CONNECT) {
-			iv_fd_unregister(&sc->connfd);
-			close(sc->connfd.fd);
+			iv_fd_unregister(&sc->connectfd);
+			close(sc->connectfd.fd);
 		} else if (sc->state == STATE_TLS_HANDSHAKE) {
 			pconn_destroy(&sc->pconn);
 			close(sc->pconn.fd);
@@ -467,8 +467,8 @@ static void server_conn_unregister(struct server_conn *sc)
 	if (sc->state == STATE_RESOLVE) {
 		iv_getaddrinfo_cancel(&sc->addrinfo);
 	} else if (sc->state == STATE_CONNECT) {
-		iv_fd_unregister(&sc->connfd);
-		close(sc->connfd.fd);
+		iv_fd_unregister(&sc->connectfd);
+		close(sc->connectfd.fd);
 	} else if (sc->state == STATE_TLS_HANDSHAKE) {
 		pconn_destroy(&sc->pconn);
 		close(sc->pconn.fd);
