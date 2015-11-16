@@ -47,11 +47,19 @@ struct server_conn
 	int			state;
 	struct iv_timer		rx_timeout;
 	struct tun_interface	tun;
-	struct addrinfo		hints;
-	struct iv_getaddrinfo	addrinfo;
-	struct iv_fd		connfd;
-	struct pconn		pconn;
-	struct iv_timer		keepalive_timer;
+	union {
+		struct {
+			struct addrinfo		hints;
+			struct iv_getaddrinfo	addrinfo;
+		};
+		struct {
+			struct iv_fd		connfd;
+		};
+		struct {
+			struct pconn		pconn;
+			struct iv_timer		keepalive_timer;
+		};
+	};
 };
 
 #define STATE_RESOLVE		1
@@ -97,6 +105,9 @@ static void send_keepalive(void *_sc)
 		abort();
 
 	if (pconn_record_send(&sc->pconn, keepalive, 2)) {
+		pconn_destroy(&sc->pconn);
+		close(sc->pconn.fd);
+
 		sc->state = STATE_WAITING_RETRY;
 
 		iv_validate_now();
@@ -105,9 +116,6 @@ static void send_keepalive(void *_sc)
 		sc->rx_timeout.expires = iv_now;
 		sc->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
 		iv_timer_register(&sc->rx_timeout);
-
-		pconn_destroy(&sc->pconn);
-		close(sc->pconn.fd);
 
 		return;
 	}
@@ -131,8 +139,11 @@ static void handshake_done(void *_sc)
 	sc->rx_timeout.expires.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
 	iv_timer_register(&sc->rx_timeout);
 
+	IV_TIMER_INIT(&sc->keepalive_timer);
 	sc->keepalive_timer.expires = iv_now;
 	sc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	sc->keepalive_timer.cookie = sc;
+	sc->keepalive_timer.handler = send_keepalive;
 	iv_timer_register(&sc->keepalive_timer);
 }
 
@@ -156,15 +167,15 @@ static void record_received(void *_sc, const uint8_t *rec, int len)
 		goto out;
 
 	if (tun_interface_send_packet(&sc->tun, rec + 2, rlen) < 0) {
-		sc->state = STATE_WAITING_RETRY;
-
-		sc->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
-		iv_timer_register(&sc->rx_timeout);
-
 		pconn_destroy(&sc->pconn);
 		close(sc->pconn.fd);
 
 		iv_timer_unregister(&sc->keepalive_timer);
+
+		sc->state = STATE_WAITING_RETRY;
+
+		sc->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
+		iv_timer_register(&sc->rx_timeout);
 
 		return;
 	}
@@ -180,6 +191,11 @@ static void connection_lost(void *_sc)
 
 	fprintf(stderr, "connection_lost\n");
 
+	pconn_destroy(&sc->pconn);
+	close(sc->pconn.fd);
+
+	iv_timer_unregister(&sc->keepalive_timer);
+
 	sc->state = STATE_WAITING_RETRY;
 
 	iv_validate_now();
@@ -188,21 +204,17 @@ static void connection_lost(void *_sc)
 	sc->rx_timeout.expires = iv_now;
 	sc->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
 	iv_timer_register(&sc->rx_timeout);
-
-	pconn_destroy(&sc->pconn);
-	close(sc->pconn.fd);
-
-	iv_timer_unregister(&sc->keepalive_timer);
 }
 
 static void connect_done(void *_sc)
 {
 	struct server_conn *sc = _sc;
+	int fd = sc->connfd.fd;
 	socklen_t len;
 	int ret;
 
 	len = sizeof(ret);
-	if (getsockopt(sc->connfd.fd, SOL_SOCKET, SO_ERROR, &ret, &len) < 0) {
+	if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &ret, &len) < 0) {
 		perror("connect_done,getsockopt(SO_ERROR)");
 		return;
 	}
@@ -222,7 +234,7 @@ static void connect_done(void *_sc)
 
 	if (ret) {
 		fprintf(stderr, "connect: %s\n", strerror(ret));
-		close(sc->connfd.fd);
+		close(fd);
 
 		fprintf(stderr, "retrying in %d seconds\n", RETRY_WAIT_TIME);
 
@@ -232,10 +244,17 @@ static void connect_done(void *_sc)
 	} else {
 		sc->state = STATE_TLS_HANDSHAKE;
 
-		sc->pconn.fd = sc->connfd.fd;
-		pconn_start(&sc->pconn);
-
 		sc->rx_timeout.expires.tv_sec += HANDSHAKE_TIMEOUT;
+
+		sc->pconn.fd = fd;
+		sc->pconn.role = PCONN_ROLE_CLIENT;
+		sc->pconn.key = sc->key;
+		sc->pconn.cookie = sc;
+		sc->pconn.verify_key_id = verify_key_id;
+		sc->pconn.handshake_done = handshake_done;
+		sc->pconn.record_received = record_received;
+		sc->pconn.connection_lost = connection_lost;
+		pconn_start(&sc->pconn);
 	}
 
 	iv_timer_register(&sc->rx_timeout);
@@ -278,7 +297,11 @@ static void resolve_complete(void *_sc, int rc, struct addrinfo *res)
 	freeaddrinfo(res);
 
 	sc->state = STATE_CONNECT;
+
+	IV_FD_INIT(&sc->connfd);
 	sc->connfd.fd = fd;
+	sc->connfd.cookie = sc;
+	sc->connfd.handler_out = connect_done;
 
 	if (ret == 0) {
 		connect_done(sc);
@@ -309,6 +332,25 @@ err:
 	sc->rx_timeout.expires = iv_now;
 	sc->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
 	iv_timer_register(&sc->rx_timeout);
+}
+
+static int start_resolve(struct server_conn *sc)
+{
+	if (sc->state != STATE_RESOLVE)
+		abort();
+
+	sc->hints.ai_family = PF_UNSPEC;
+	sc->hints.ai_socktype = SOCK_STREAM;
+	sc->hints.ai_protocol = 0;
+	sc->hints.ai_flags = AI_ADDRCONFIG | AI_V4MAPPED | AI_NUMERICSERV;
+
+	sc->addrinfo.node = sc->server;
+	sc->addrinfo.service = sc->port;
+	sc->addrinfo.hints = &sc->hints;
+	sc->addrinfo.cookie = sc;
+	sc->addrinfo.handler = resolve_complete;
+
+	return iv_getaddrinfo_submit(&sc->addrinfo);
 }
 
 static void got_packet(void *_sc, uint8_t *buf, int len)
@@ -357,11 +399,12 @@ static void rx_timeout_expired(void *_sc)
 	sc->rx_timeout.expires = iv_now;
 
 	if (sc->state == STATE_WAITING_RETRY) {
-		if (iv_getaddrinfo_submit(&sc->addrinfo) < 0) {
-			sc->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
-		} else {
-			sc->state = STATE_RESOLVE;
+		sc->state = STATE_RESOLVE;
+		if (start_resolve(sc) == 0) {
 			sc->rx_timeout.expires.tv_sec += RESOLVE_TIMEOUT;
+		} else {
+			sc->state = STATE_WAITING_RETRY;
+			sc->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
 		}
 	} else {
 		if (sc->state == STATE_RESOLVE) {
@@ -393,51 +436,23 @@ static int server_conn_register(struct server_conn *sc)
 	IV_TIMER_INIT(&sc->rx_timeout);
 	iv_validate_now();
 	sc->rx_timeout.expires = iv_now;
-	sc->rx_timeout.expires.tv_sec += RESOLVE_TIMEOUT;
 	sc->rx_timeout.cookie = sc;
 	sc->rx_timeout.handler = rx_timeout_expired;
-	iv_timer_register(&sc->rx_timeout);
 
 	sc->tun.itfname = sc->itf;
 	sc->tun.cookie = sc;
 	sc->tun.got_packet = got_packet;
-	if (tun_interface_register(&sc->tun) < 0) {
-		iv_timer_unregister(&sc->rx_timeout);
+	if (tun_interface_register(&sc->tun) < 0)
 		return 1;
+
+	if (start_resolve(sc) < 0) {
+		sc->rx_timeout.expires.tv_sec += RESOLVE_TIMEOUT;
+	} else {
+		sc->state = STATE_WAITING_RETRY;
+		sc->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
 	}
 
-	sc->hints.ai_family = PF_UNSPEC;
-	sc->hints.ai_socktype = SOCK_STREAM;
-	sc->hints.ai_protocol = 0;
-	sc->hints.ai_flags = AI_ADDRCONFIG | AI_V4MAPPED | AI_NUMERICSERV;
-
-	sc->addrinfo.node = sc->server;
-	sc->addrinfo.service = sc->port;
-	sc->addrinfo.hints = &sc->hints;
-	sc->addrinfo.cookie = sc;
-	sc->addrinfo.handler = resolve_complete;
-	if (iv_getaddrinfo_submit(&sc->addrinfo) < 0) {
-		tun_interface_unregister(&sc->tun);
-		iv_timer_unregister(&sc->rx_timeout);
-		return 1;
-	}
-
-	IV_FD_INIT(&sc->connfd);
-	sc->connfd.cookie = sc;
-	sc->connfd.handler_out = connect_done;
-
-	sc->pconn.fd = -1;
-	sc->pconn.role = PCONN_ROLE_CLIENT;
-	sc->pconn.key = sc->key;
-	sc->pconn.cookie = sc;
-	sc->pconn.verify_key_id = verify_key_id;
-	sc->pconn.handshake_done = handshake_done;
-	sc->pconn.record_received = record_received;
-	sc->pconn.connection_lost = connection_lost;
-
-	IV_TIMER_INIT(&sc->keepalive_timer);
-	sc->keepalive_timer.cookie = sc;
-	sc->keepalive_timer.handler = send_keepalive;
+	iv_timer_register(&sc->rx_timeout);
 
 	return 0;
 }
