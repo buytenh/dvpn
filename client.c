@@ -66,7 +66,117 @@ struct server_conn
 #define KEEPALIVE_INTERVAL	30
 #define RETRY_WAIT_TIME		10
 
-static void connect_done(void *_sc);
+static void printhex(const uint8_t *a, int len)
+{
+	int i;
+
+	for (i = 0; i < len; i++) {
+		printf("%.2x", a[i]);
+		if (i < len - 1)
+			printf(":");
+	}
+}
+
+static int verify_key_id(void *_sc, const uint8_t *id, int len)
+{
+	printf("key id: ");
+	printhex(id, len);
+	printf("\n");
+
+	return 0;
+}
+
+static void send_keepalive(void *_sc)
+{
+	static uint8_t keepalive[] = { 0x00, 0x00 };
+	struct server_conn *sc = _sc;
+
+	fprintf(stderr, "sending keepalive\n");
+
+	if (sc->state != STATE_CONNECTED)
+		abort();
+
+	iv_validate_now();
+
+	if (pconn_record_send(&sc->pconn, keepalive, 2)) {
+		sc->state = STATE_WAITING_RETRY;
+
+		iv_timer_unregister(&sc->rx_timeout);
+		sc->rx_timeout.expires = iv_now;
+		sc->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
+		iv_timer_register(&sc->rx_timeout);
+
+		pconn_destroy(&sc->pconn);
+		close(sc->pconn.fd);
+
+		return;
+	}
+
+	sc->keepalive_timer.expires = iv_now;
+	sc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	iv_timer_register(&sc->keepalive_timer);
+}
+
+static void handshake_done(void *_sc)
+{
+	fprintf(stderr, "handshake_done\n");
+}
+
+static void record_received(void *_sc, const uint8_t *rec, int len)
+{
+	fprintf(stderr, "record_received\n");
+}
+
+static void connection_lost(void *_sc)
+{
+	fprintf(stderr, "connection_lost\n");
+}
+
+static void connect_done(void *_sc)
+{
+	struct server_conn *sc = _sc;
+	socklen_t len;
+	int ret;
+
+	len = sizeof(ret);
+	if (getsockopt(sc->connfd.fd, SOL_SOCKET, SO_ERROR, &ret, &len) < 0) {
+		perror("connect_done,getsockopt(SO_ERROR)");
+		return;
+	}
+
+	if (ret == EINPROGRESS)
+		return;
+
+	if (iv_timer_registered(&sc->rx_timeout))
+		iv_timer_unregister(&sc->rx_timeout);
+
+	if (iv_fd_registered(&sc->connfd))
+		iv_fd_unregister(&sc->connfd);
+
+	iv_validate_now();
+
+	sc->rx_timeout.expires = iv_now;
+
+	if (ret) {
+		fprintf(stderr, "connect: %s\n", strerror(ret));
+		close(sc->connfd.fd);
+
+		fprintf(stderr, "retrying in %d seconds\n", RETRY_WAIT_TIME);
+
+		sc->state = STATE_WAITING_RETRY;
+
+		sc->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
+	} else {
+		sc->state = STATE_TLS_HANDSHAKE;
+
+		sc->pconn.fd = sc->connfd.fd;
+		pconn_start(&sc->pconn);
+
+		sc->rx_timeout.expires.tv_sec += HANDSHAKE_TIMEOUT;
+	}
+
+	iv_timer_register(&sc->rx_timeout);
+}
 
 static void resolve_complete(void *_sc, int rc, struct addrinfo *res)
 {
@@ -138,90 +248,9 @@ err:
 	iv_timer_register(&sc->rx_timeout);
 }
 
-static void connect_done(void *_sc)
-{
-	struct server_conn *sc = _sc;
-	socklen_t len;
-	int ret;
-
-	len = sizeof(ret);
-	if (getsockopt(sc->connfd.fd, SOL_SOCKET, SO_ERROR, &ret, &len) < 0) {
-		perror("connect_done,getsockopt(SO_ERROR)");
-		return;
-	}
-
-	if (ret == EINPROGRESS)
-		return;
-
-	if (iv_timer_registered(&sc->rx_timeout))
-		iv_timer_unregister(&sc->rx_timeout);
-
-	if (iv_fd_registered(&sc->connfd))
-		iv_fd_unregister(&sc->connfd);
-
-	iv_validate_now();
-
-	sc->rx_timeout.expires = iv_now;
-
-	if (ret) {
-		fprintf(stderr, "connect: %s\n", strerror(ret));
-		close(sc->connfd.fd);
-
-		fprintf(stderr, "retrying in %d seconds\n", RETRY_WAIT_TIME);
-
-		sc->state = STATE_WAITING_RETRY;
-
-		sc->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
-	} else {
-		sc->state = STATE_TLS_HANDSHAKE;
-
-		sc->pconn.fd = sc->connfd.fd;
-		pconn_start(&sc->pconn);
-
-		sc->rx_timeout.expires.tv_sec += HANDSHAKE_TIMEOUT;
-	}
-
-	iv_timer_register(&sc->rx_timeout);
-}
-
 static void got_packet(void *_sc, uint8_t *buf, int len)
 {
 	fprintf(stderr, "got_packet\n");
-}
-
-static void printhex(const uint8_t *a, int len)
-{
-	int i;
-
-	for (i = 0; i < len; i++) {
-		printf("%.2x", a[i]);
-		if (i < len - 1)
-			printf(":");
-	}
-}
-
-static int verify_key_id(void *_sc, const uint8_t *id, int len)
-{
-	printf("key id: ");
-	printhex(id, len);
-	printf("\n");
-
-	return 0;
-}
-
-static void handshake_done(void *_sc)
-{
-	fprintf(stderr, "handshake_done\n");
-}
-
-static void record_received(void *_sc, const uint8_t *rec, int len)
-{
-	fprintf(stderr, "record_received\n");
-}
-
-static void connection_lost(void *_sc)
-{
-	fprintf(stderr, "connection_lost\n");
 }
 
 static void rx_timeout_expired(void *_sc)
@@ -260,37 +289,6 @@ static void rx_timeout_expired(void *_sc)
 	}
 
 	iv_timer_register(&sc->rx_timeout);
-}
-
-static void send_keepalive(void *_sc)
-{
-	static uint8_t keepalive[] = { 0x00, 0x00 };
-	struct server_conn *sc = _sc;
-
-	fprintf(stderr, "sending keepalive\n");
-
-	if (sc->state != STATE_CONNECTED)
-		abort();
-
-	iv_validate_now();
-
-	if (pconn_record_send(&sc->pconn, keepalive, 2)) {
-		sc->state = STATE_WAITING_RETRY;
-
-		iv_timer_unregister(&sc->rx_timeout);
-		sc->rx_timeout.expires = iv_now;
-		sc->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
-		iv_timer_register(&sc->rx_timeout);
-
-		pconn_destroy(&sc->pconn);
-		close(sc->pconn.fd);
-
-		return;
-	}
-
-	sc->keepalive_timer.expires = iv_now;
-	sc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
-	iv_timer_register(&sc->keepalive_timer);
 }
 
 static int server_conn_register(struct server_conn *sc)
