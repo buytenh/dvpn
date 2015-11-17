@@ -17,11 +17,6 @@
  * Boston, MA 02110-1301, USA.
  */
 
-/*
- * TODO:
- * - retry connections to other address families
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -216,7 +211,8 @@ static void connect_success(struct server_conn *sc, int fd)
 
 	iv_validate_now();
 
-	iv_timer_unregister(&sc->rx_timeout);
+	if (iv_timer_registered(&sc->rx_timeout))
+		iv_timer_unregister(&sc->rx_timeout);
 	sc->rx_timeout.expires = iv_now;
 	sc->rx_timeout.expires.tv_sec += HANDSHAKE_TIMEOUT;
 	iv_timer_register(&sc->rx_timeout);
@@ -266,7 +262,8 @@ static void try_connect(struct server_conn *sc)
 
 		iv_validate_now();
 
-		iv_timer_unregister(&sc->rx_timeout);
+		if (iv_timer_registered(&sc->rx_timeout))
+			iv_timer_unregister(&sc->rx_timeout);
 		sc->rx_timeout.expires = iv_now;
 		sc->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
 		iv_timer_register(&sc->rx_timeout);
@@ -279,7 +276,8 @@ static void try_connect(struct server_conn *sc)
 	} else {
 		iv_validate_now();
 
-		iv_timer_unregister(&sc->rx_timeout);
+		if (iv_timer_registered(&sc->rx_timeout))
+			iv_timer_unregister(&sc->rx_timeout);
 		sc->rx_timeout.expires = iv_now;
 		sc->rx_timeout.expires.tv_sec += CONNECT_TIMEOUT;
 		iv_timer_register(&sc->rx_timeout);
@@ -420,7 +418,13 @@ static void rx_timeout_expired(void *_sc)
 
 	sc->rx_timeout.expires = iv_now;
 
-	if (sc->state == STATE_WAITING_RETRY) {
+	if (sc->state == STATE_CONNECT) {
+		iv_fd_unregister(&sc->connectfd);
+		close(sc->connectfd.fd);
+
+		sc->rp = sc->rp->ai_next;
+		try_connect(sc);
+	} else if (sc->state == STATE_WAITING_RETRY) {
 		sc->state = STATE_RESOLVE;
 		if (start_resolve(sc) == 0) {
 			sc->rx_timeout.expires.tv_sec += RESOLVE_TIMEOUT;
@@ -428,13 +432,10 @@ static void rx_timeout_expired(void *_sc)
 			sc->state = STATE_WAITING_RETRY;
 			sc->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
 		}
+		iv_timer_register(&sc->rx_timeout);
 	} else {
 		if (sc->state == STATE_RESOLVE) {
 			iv_getaddrinfo_cancel(&sc->addrinfo);
-		} else if (sc->state == STATE_CONNECT) {
-			freeaddrinfo(sc->res);
-			iv_fd_unregister(&sc->connectfd);
-			close(sc->connectfd.fd);
 		} else if (sc->state == STATE_TLS_HANDSHAKE) {
 			pconn_destroy(&sc->pconn);
 			close(sc->pconn.fd);
@@ -447,9 +448,8 @@ static void rx_timeout_expired(void *_sc)
 
 		sc->state = STATE_WAITING_RETRY;
 		sc->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
+		iv_timer_register(&sc->rx_timeout);
 	}
-
-	iv_timer_register(&sc->rx_timeout);
 }
 
 static int server_conn_register(struct server_conn *sc)
