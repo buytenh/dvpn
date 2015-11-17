@@ -53,6 +53,8 @@ struct server_conn
 			struct iv_getaddrinfo	addrinfo;
 		};
 		struct {
+			struct addrinfo		*res;
+			struct addrinfo		*rp;
 			struct iv_fd		connectfd;
 		};
 		struct {
@@ -208,6 +210,8 @@ static void connection_lost(void *_sc)
 
 static void connect_success(struct server_conn *sc, int fd)
 {
+	freeaddrinfo(sc->res);
+
 	sc->state = STATE_TLS_HANDSHAKE;
 
 	iv_validate_now();
@@ -228,30 +232,33 @@ static void connect_success(struct server_conn *sc, int fd)
 	pconn_start(&sc->pconn);
 }
 
-static void try_connect(struct server_conn *sc, struct addrinfo *res)
+static void try_connect(struct server_conn *sc)
 {
-	struct addrinfo *rp;
 	int fd;
 	int ret;
 
-	for (rp = res; rp != NULL; rp = rp->ai_next) {
-		fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+	while (sc->rp != NULL) {
+		fd = socket(sc->rp->ai_family, sc->rp->ai_socktype,
+			    sc->rp->ai_protocol);
+
 		if (fd >= 0) {
 			fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
 
-			ret = connect(fd, rp->ai_addr, rp->ai_addrlen);
+			ret = connect(fd, sc->rp->ai_addr, sc->rp->ai_addrlen);
 			if (ret == 0 || errno == EINPROGRESS)
 				break;
 
 			perror("connect");
 			close(fd);
 		}
+
+		sc->rp = sc->rp->ai_next;
 	}
 
-	freeaddrinfo(res);
-
-	if (rp == NULL) {
+	if (sc->rp == NULL) {
 		fprintf(stderr, "error connecting\n");
+
+		freeaddrinfo(sc->res);
 
 		fprintf(stderr, "retrying in %d seconds\n", RETRY_WAIT_TIME);
 
@@ -308,16 +315,8 @@ static void connect_pollout(void *_sc)
 		fprintf(stderr, "connect: %s\n", strerror(ret));
 		close(fd);
 
-		fprintf(stderr, "retrying in %d seconds\n", RETRY_WAIT_TIME);
-
-		sc->state = STATE_WAITING_RETRY;
-
-		iv_validate_now();
-
-		iv_timer_unregister(&sc->rx_timeout);
-		sc->rx_timeout.expires = iv_now;
-		sc->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
-		iv_timer_register(&sc->rx_timeout);
+		sc->rp = sc->rp->ai_next;
+		try_connect(sc);
 	}
 }
 
@@ -330,11 +329,14 @@ static void resolve_complete(void *_sc, int rc, struct addrinfo *res)
 	if (rc == 0) {
 		sc->state = STATE_CONNECT;
 
+		sc->res = res;
+		sc->rp = res;
+
 		IV_FD_INIT(&sc->connectfd);
 		sc->connectfd.cookie = sc;
 		sc->connectfd.handler_out = connect_pollout;
 
-		try_connect(sc, res);
+		try_connect(sc);
 	} else {
 		fprintf(stderr, "resolving: %s\n", gai_strerror(rc));
 
@@ -430,6 +432,7 @@ static void rx_timeout_expired(void *_sc)
 		if (sc->state == STATE_RESOLVE) {
 			iv_getaddrinfo_cancel(&sc->addrinfo);
 		} else if (sc->state == STATE_CONNECT) {
+			freeaddrinfo(sc->res);
 			iv_fd_unregister(&sc->connectfd);
 			close(sc->connectfd.fd);
 		} else if (sc->state == STATE_TLS_HANDSHAKE) {
@@ -486,6 +489,7 @@ static void server_conn_unregister(struct server_conn *sc)
 	if (sc->state == STATE_RESOLVE) {
 		iv_getaddrinfo_cancel(&sc->addrinfo);
 	} else if (sc->state == STATE_CONNECT) {
+		freeaddrinfo(sc->res);
 		iv_fd_unregister(&sc->connectfd);
 		close(sc->connectfd.fd);
 	} else if (sc->state == STATE_TLS_HANDSHAKE) {
