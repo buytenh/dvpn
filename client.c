@@ -206,32 +206,51 @@ static void connection_lost(void *_sc)
 	iv_timer_register(&sc->rx_timeout);
 }
 
-static void connect_done(void *_sc)
+static void connect_success(struct server_conn *sc, int fd)
+{
+	sc->state = STATE_TLS_HANDSHAKE;
+
+	iv_validate_now();
+
+	iv_timer_unregister(&sc->rx_timeout);
+	sc->rx_timeout.expires = iv_now;
+	sc->rx_timeout.expires.tv_sec += HANDSHAKE_TIMEOUT;
+	iv_timer_register(&sc->rx_timeout);
+
+	sc->pconn.fd = fd;
+	sc->pconn.role = PCONN_ROLE_CLIENT;
+	sc->pconn.key = sc->key;
+	sc->pconn.cookie = sc;
+	sc->pconn.verify_key_id = verify_key_id;
+	sc->pconn.handshake_done = handshake_done;
+	sc->pconn.record_received = record_received;
+	sc->pconn.connection_lost = connection_lost;
+	pconn_start(&sc->pconn);
+}
+
+static void connect_pollout(void *_sc)
 {
 	struct server_conn *sc = _sc;
-	int fd = sc->connectfd.fd;
+	int fd;
 	socklen_t len;
 	int ret;
 
+	fd = sc->connectfd.fd;
+
 	len = sizeof(ret);
 	if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &ret, &len) < 0) {
-		perror("connect_done,getsockopt(SO_ERROR)");
+		perror("connect_pollout,getsockopt(SO_ERROR)");
 		return;
 	}
 
 	if (ret == EINPROGRESS)
 		return;
 
-	iv_timer_unregister(&sc->rx_timeout);
+	iv_fd_unregister(&sc->connectfd);
 
-	if (iv_fd_registered(&sc->connectfd))
-		iv_fd_unregister(&sc->connectfd);
-
-	iv_validate_now();
-
-	sc->rx_timeout.expires = iv_now;
-
-	if (ret) {
+	if (ret == 0) {
+		connect_success(sc, fd);
+	} else {
 		fprintf(stderr, "connect: %s\n", strerror(ret));
 		close(fd);
 
@@ -239,24 +258,13 @@ static void connect_done(void *_sc)
 
 		sc->state = STATE_WAITING_RETRY;
 
+		iv_validate_now();
+
+		iv_timer_unregister(&sc->rx_timeout);
+		sc->rx_timeout.expires = iv_now;
 		sc->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
-	} else {
-		sc->state = STATE_TLS_HANDSHAKE;
-
-		sc->rx_timeout.expires.tv_sec += HANDSHAKE_TIMEOUT;
-
-		sc->pconn.fd = fd;
-		sc->pconn.role = PCONN_ROLE_CLIENT;
-		sc->pconn.key = sc->key;
-		sc->pconn.cookie = sc;
-		sc->pconn.verify_key_id = verify_key_id;
-		sc->pconn.handshake_done = handshake_done;
-		sc->pconn.record_received = record_received;
-		sc->pconn.connection_lost = connection_lost;
-		pconn_start(&sc->pconn);
+		iv_timer_register(&sc->rx_timeout);
 	}
-
-	iv_timer_register(&sc->rx_timeout);
 }
 
 static void resolve_complete(void *_sc, int rc, struct addrinfo *res)
@@ -297,13 +305,8 @@ static void resolve_complete(void *_sc, int rc, struct addrinfo *res)
 
 	sc->state = STATE_CONNECT;
 
-	IV_FD_INIT(&sc->connectfd);
-	sc->connectfd.fd = fd;
-	sc->connectfd.cookie = sc;
-	sc->connectfd.handler_out = connect_done;
-
 	if (ret == 0) {
-		connect_done(sc);
+		connect_success(sc, fd);
 	} else {
 		iv_validate_now();
 
@@ -312,6 +315,10 @@ static void resolve_complete(void *_sc, int rc, struct addrinfo *res)
 		sc->rx_timeout.expires.tv_sec += CONNECT_TIMEOUT;
 		iv_timer_register(&sc->rx_timeout);
 
+		IV_FD_INIT(&sc->connectfd);
+		sc->connectfd.fd = fd;
+		sc->connectfd.cookie = sc;
+		sc->connectfd.handler_out = connect_pollout;
 		iv_fd_register(&sc->connectfd);
 	}
 
