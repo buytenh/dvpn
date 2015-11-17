@@ -25,8 +25,8 @@
 #include <iv_signal.h>
 #include <netdb.h>
 #include <string.h>
-#include "tun.h"
 #include "pconn.h"
+#include "tun.h"
 #include "x509.h"
 
 struct client
