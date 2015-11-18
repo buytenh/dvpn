@@ -149,8 +149,6 @@ static void record_received(void *_sc, const uint8_t *rec, int len)
 	struct server_conn *sc = _sc;
 	int rlen;
 
-	fprintf(stderr, "record_received, len = %d\n", len);
-
 	iv_validate_now();
 
 	iv_timer_unregister(&sc->rx_timeout);
@@ -381,8 +379,6 @@ static void got_packet(void *_sc, uint8_t *buf, int len)
 
 	if (sc->state != STATE_CONNECTED)
 		return;
-
-	fprintf(stderr, "sending record, len = %d\n", len + 2);
 
 	iv_timer_unregister(&sc->keepalive_timer);
 

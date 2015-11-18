@@ -118,8 +118,6 @@ static void record_received(void *_cl, const uint8_t *rec, int len)
 	struct client *cl = _cl;
 	int rlen;
 
-	fprintf(stderr, "%p: record received, len = %d\n", cl, len);
-
 	iv_validate_now();
 
 	iv_timer_unregister(&cl->rx_timeout);
@@ -151,8 +149,6 @@ static void got_packet(void *_cl, uint8_t *buf, int len)
 {
 	struct client *cl = _cl;
 	uint8_t sndbuf[len + 2];
-
-	fprintf(stderr, "%p: sending record, len = %d\n", cl, len + 2);
 
 	iv_validate_now();
 
