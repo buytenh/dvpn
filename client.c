@@ -191,7 +191,8 @@ static void connection_lost(void *_sc)
 	pconn_destroy(&sc->pconn);
 	close(sc->pconn.fd);
 
-	iv_timer_unregister(&sc->keepalive_timer);
+	if (iv_timer_registered(&sc->keepalive_timer))
+		iv_timer_unregister(&sc->keepalive_timer);
 
 	sc->state = STATE_WAITING_RETRY;
 
