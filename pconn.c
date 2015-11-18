@@ -401,8 +401,6 @@ static int pconn_tx_flush(struct pconn *pc)
 		iv_fd_set_handler_out(&pc->ifd, pconn_fd_handler_out);
 	}
 
-	verify_state(pc);
-
 	return 0;
 }
 
