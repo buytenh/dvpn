@@ -411,7 +411,7 @@ static void gtls_perror(const char *str, int error)
 	fprintf(stderr, "%s: %s\n", str, gnutls_strerror(error));
 }
 
-static void pconn_connection_abort(struct pconn *pc)
+static void pconn_connection_abort(struct pconn *pc, int notify_err)
 {
 	iv_fd_set_handler_in(&pc->ifd, NULL);
 	iv_fd_set_handler_out(&pc->ifd, NULL);
@@ -424,10 +424,11 @@ static void pconn_connection_abort(struct pconn *pc)
 	if (iv_task_registered(&pc->tx_task))
 		iv_task_unregister(&pc->tx_task);
 
-	pc->connection_lost(pc->cookie);
+	if (notify_err)
+		pc->connection_lost(pc->cookie);
 }
 
-static void pconn_do_handshake(struct pconn *pc)
+static int pconn_do_handshake(struct pconn *pc, int notify_err)
 {
 	int ret;
 
@@ -438,9 +439,10 @@ static void pconn_do_handshake(struct pconn *pc)
 	if (ret) {
 		if (ret != GNUTLS_E_AGAIN) {
 			gtls_perror("gnutls_handshake", ret);
-			pconn_connection_abort(pc);
+			pconn_connection_abort(pc, notify_err);
+			return -1;
 		}
-		return;
+		return 0;
 	}
 
 	gnutls_record_disable_padding(pc->sess);
@@ -453,6 +455,8 @@ static void pconn_do_handshake(struct pconn *pc)
 	verify_state(pc);
 
 	pc->handshake_done(pc->cookie);
+
+	return 0;
 }
 
 static void pconn_do_record_recv(struct pconn *pc)
@@ -470,7 +474,7 @@ static void pconn_do_record_recv(struct pconn *pc)
 	if ((ret < 0 && ret != GNUTLS_E_REHANDSHAKE) || ret == 0) {
 		if (ret)
 			gtls_perror("gnutls_record_recv", ret);
-		pconn_connection_abort(pc);
+		pconn_connection_abort(pc, 1);
 		return;
 	}
 
@@ -501,7 +505,7 @@ static void pconn_do_record_send(struct pconn *pc)
 
 	if (ret) {
 		gtls_perror("gnutls_record_send", ret);
-		pconn_connection_abort(pc);
+		pconn_connection_abort(pc, 1);
 		return;
 	}
 
@@ -513,7 +517,7 @@ static void pconn_do_record_send(struct pconn *pc)
 	} else {
 		fprintf(stderr, "handle_record_send: called in state %d\n",
 			pc->state);
-		pconn_connection_abort(pc);
+		pconn_connection_abort(pc, 1);
 	}
 }
 
@@ -524,7 +528,7 @@ static void pconn_rx_task_handler(void *_pc)
 	if (pc->state == STATE_HANDSHAKE &&
 	    gnutls_record_get_direction(pc->sess) == 0 &&
 	    (pc->io_error || pc->rx_bytes || pc->rx_eof)) {
-		pconn_do_handshake(pc);
+		pconn_do_handshake(pc, 1);
 		return;
 	}
 
@@ -545,7 +549,7 @@ static void pconn_tx_task_handler(void *_pc)
 	if (pc->state == STATE_HANDSHAKE &&
 	    gnutls_record_get_direction(pc->sess) == 1 &&
 	    (pc->io_error || pc->tx_bytes < sizeof(pc->tx_buf))) {
-		pconn_do_handshake(pc);
+		pconn_do_handshake(pc, 1);
 		return;
 	}
 
@@ -687,7 +691,9 @@ static int pconn_start_handshake(struct pconn *pc)
 
 	pc->state = STATE_HANDSHAKE;
 
-	pconn_do_handshake(pc);
+	ret = pconn_do_handshake(pc, 0);
+	if (ret)
+		goto err_free;
 
 	verify_state(pc);
 
@@ -794,7 +800,7 @@ int pconn_record_send(struct pconn *pc, const uint8_t *record, int len)
 
 	if (ret < 0 && ret != GNUTLS_E_AGAIN) {
 		gtls_perror("gnutls_record_send", ret);
-		pconn_connection_abort(pc);
+		pconn_connection_abort(pc, 0);
 		return -1;
 	}
 
