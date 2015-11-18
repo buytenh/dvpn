@@ -789,7 +789,9 @@ int pconn_record_send(struct pconn *pc, const uint8_t *record, int len)
 
 	verify_state(pc);
 
-	if (pc->state != STATE_RUNNING) {
+	if (pc->state == STATE_TX_CONGESTION) {
+		return 0;
+	} else if (pc->state != STATE_RUNNING) {
 		fprintf(stderr, "got packet in [%d]\n", pc->state);
 		return -1;
 	}
