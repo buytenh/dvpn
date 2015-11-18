@@ -440,6 +440,7 @@ static int pconn_do_handshake(struct pconn *pc, int notify_err)
 			pconn_connection_abort(pc, notify_err);
 			return -1;
 		}
+		verify_state(pc);
 		return 0;
 	}
 
@@ -692,8 +693,6 @@ static int pconn_start_handshake(struct pconn *pc)
 	ret = pconn_do_handshake(pc, 0);
 	if (ret)
 		goto err_free;
-
-	verify_state(pc);
 
 	return 0;
 
