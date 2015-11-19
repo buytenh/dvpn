@@ -125,7 +125,7 @@ static void handshake_done(void *_sc)
 {
 	struct server_conn *sc = _sc;
 
-	fprintf(stderr, "handshake_done\n");
+	fprintf(stderr, "handshake done\n");
 
 	sc->state = STATE_CONNECTED;
 
@@ -184,7 +184,7 @@ static void connection_lost(void *_sc)
 {
 	struct server_conn *sc = _sc;
 
-	fprintf(stderr, "connection_lost\n");
+	fprintf(stderr, "connection lost\n");
 
 	pconn_destroy(&sc->pconn);
 	close(sc->pconn.fd);
@@ -321,7 +321,7 @@ static void resolve_complete(void *_sc, int rc, struct addrinfo *res)
 {
 	struct server_conn *sc = _sc;
 
-	fprintf(stderr, "resolve_complete\n");
+	fprintf(stderr, "resolve complete\n");
 
 	if (rc == 0) {
 		sc->state = STATE_CONNECT;
