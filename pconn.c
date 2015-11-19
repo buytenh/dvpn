@@ -20,6 +20,10 @@
 /*
  * TODO:
  * - implement rx_start/rx_end to avoid memmoves
+ * - smarter receive buffering
+ *   - use a global pconn unregister counter and keep pulling records
+ *     out of the rx buffer as long as this number stays the same
+ * - smarter tx buffering, coalesce multiple packets into one sendto()?
  * - certificate caching
  * - use state validation functions to enforce all state machine transitions
  * - byte/time limits, renegotiation
@@ -27,10 +31,6 @@
  *   - limit min (limit at which we'll accept a remote reneg)
  *   - limit soft (initiate a reneg at this point)
  *   - limit hard (close the connection if this limit is exceeded)
- * - add error passing to ->connection_lost()
- * - proper flow control handling
- * - graceful connection shutdown
- *   - work out state machine for shutdown
  */
 
 #include <stdio.h>
