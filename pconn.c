@@ -57,10 +57,10 @@ static int verify_state_pollin(struct pconn *pc)
 		return 0;
 
 	/*
-	 * Don't read if our input buffer is full or if we've
+	 * Don't read if our input buffer contains data or if we've
 	 * seen EOF.
 	 */
-	if (pc->rx_end - pc->rx_start == sizeof(pc->rx_buf) || pc->rx_eof)
+	if (pc->rx_start != pc->rx_end || pc->rx_eof)
 		return 0;
 
 	return 1;
@@ -195,15 +195,14 @@ static void pconn_fd_handler_in(void *_pc)
 
 	verify_state(pc);
 
-	if (pc->rx_start) {
-		pc->rx_end -= pc->rx_start;
-		memmove(pc->rx_buf, pc->rx_buf + pc->rx_start, pc->rx_end);
-		pc->rx_start = 0;
-	}
+	if (pc->rx_start != pc->rx_end)
+		abort();
+
+	pc->rx_start = 0;
+	pc->rx_end = 0;
 
 	do {
-		ret = recv(pc->ifd.fd, pc->rx_buf + pc->rx_end,
-			   sizeof(pc->rx_buf) - pc->rx_end, 0);
+		ret = recv(pc->ifd.fd, pc->rx_buf, sizeof(pc->rx_buf), 0);
 	} while (ret < 0 && errno == EINTR);
 
 	if (ret <= 0) {
@@ -221,18 +220,16 @@ static void pconn_fd_handler_in(void *_pc)
 		return;
 	}
 
-	if (!pc->rx_end) {
-		if ((pc->state == STATE_HANDSHAKE &&
-		     gnutls_record_get_direction(pc->sess) == 0) ||
-		    pc->state == STATE_RUNNING ||
-		    pc->state == STATE_TX_CONGESTION) {
-			iv_task_register(&pc->rx_task);
-		}
+	iv_fd_set_handler_in(&pc->ifd, NULL);
+
+	if ((pc->state == STATE_HANDSHAKE &&
+	     gnutls_record_get_direction(pc->sess) == 0) ||
+	    pc->state == STATE_RUNNING ||
+	    pc->state == STATE_TX_CONGESTION) {
+		iv_task_register(&pc->rx_task);
 	}
 
-	pc->rx_end += ret;
-	if (pc->rx_end == sizeof(pc->rx_buf))
-		iv_fd_set_handler_in(&pc->ifd, NULL);
+	pc->rx_end = ret;
 
 	verify_state(pc);
 }
@@ -251,14 +248,14 @@ pconn_gtls_pull_func(gnutls_transport_ptr_t _pc, void *buf, size_t len)
 		int tocopy;
 
 		tocopy = pc->rx_end - pc->rx_start;
-		if (tocopy == sizeof(pc->rx_buf))
-			iv_fd_set_handler_in(&pc->ifd, pconn_fd_handler_in);
-
 		if (tocopy > len)
 			tocopy = len;
 
 		memcpy(buf, pc->rx_buf + pc->rx_start, tocopy);
+
 		pc->rx_start += tocopy;
+		if (pc->rx_start == pc->rx_end)
+			iv_fd_set_handler_in(&pc->ifd, pconn_fd_handler_in);
 
 		return tocopy;
 	}
