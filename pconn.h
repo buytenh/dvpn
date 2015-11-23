@@ -44,7 +44,8 @@ struct pconn {
 	int			io_error;
 	struct iv_task		rx_task;
 	uint8_t			rx_buf[32768];
-	int			rx_bytes;
+	int			rx_start;
+	int			rx_end;
 	int			rx_eof;
 	struct iv_task		tx_task;
 	uint8_t			tx_buf[32768];

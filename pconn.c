@@ -19,7 +19,6 @@
 
 /*
  * TODO:
- * - implement rx_start/rx_end to avoid memmoves
  * - smarter receive buffering
  *   - use a global pconn unregister counter and keep pulling records
  *     out of the rx buffer as long as this number stays the same
@@ -61,7 +60,7 @@ static int verify_state_pollin(struct pconn *pc)
 	 * Don't read if our input buffer is full or if we've
 	 * seen EOF.
 	 */
-	if (pc->rx_bytes == sizeof(pc->rx_buf) || pc->rx_eof)
+	if (pc->rx_end - pc->rx_start == sizeof(pc->rx_buf) || pc->rx_eof)
 		return 0;
 
 	return 1;
@@ -98,13 +97,13 @@ static int verify_state_rx_task(struct pconn *pc)
 {
 	if (pc->state == STATE_HANDSHAKE &&
 	    gnutls_record_get_direction(pc->sess) == 0 &&
-	    (pc->io_error || pc->rx_bytes || pc->rx_eof)) {
+	    (pc->io_error || pc->rx_start != pc->rx_end || pc->rx_eof)) {
 		return 1;
 	}
 
 	if ((pc->state == STATE_RUNNING || pc->state == STATE_TX_CONGESTION) &&
 	    (gnutls_record_check_pending(pc->sess) || pc->io_error ||
-	     pc->rx_bytes || pc->rx_eof)) {
+	     pc->rx_start != pc->rx_end || pc->rx_eof)) {
 		return 1;
 	}
 
@@ -196,9 +195,15 @@ static void pconn_fd_handler_in(void *_pc)
 
 	verify_state(pc);
 
+	if (pc->rx_start) {
+		pc->rx_end -= pc->rx_start;
+		memmove(pc->rx_buf, pc->rx_buf + pc->rx_start, pc->rx_end);
+		pc->rx_start = 0;
+	}
+
 	do {
-		ret = recv(pc->ifd.fd, pc->rx_buf + pc->rx_bytes,
-			   sizeof(pc->rx_buf) - pc->rx_bytes, 0);
+		ret = recv(pc->ifd.fd, pc->rx_buf + pc->rx_end,
+			   sizeof(pc->rx_buf) - pc->rx_end, 0);
 	} while (ret < 0 && errno == EINTR);
 
 	if (ret <= 0) {
@@ -216,7 +221,7 @@ static void pconn_fd_handler_in(void *_pc)
 		return;
 	}
 
-	if (!pc->rx_bytes) {
+	if (!pc->rx_end) {
 		if ((pc->state == STATE_HANDSHAKE &&
 		     gnutls_record_get_direction(pc->sess) == 0) ||
 		    pc->state == STATE_RUNNING ||
@@ -225,8 +230,8 @@ static void pconn_fd_handler_in(void *_pc)
 		}
 	}
 
-	pc->rx_bytes += ret;
-	if (pc->rx_bytes == sizeof(pc->rx_buf))
+	pc->rx_end += ret;
+	if (pc->rx_end == sizeof(pc->rx_buf))
 		iv_fd_set_handler_in(&pc->ifd, NULL);
 
 	verify_state(pc);
@@ -242,22 +247,18 @@ pconn_gtls_pull_func(gnutls_transport_ptr_t _pc, void *buf, size_t len)
 		return -1;
 	}
 
-	if (pc->rx_bytes) {
+	if (pc->rx_start != pc->rx_end) {
 		int tocopy;
 
-		if (pc->rx_bytes == sizeof(pc->rx_buf))
+		tocopy = pc->rx_end - pc->rx_start;
+		if (tocopy == sizeof(pc->rx_buf))
 			iv_fd_set_handler_in(&pc->ifd, pconn_fd_handler_in);
 
-		tocopy = pc->rx_bytes;
 		if (tocopy > len)
 			tocopy = len;
-		memcpy(buf, pc->rx_buf, tocopy);
 
-		pc->rx_bytes -= tocopy;
-		if (pc->rx_bytes)
-			memmove(pc->rx_buf, pc->rx_buf + tocopy, pc->rx_bytes);
-
-		// @@@ pull more data from socket if buffer was full?
+		memcpy(buf, pc->rx_buf + pc->rx_start, tocopy);
+		pc->rx_start += tocopy;
 
 		return tocopy;
 	}
@@ -448,7 +449,8 @@ static int pconn_do_handshake(struct pconn *pc, int notify_err)
 
 	pc->state = STATE_RUNNING;
 
-	if (gnutls_record_check_pending(pc->sess) || pc->rx_bytes || pc->rx_eof)
+	if (gnutls_record_check_pending(pc->sess) ||
+	    pc->rx_start != pc->rx_end || pc->rx_eof)
 		iv_task_register(&pc->rx_task);
 
 	verify_state(pc);
@@ -477,7 +479,8 @@ static void pconn_do_record_recv(struct pconn *pc)
 		return;
 	}
 
-	if (gnutls_record_check_pending(pc->sess) || pc->rx_bytes || pc->rx_eof)
+	if (gnutls_record_check_pending(pc->sess) ||
+	    pc->rx_start != pc->rx_end || pc->rx_eof)
 		iv_task_register(&pc->rx_task);
 
 	verify_state(pc);
@@ -526,14 +529,14 @@ static void pconn_rx_task_handler(void *_pc)
 
 	if (pc->state == STATE_HANDSHAKE &&
 	    gnutls_record_get_direction(pc->sess) == 0 &&
-	    (pc->io_error || pc->rx_bytes || pc->rx_eof)) {
+	    (pc->io_error || pc->rx_start != pc->rx_end || pc->rx_eof)) {
 		pconn_do_handshake(pc, 1);
 		return;
 	}
 
 	if ((pc->state == STATE_RUNNING || pc->state == STATE_TX_CONGESTION) &&
 	    (gnutls_record_check_pending(pc->sess) || pc->io_error ||
-	     pc->rx_bytes || pc->rx_eof)) {
+	     pc->rx_start != pc->rx_end || pc->rx_eof)) {
 		pconn_do_record_recv(pc);
 		return;
 	}
@@ -759,7 +762,8 @@ int pconn_start(struct pconn *pc)
 	IV_TASK_INIT(&pc->rx_task);
 	pc->rx_task.cookie = pc;
 	pc->rx_task.handler = pconn_rx_task_handler;
-	pc->rx_bytes = 0;
+	pc->rx_start = 0;
+	pc->rx_end = 0;
 	pc->rx_eof = 0;
 
 	IV_TASK_INIT(&pc->tx_task);
