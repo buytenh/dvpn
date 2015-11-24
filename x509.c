@@ -68,6 +68,51 @@ int x509_read_privkey(gnutls_x509_privkey_t *key, const char *file)
 	return 0;
 }
 
+ssize_t x509_get_key_id(uint8_t *id, size_t idlen, gnutls_x509_privkey_t key)
+{
+	gnutls_privkey_t privkey;
+	int ret;
+	gnutls_pubkey_t pubkey;
+	size_t len;
+
+	ret = gnutls_privkey_init(&privkey);
+	if (ret < 0)
+		goto err;
+
+	ret = gnutls_privkey_import_x509(privkey, key, 0);
+	if (ret < 0)
+		goto err_free_priv;
+
+	ret = gnutls_pubkey_init(&pubkey);
+	if (ret < 0)
+		goto err_free_priv;
+
+	ret = gnutls_pubkey_import_privkey(pubkey, privkey, 0, 0);
+	if (ret < 0)
+		goto err_free_pub;
+
+	len = idlen;
+	ret = gnutls_pubkey_get_key_id(pubkey, 0, id, &len);
+	if (ret < 0)
+		goto err_free_pub;
+
+	gnutls_pubkey_deinit(pubkey);
+	gnutls_privkey_deinit(privkey);
+
+	return len;
+
+err_free_pub:
+	gnutls_pubkey_deinit(pubkey);
+
+err_free_priv:
+	gnutls_privkey_deinit(privkey);
+
+err:
+	gnutls_perror(ret);
+
+	return -1;
+}
+
 int x509_generate_cert(gnutls_x509_crt_t *crt, gnutls_x509_privkey_t key)
 {
 	int ret;

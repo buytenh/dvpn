@@ -23,6 +23,7 @@
 #include <gnutls/gnutls.h>
 
 int x509_read_privkey(gnutls_x509_privkey_t *key, const char *file);
+ssize_t x509_get_key_id(uint8_t *id, size_t idlen, gnutls_x509_privkey_t key);
 int x509_generate_cert(gnutls_x509_crt_t *crt, gnutls_x509_privkey_t key);
 
 
