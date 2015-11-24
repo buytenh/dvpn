@@ -27,6 +27,7 @@
 #include <iv_signal.h>
 #include <netdb.h>
 #include <string.h>
+#include "itf.h"
 #include "iv_getaddrinfo.h"
 #include "pconn.h"
 #include "tun.h"
@@ -124,6 +125,7 @@ static void send_keepalive(void *_sc)
 static void handshake_done(void *_sc)
 {
 	struct server_conn *sc = _sc;
+	uint8_t id[64];
 
 	fprintf(stderr, "handshake done\n");
 
@@ -142,6 +144,14 @@ static void handshake_done(void *_sc)
 	sc->keepalive_timer.cookie = sc;
 	sc->keepalive_timer.handler = send_keepalive;
 	iv_timer_register(&sc->keepalive_timer);
+
+	x509_get_key_id(id + 2, sizeof(id) - 2, sc->key);
+
+	id[0] = 0xfe;
+	id[1] = 0x80;
+	itf_add_v6(tun_interface_get_name(&sc->tun), id, 10);
+
+	itf_set_state(tun_interface_get_name(&sc->tun), 1);
 }
 
 static void record_received(void *_sc, const uint8_t *rec, int len)
@@ -193,6 +203,8 @@ static void connection_lost(void *_sc)
 	    iv_timer_registered(&sc->keepalive_timer)) {
 		iv_timer_unregister(&sc->keepalive_timer);
 	}
+
+	itf_set_state(tun_interface_get_name(&sc->tun), 0);
 
 	sc->state = STATE_WAITING_RETRY;
 

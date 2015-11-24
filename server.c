@@ -25,6 +25,7 @@
 #include <iv_signal.h>
 #include <netdb.h>
 #include <string.h>
+#include "itf.h"
 #include "pconn.h"
 #include "tun.h"
 #include "x509.h"
@@ -91,6 +92,7 @@ static int verify_key_id(void *_cl, const uint8_t *id, int len)
 static void handshake_done(void *_cl)
 {
 	struct client *cl = _cl;
+	uint8_t id[64];
 
 	fprintf(stderr, "%p: handshake done\n", cl);
 
@@ -111,6 +113,14 @@ static void handshake_done(void *_cl)
 	cl->keepalive_timer.expires = iv_now;
 	cl->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
 	iv_timer_register(&cl->keepalive_timer);
+
+	x509_get_key_id(id + 2, sizeof(id) - 2, key);
+
+	id[0] = 0xfe;
+	id[1] = 0x80;
+	itf_add_v6(tun_interface_get_name(&cl->tun), id, 10);
+
+	itf_set_state(tun_interface_get_name(&cl->tun), 1);
 }
 
 static void record_received(void *_cl, const uint8_t *rec, int len)
