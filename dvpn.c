@@ -40,12 +40,12 @@ static void got_sigint(void *_dummy)
 	iv_signal_unregister(&sigint);
 
 	iv_list_for_each (lh, &conf->connect_entries) {
-		struct conf_connect_entry *ce;
+		struct conf_connect_entry *cce;
 
-		ce = iv_list_entry(lh, struct conf_connect_entry, list);
+		cce = iv_list_entry(lh, struct conf_connect_entry, list);
 
-		if (ce->userptr != NULL)
-			server_peer_del(ce->userptr);
+		if (cce->userptr != NULL)
+			server_peer_del(cce->userptr);
 	}
 
 	iv_list_for_each (lh, &conf->listening_sockets) {
@@ -102,10 +102,10 @@ int main(int argc, char *argv[])
 	iv_init();
 
 	iv_list_for_each (lh, &conf->connect_entries) {
-		struct conf_connect_entry *ce;
+		struct conf_connect_entry *cce;
 
-		ce = iv_list_entry(lh, struct conf_connect_entry, list);
-		ce->userptr = server_peer_add(ce, key);
+		cce = iv_list_entry(lh, struct conf_connect_entry, list);
+		cce->userptr = server_peer_add(cce, key);
 	}
 
 	iv_list_for_each (lh, &conf->listening_sockets) {

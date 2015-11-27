@@ -35,7 +35,7 @@
 
 struct server_peer
 {
-	struct conf_connect_entry	*ce;
+	struct conf_connect_entry	*cce;
 	gnutls_x509_privkey_t		key;
 
 	int			state;
@@ -84,13 +84,13 @@ static void printhex(const uint8_t *a, int len)
 static int verify_key_id(void *_sp, const uint8_t *id, int len)
 {
 	struct server_peer *sp = _sp;
-	struct conf_connect_entry *ce = sp->ce;
+	struct conf_connect_entry *cce = sp->cce;
 
 	printf("key id: ");
 	printhex(id, len);
 	printf("\n");
 
-	return memcmp(ce->fingerprint, id, 20);
+	return memcmp(cce->fingerprint, id, 20);
 }
 
 static void send_keepalive(void *_sp)
@@ -378,8 +378,8 @@ static int start_resolve(struct server_peer *sp)
 	sp->hints.ai_protocol = 0;
 	sp->hints.ai_flags = AI_ADDRCONFIG | AI_V4MAPPED | AI_NUMERICSERV;
 
-	sp->addrinfo.node = sp->ce->hostname;
-	sp->addrinfo.service = sp->ce->port;
+	sp->addrinfo.node = sp->cce->hostname;
+	sp->addrinfo.service = sp->cce->port;
 	sp->addrinfo.hints = &sp->hints;
 	sp->addrinfo.cookie = sp;
 	sp->addrinfo.handler = resolve_complete;
@@ -464,7 +464,7 @@ static void rx_timeout_expired(void *_sp)
 	}
 }
 
-void *server_peer_add(struct conf_connect_entry *ce, gnutls_x509_privkey_t key)
+void *server_peer_add(struct conf_connect_entry *cce, gnutls_x509_privkey_t key)
 {
 	struct server_peer *sp;
 
@@ -472,12 +472,12 @@ void *server_peer_add(struct conf_connect_entry *ce, gnutls_x509_privkey_t key)
 	if (sp == NULL)
 		return NULL;
 
-	sp->ce = ce;
+	sp->cce = cce;
 	sp->key = key;
 
 	sp->state = STATE_RESOLVE;
 
-	sp->tun.itfname = sp->ce->tunitf;
+	sp->tun.itfname = sp->cce->tunitf;
 	sp->tun.cookie = sp;
 	sp->tun.got_packet = got_packet;
 	if (tun_interface_register(&sp->tun) < 0) {

@@ -66,16 +66,16 @@ static void print_config(struct conf *conf)
 	printf("\n");
 
 	iv_list_for_each (lh, &conf->connect_entries) {
-		struct conf_connect_entry *ce;
+		struct conf_connect_entry *cce;
 
-		ce = iv_list_entry(lh, struct conf_connect_entry, list);
+		cce = iv_list_entry(lh, struct conf_connect_entry, list);
 
-		printf("connect [%s]\n", ce->name);
-		printf("- hostname: [%s]:%s\n", ce->hostname, ce->port);
+		printf("connect [%s]\n", cce->name);
+		printf("- hostname: [%s]:%s\n", cce->hostname, cce->port);
 		printf("- fp: ");
-		printhex(ce->fingerprint, 20);
+		printhex(cce->fingerprint, 20);
 		printf("\n");
-		printf("- tunitf: %s\n", ce->tunitf);
+		printf("- tunitf: %s\n", cce->tunitf);
 		printf("\n");
 	}
 

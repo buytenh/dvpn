@@ -123,7 +123,7 @@ static int
 add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 		 const uint8_t *fp, const char *itf)
 {
-	struct conf_connect_entry *ce;
+	struct conf_connect_entry *cce;
 	char *delim;
 	int port;
 
@@ -143,27 +143,27 @@ add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 		port = lc->default_port;
 	}
 
-	ce = malloc(sizeof(*ce));
-	if (ce == NULL)
+	cce = malloc(sizeof(*cce));
+	if (cce == NULL)
 		return -1;
 
-	ce->name = strdup(peer);
+	cce->name = strdup(peer);
 	if (connect[0] == '[') {
-		ce->hostname = strdup(connect + 1);
-		delim = strchr(ce->hostname, ']');
+		cce->hostname = strdup(connect + 1);
+		delim = strchr(cce->hostname, ']');
 		if (delim != NULL)
 			*delim = 0;
 	} else {
-		ce->hostname = strdup(connect);
+		cce->hostname = strdup(connect);
 		if (delim != NULL)
-			ce->hostname[delim - connect] = 0;
+			cce->hostname[delim - connect] = 0;
 	}
-	asprintf(&ce->port, "%d", port);
-	memcpy(ce->fingerprint, fp, 20);
-	ce->tunitf = strdup(itf);
-	ce->userptr = NULL;
+	asprintf(&cce->port, "%d", port);
+	memcpy(cce->fingerprint, fp, 20);
+	cce->tunitf = strdup(itf);
+	cce->userptr = NULL;
 
-	iv_list_add_tail(&ce->list, &lc->conf->connect_entries);
+	iv_list_add_tail(&cce->list, &lc->conf->connect_entries);
 
 	return 0;
 }
@@ -431,16 +431,16 @@ void free_config(struct conf *conf)
 	free(conf->private_key);
 
 	iv_list_for_each_safe (lh, lh2, &conf->connect_entries) {
-		struct conf_connect_entry *ce;
+		struct conf_connect_entry *cce;
 
-		ce = iv_list_entry(lh, struct conf_connect_entry, list);
+		cce = iv_list_entry(lh, struct conf_connect_entry, list);
 
-		iv_list_del(&ce->list);
-		free(ce->name);
-		free(ce->hostname);
-		free(ce->port);
-		free(ce->tunitf);
-		free(ce);
+		iv_list_del(&cce->list);
+		free(cce->name);
+		free(cce->hostname);
+		free(cce->port);
+		free(cce->tunitf);
+		free(cce);
 	}
 
 	iv_list_for_each_safe (lh, lh2, &conf->listening_sockets) {
