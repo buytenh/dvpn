@@ -309,21 +309,21 @@ add_listen_peer(struct local_conf *lc, const char *peer, const char *listen,
 		const uint8_t *fp, const char *itf)
 {
 	struct conf_listening_socket *cls;
-	struct conf_listen_entry *ce;
+	struct conf_listen_entry *cle;
 
 	cls = get_listening_socket(lc, listen);
 	if (cls == NULL)
 		return -1;
 
-	ce = malloc(sizeof(*ce));
-	if (ce == NULL)
+	cle = malloc(sizeof(*cle));
+	if (cle == NULL)
 		return -1;
 
-	iv_list_add_tail(&ce->list, &cls->listen_entries);
-	ce->name = strdup(peer);
-	memcpy(ce->fingerprint, fp, 20);
-	ce->tunitf = strdup(itf);
-	ce->userptr = NULL;
+	iv_list_add_tail(&cle->list, &cls->listen_entries);
+	cle->name = strdup(peer);
+	memcpy(cle->fingerprint, fp, 20);
+	cle->tunitf = strdup(itf);
+	cle->userptr = NULL;
 
 	return 0;
 }
@@ -453,14 +453,15 @@ void free_config(struct conf *conf)
 		iv_list_del(&cls->list);
 
 		iv_list_for_each_safe (lh3, lh4, &cls->listen_entries) {
-			struct conf_listen_entry *ce;
+			struct conf_listen_entry *cle;
 
-			ce = iv_list_entry(lh3, struct conf_listen_entry, list);
+			cle = iv_list_entry(lh3, struct conf_listen_entry,
+					    list);
 
-			iv_list_del(&ce->list);
-			free(ce->name);
-			free(ce->tunitf);
-			free(ce);
+			iv_list_del(&cle->list);
+			free(cle->name);
+			free(cle->tunitf);
+			free(cle);
 		}
 
 		free(cls);

@@ -103,11 +103,11 @@ static int verify_key_id(void *_cc, const uint8_t *id, int len)
 	printf("\n");
 
 	iv_list_for_each (lh, &cc->ls->cls->listen_entries) {
-		struct conf_listen_entry *ce;
+		struct conf_listen_entry *cle;
 
-		ce = iv_list_entry(lh, struct conf_listen_entry, list);
-		if (!memcmp(ce->fingerprint, id, 20)) {
-			cc->le = ce->userptr;
+		cle = iv_list_entry(lh, struct conf_listen_entry, list);
+		if (!memcmp(cle->fingerprint, id, 20)) {
+			cc->le = cle->userptr;
 			return 0;
 		}
 	}

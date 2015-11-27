@@ -91,16 +91,16 @@ static void print_config(struct conf *conf)
 		printf("\n");
 
 		iv_list_for_each (lh2, &cls->listen_entries) {
-			struct conf_listen_entry *ce;
+			struct conf_listen_entry *cle;
 
-			ce = iv_list_entry(lh2, struct conf_listen_entry,
+			cle = iv_list_entry(lh2, struct conf_listen_entry,
 					    list);
 
-			printf("- entry [%s]\n", ce->name);
+			printf("- entry [%s]\n", cle->name);
 			printf("  - fp: ");
-			printhex(ce->fingerprint, 20);
+			printhex(cle->fingerprint, 20);
 			printf("\n");
-			printf("  - tunitf: %s\n", ce->tunitf);
+			printf("  - tunitf: %s\n", cle->tunitf);
 		}
 
 		printf("\n");
