@@ -33,9 +33,9 @@
 struct client_conn
 {
 	int			state;
-	struct pconn		conn;
 	struct tun_interface	tun;
 	struct iv_timer		rx_timeout;
+	struct pconn		pconn;
 	struct iv_timer		keepalive_timer;
 };
 
@@ -65,14 +65,14 @@ static void printhex(const uint8_t *a, int len)
 
 static void client_conn_kill(struct client_conn *cc)
 {
-	pconn_destroy(&cc->conn);
-	close(cc->conn.fd);
-
 	if (cc->state == STATE_CONNECTED)
 		tun_interface_unregister(&cc->tun);
 
 	if (iv_timer_registered(&cc->rx_timeout))
 		iv_timer_unregister(&cc->rx_timeout);
+
+	pconn_destroy(&cc->pconn);
+	close(cc->pconn.fd);
 
 	if (iv_timer_registered(&cc->keepalive_timer))
 		iv_timer_unregister(&cc->keepalive_timer);
@@ -171,7 +171,7 @@ static void got_packet(void *_cc, uint8_t *buf, int len)
 	sndbuf[1] = len & 0xff;
 	memcpy(sndbuf + 2, buf, len);
 
-	if (pconn_record_send(&cc->conn, sndbuf, len + 2))
+	if (pconn_record_send(&cc->pconn, sndbuf, len + 2))
 		client_conn_kill(cc);
 }
 
@@ -191,7 +191,7 @@ static void send_keepalive(void *_cc)
 
 	fprintf(stderr, "%p: sending keepalive\n", cc);
 
-	if (pconn_record_send(&cc->conn, keepalive, 2)) {
+	if (pconn_record_send(&cc->pconn, keepalive, 2)) {
 		client_conn_kill(cc);
 		return;
 	}
@@ -226,15 +226,6 @@ static void got_connection(void *_dummy)
 
 	cc->state = STATE_HANDSHAKE;
 
-	cc->conn.fd = fd;
-	cc->conn.role = PCONN_ROLE_SERVER;
-	cc->conn.key = key;
-	cc->conn.cookie = cc;
-	cc->conn.verify_key_id = verify_key_id;
-	cc->conn.handshake_done = handshake_done;
-	cc->conn.record_received = record_received;
-	cc->conn.connection_lost = connection_lost;
-
 	cc->tun.itfname = itfname;
 	cc->tun.cookie = cc;
 	cc->tun.got_packet = got_packet;
@@ -248,11 +239,20 @@ static void got_connection(void *_dummy)
 	cc->rx_timeout.handler = rx_timeout;
 	iv_timer_register(&cc->rx_timeout);
 
+	cc->pconn.fd = fd;
+	cc->pconn.role = PCONN_ROLE_SERVER;
+	cc->pconn.key = key;
+	cc->pconn.cookie = cc;
+	cc->pconn.verify_key_id = verify_key_id;
+	cc->pconn.handshake_done = handshake_done;
+	cc->pconn.record_received = record_received;
+	cc->pconn.connection_lost = connection_lost;
+
 	IV_TIMER_INIT(&cc->keepalive_timer);
 	cc->keepalive_timer.cookie = cc;
 	cc->keepalive_timer.handler = send_keepalive;
 
-	pconn_start(&cc->conn);
+	pconn_start(&cc->pconn);
 }
 
 static void got_sigint(void *_dummy)
