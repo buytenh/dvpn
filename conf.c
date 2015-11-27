@@ -176,6 +176,7 @@ static int parse_listen_addr(struct sockaddr_storage *dst,
 	char *l;
 	struct sockaddr_in6 *a6;
 	struct sockaddr_in *a4;
+	int ret;
 
 	delim = strstr(listen, "]:");
 	if (delim != NULL) {
@@ -210,22 +211,21 @@ static int parse_listen_addr(struct sockaddr_storage *dst,
 	a6->sin6_flowinfo = 0;
 	a6->sin6_scope_id = 0;
 
+	ret = 0;
 	if (!strcmp(l, "") || !strcmp(l, "*")) {
 		a6->sin6_addr = in6addr_any;
-		return 0;
+	} else if (!inet_pton(AF_INET6, l, &a6->sin6_addr)) {
+		a4 = (struct sockaddr_in *)dst;
+		a4->sin_family = AF_INET;
+		a4->sin_port = htons(port);
+
+		if (!inet_pton(AF_INET, l, &a4->sin_addr))
+			ret = -1;
 	}
 
-	if (inet_pton(AF_INET6, l, &a6->sin6_addr))
-		return 0;
+	free(l);
 
-	a4 = (struct sockaddr_in *)dst;
-	a4->sin_family = AF_INET;
-	a4->sin_port = htons(port);
-
-	if (inet_pton(AF_INET, l, &a4->sin_addr))
-		return 0;
-
-	return -1;
+	return ret;
 }
 
 static int addr_compare(const struct sockaddr_storage *a,
