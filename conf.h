@@ -20,7 +20,6 @@
 #ifndef __CONF_H
 #define __CONF_H
 
-#include <iv_avl.h>
 #include <iv_list.h>
 #include <stdint.h>
 #include <sys/socket.h>
