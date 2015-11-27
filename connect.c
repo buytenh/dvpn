@@ -19,6 +19,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <gnutls/gnutls.h>
@@ -70,14 +71,37 @@ struct server_peer
 #define KEEPALIVE_INTERVAL	30
 #define RETRY_WAIT_TIME		10
 
+static void print_address(const struct sockaddr *addr)
+{
+	char dst[128];
+
+	if (addr->sa_family == AF_INET) {
+		const struct sockaddr_in *a4 =
+			(const struct sockaddr_in *)addr;
+
+		fprintf(stderr, "[%s]:%d",
+			inet_ntop(AF_INET, &a4->sin_addr, dst, sizeof(dst)),
+			ntohs(a4->sin_port));
+	} else if (addr->sa_family == AF_INET6) {
+		const struct sockaddr_in6 *a6 =
+			(const struct sockaddr_in6 *)addr;
+
+		fprintf(stderr, "[%s]:%d",
+			inet_ntop(AF_INET6, &a6->sin6_addr, dst, sizeof(dst)),
+			ntohs(a6->sin6_port));
+	} else {
+		fprintf(stderr, "unknownaf:%d", addr->sa_family);
+	}
+}
+
 static void printhex(const uint8_t *a, int len)
 {
 	int i;
 
 	for (i = 0; i < len; i++) {
-		printf("%.2x", a[i]);
+		fprintf(stderr, "%.2x", a[i]);
 		if (i < len - 1)
-			printf(":");
+			fprintf(stderr, ":");
 	}
 }
 
@@ -86,11 +110,17 @@ static int verify_key_id(void *_sp, const uint8_t *id, int len)
 	struct server_peer *sp = _sp;
 	struct conf_connect_entry *cce = sp->cce;
 
-	printf("key id: ");
+	fprintf(stderr, "%s: peer key ID ", cce->name);
 	printhex(id, len);
-	printf("\n");
 
-	return memcmp(cce->fingerprint, id, 20);
+	if (memcmp(cce->fingerprint, id, 20)) {
+		fprintf(stderr, " - mismatch\n");
+		return 1;
+	}
+
+	fprintf(stderr, " - OK\n");
+
+	return 0;
 }
 
 static void send_keepalive(void *_sp)
@@ -98,7 +128,7 @@ static void send_keepalive(void *_sp)
 	static uint8_t keepalive[] = { 0x00, 0x00 };
 	struct server_peer *sp = _sp;
 
-	fprintf(stderr, "sending keepalive\n");
+	fprintf(stderr, "%s: sending keepalive\n", sp->cce->name);
 
 	if (sp->state != STATE_CONNECTED)
 		abort();
@@ -128,7 +158,7 @@ static void handshake_done(void *_sp)
 	struct server_peer *sp = _sp;
 	uint8_t id[64];
 
-	fprintf(stderr, "handshake done\n");
+	fprintf(stderr, "%s: handshake done\n", sp->cce->name);
 
 	sp->state = STATE_CONNECTED;
 
@@ -195,7 +225,7 @@ static void connection_lost(void *_sp)
 {
 	struct server_peer *sp = _sp;
 
-	fprintf(stderr, "connection lost\n");
+	fprintf(stderr, "%s: connection lost\n", sp->cce->name);
 
 	pconn_destroy(&sp->pconn);
 	close(sp->pconn.fd);
@@ -219,6 +249,9 @@ static void connection_lost(void *_sp)
 
 static void connect_success(struct server_peer *sp, int fd)
 {
+	fprintf(stderr, "%s: connection established, starting TLS handshake\n",
+		sp->cce->name);
+
 	freeaddrinfo(sp->res);
 
 	sp->state = STATE_TLS_HANDSHAKE;
@@ -248,6 +281,10 @@ static void try_connect(struct server_peer *sp)
 	int ret;
 
 	while (sp->rp != NULL) {
+		fprintf(stderr, "%s: attempting connection to ", sp->cce->name);
+		print_address(sp->rp->ai_addr);
+		fprintf(stderr, "\n");
+
 		fd = socket(sp->rp->ai_family, sp->rp->ai_socktype,
 			    sp->rp->ai_protocol);
 
@@ -258,7 +295,8 @@ static void try_connect(struct server_peer *sp)
 			if (ret == 0 || errno == EINPROGRESS)
 				break;
 
-			perror("connect");
+			fprintf(stderr, "%s: connect error [%s]\n",
+				sp->cce->name, strerror(errno));
 			close(fd);
 		}
 
@@ -266,11 +304,10 @@ static void try_connect(struct server_peer *sp)
 	}
 
 	if (sp->rp == NULL) {
-		fprintf(stderr, "error connecting\n");
-
 		freeaddrinfo(sp->res);
 
-		fprintf(stderr, "retrying in %d seconds\n", RETRY_WAIT_TIME);
+		fprintf(stderr, "%s: error connecting, retrying in %d "
+				"seconds\n", sp->cce->name, RETRY_WAIT_TIME);
 
 		sp->state = STATE_WAITING_RETRY;
 
@@ -312,7 +349,8 @@ static void connect_pollout(void *_sp)
 
 	len = sizeof(ret);
 	if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &ret, &len) < 0) {
-		perror("connect_pollout,getsockopt(SO_ERROR)");
+		fprintf(stderr, "%s: getsockopt error [%s]\n",
+			sp->cce->name, strerror(errno));
 		return;
 	}
 
@@ -324,7 +362,8 @@ static void connect_pollout(void *_sp)
 	if (ret == 0) {
 		connect_success(sp, fd);
 	} else {
-		fprintf(stderr, "connect: %s\n", strerror(ret));
+		fprintf(stderr, "%s: connect error [%s]\n",
+			sp->cce->name, strerror(ret));
 		close(fd);
 
 		sp->rp = sp->rp->ai_next;
@@ -336,9 +375,10 @@ static void resolve_complete(void *_sp, int rc, struct addrinfo *res)
 {
 	struct server_peer *sp = _sp;
 
-	fprintf(stderr, "resolve complete\n");
-
 	if (rc == 0) {
+		fprintf(stderr, "%s: address resolution complete\n",
+			sp->cce->name);
+
 		sp->state = STATE_CONNECT;
 
 		sp->res = res;
@@ -350,12 +390,12 @@ static void resolve_complete(void *_sp, int rc, struct addrinfo *res)
 
 		try_connect(sp);
 	} else {
-		fprintf(stderr, "resolving: %s\n", gai_strerror(rc));
-
 		if (res != NULL)
 			freeaddrinfo(res);
 
-		fprintf(stderr, "retrying in %d seconds\n", RETRY_WAIT_TIME);
+		fprintf(stderr, "%s: address resolution returned error %s, "
+				"retrying in %d seconds\n",
+			sp->cce->name, gai_strerror(rc), RETRY_WAIT_TIME);
 
 		sp->state = STATE_WAITING_RETRY;
 
@@ -372,6 +412,8 @@ static int start_resolve(struct server_peer *sp)
 {
 	if (sp->state != STATE_RESOLVE)
 		abort();
+
+	fprintf(stderr, "%s: starting address resolution\n", sp->cce->name);
 
 	sp->hints.ai_family = PF_UNSPEC;
 	sp->hints.ai_socktype = SOCK_STREAM;
@@ -431,6 +473,8 @@ static void rx_timeout_expired(void *_sp)
 	sp->rx_timeout.expires = iv_now;
 
 	if (sp->state == STATE_CONNECT) {
+		fprintf(stderr, "%s: connect timed out\n", sp->cce->name);
+
 		iv_fd_unregister(&sp->connectfd);
 		close(sp->connectfd.fd);
 
@@ -447,11 +491,16 @@ static void rx_timeout_expired(void *_sp)
 		iv_timer_register(&sp->rx_timeout);
 	} else {
 		if (sp->state == STATE_RESOLVE) {
+			fprintf(stderr, "%s: address resolution timed out\n",
+				sp->cce->name);
 			iv_getaddrinfo_cancel(&sp->addrinfo);
 		} else if (sp->state == STATE_TLS_HANDSHAKE) {
+			fprintf(stderr, "%s: TLS handshake timed out\n",
+				sp->cce->name);
 			pconn_destroy(&sp->pconn);
 			close(sp->pconn.fd);
 		} else if (sp->state == STATE_CONNECTED) {
+			fprintf(stderr, "%s: receive timeout\n", sp->cce->name);
 			pconn_destroy(&sp->pconn);
 			close(sp->pconn.fd);
 		} else {
