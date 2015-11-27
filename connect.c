@@ -225,7 +225,8 @@ static void connection_lost(void *_sp)
 {
 	struct server_peer *sp = _sp;
 
-	fprintf(stderr, "%s: connection lost\n", sp->cce->name);
+	fprintf(stderr, "%s: connection lost, retrying in %d seconds\n",
+		sp->cce->name, RETRY_WAIT_TIME);
 
 	pconn_destroy(&sp->pconn);
 	close(sp->pconn.fd);
