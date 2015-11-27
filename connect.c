@@ -67,7 +67,7 @@ struct server_peer
 
 #define RESOLVE_TIMEOUT		10
 #define CONNECT_TIMEOUT		10
-#define HANDSHAKE_TIMEOUT	10
+#define HANDSHAKE_TIMEOUT	30
 #define KEEPALIVE_INTERVAL	30
 #define RETRY_WAIT_TIME		10
 
