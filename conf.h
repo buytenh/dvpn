@@ -39,7 +39,7 @@ struct conf_connect_entry
 
 	char			*name;
 	char			*hostname;
-	int			port;
+	char			*port;
 	uint8_t			fingerprint[20];
 	char			*tunitf;
 

@@ -72,7 +72,7 @@ static void print_config(struct conf *conf)
 
 		printf("connect [%s]\n", ce->name);
 		printf("- hostname: %s\n", ce->hostname);
-		printf("- port: %d\n", ce->port);
+		printf("- port: %s\n", ce->port);
 		printf("- fp: ");
 		printhex(ce->fingerprint, 20);
 		printf("\n");

@@ -22,6 +22,8 @@
  * - parse [12::34]:5678 IPv6 address/port format properly
  */
 
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
@@ -145,7 +147,7 @@ add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 	ce->hostname = strdup(connect);
 	if (colon != NULL)
 		ce->hostname[colon - connect] = 0;
-	ce->port = port;
+	asprintf(&ce->port, "%d", port);
 	memcpy(ce->fingerprint, fp, 20);
 	ce->tunitf = strdup(itf);
 	ce->userptr = NULL;
@@ -402,6 +404,7 @@ void free_config(struct conf *conf)
 		iv_list_del(&ce->list);
 		free(ce->name);
 		free(ce->hostname);
+		free(ce->port);
 		free(ce->tunitf);
 		free(ce);
 	}
