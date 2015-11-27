@@ -19,6 +19,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <arpa/inet.h>
 #include <gnutls/gnutls.h>
 #include <gnutls/x509.h>
 #include <iv.h>
@@ -62,6 +63,29 @@ struct client_conn
 #define HANDSHAKE_TIMEOUT	10
 #define KEEPALIVE_INTERVAL	30
 
+static void print_address(const struct sockaddr *addr)
+{
+	char dst[128];
+
+	if (addr->sa_family == AF_INET) {
+		const struct sockaddr_in *a4 =
+			(const struct sockaddr_in *)addr;
+
+		fprintf(stderr, "[%s]:%d",
+			inet_ntop(AF_INET, &a4->sin_addr, dst, sizeof(dst)),
+			ntohs(a4->sin_port));
+	} else if (addr->sa_family == AF_INET6) {
+		const struct sockaddr_in6 *a6 =
+			(const struct sockaddr_in6 *)addr;
+
+		fprintf(stderr, "[%s]:%d",
+			inet_ntop(AF_INET6, &a6->sin6_addr, dst, sizeof(dst)),
+			ntohs(a6->sin6_port));
+	} else {
+		fprintf(stderr, "unknownaf:%d", addr->sa_family);
+	}
+}
+
 static void client_conn_kill(struct client_conn *cc)
 {
 	if (cc->le != NULL) {
@@ -82,14 +106,32 @@ static void client_conn_kill(struct client_conn *cc)
 	free(cc);
 }
 
+static void print_name(struct client_conn *cc)
+{
+	if (cc->le != NULL)
+		fprintf(stderr, "%s", cc->le->cle->name);
+	else
+		fprintf(stderr, "%p", cc);
+}
+
+static void rx_timeout(void *_cc)
+{
+	struct client_conn *cc = _cc;
+
+	print_name(cc);
+	fprintf(stderr, ": receive timeout\n");
+
+	client_conn_kill(cc);
+}
+
 static void printhex(const uint8_t *a, int len)
 {
 	int i;
 
 	for (i = 0; i < len; i++) {
-		printf("%.2x", a[i]);
+		fprintf(stderr, "%.2x", a[i]);
 		if (i < len - 1)
-			printf(":");
+			fprintf(stderr, ":");
 	}
 }
 
@@ -98,19 +140,21 @@ static int verify_key_id(void *_cc, const uint8_t *id, int len)
 	struct client_conn *cc = _cc;
 	struct iv_list_head *lh;
 
-	printf("key id: ");
+	fprintf(stderr, "%p: peer key ID ", cc);
 	printhex(id, len);
-	printf("\n");
 
 	iv_list_for_each (lh, &cc->ls->cls->listen_entries) {
 		struct conf_listen_entry *cle;
 
 		cle = iv_list_entry(lh, struct conf_listen_entry, list);
 		if (!memcmp(cle->fingerprint, id, 20)) {
+			fprintf(stderr, " - matches [%s]\n", cle->name);
 			cc->le = cle->userptr;
 			return 0;
 		}
 	}
+
+	fprintf(stderr, " - no matches\n");
 
 	return 1;
 }
@@ -121,10 +165,14 @@ static void handshake_done(void *_cc)
 	struct listen_entry *le = cc->le;
 	uint8_t id[64];
 
-	fprintf(stderr, "%p: handshake done\n", cc);
-
-	if (le->current != NULL)
+	if (le->current != NULL) {
+		fprintf(stderr, "%s: handshake done, disconnecting "
+				"previous client\n", le->cle->name);
 		client_conn_kill(le->current);
+	} else {
+		fprintf(stderr, "%s: handshake done\n", le->cle->name);
+	}
+
 	le->current = cc;
 
 	cc->state = STATE_CONNECTED;
@@ -176,16 +224,8 @@ static void connection_lost(void *_cc)
 {
 	struct client_conn *cc = _cc;
 
-	fprintf(stderr, "%p: connection lost\n", cc);
-
-	client_conn_kill(cc);
-}
-
-static void rx_timeout(void *_cc)
-{
-	struct client_conn *cc = _cc;
-
-	fprintf(stderr, "%p: rx timeout\n", cc);
+	print_name(cc);
+	fprintf(stderr, ": connection lost\n");
 
 	client_conn_kill(cc);
 }
@@ -195,7 +235,7 @@ static void send_keepalive(void *_cc)
 	static uint8_t keepalive[] = { 0x00, 0x00 };
 	struct client_conn *cc = _cc;
 
-	fprintf(stderr, "%p: sending keepalive\n", cc);
+	fprintf(stderr, "%s: sending keepalive\n", cc->le->cle->name);
 
 	if (pconn_record_send(&cc->pconn, keepalive, 2)) {
 		client_conn_kill(cc);
@@ -230,6 +270,12 @@ static void got_connection(void *_ls)
 		close(fd);
 		return;
 	}
+
+	fprintf(stderr, "%p: incoming connection from ", cc);
+	print_address((struct sockaddr *)&addr);
+	fprintf(stderr, " to ");
+	print_address((struct sockaddr *)&ls->cls->listen_address);
+	fprintf(stderr, "\n");
 
 	cc->ls = ls;
 	cc->le = NULL;
