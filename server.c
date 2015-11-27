@@ -25,15 +25,34 @@
 #include <iv_signal.h>
 #include <netdb.h>
 #include <string.h>
+#include "conf.h"
 #include "itf.h"
 #include "pconn.h"
 #include "tun.h"
 #include "x509.h"
 
+struct listening_socket
+{
+	struct conf_listening_socket	*cls;
+	gnutls_x509_privkey_t		key;
+
+	struct iv_fd	listen_fd;
+};
+
+struct listen_entry
+{
+	struct conf_listen_entry	*cle;
+
+	struct tun_interface	tun;
+	struct client_conn	*current;
+};
+
 struct client_conn
 {
+	struct listening_socket	*ls;
+	struct listen_entry	*le;
+
 	int			state;
-	struct tun_interface	tun;
 	struct iv_timer		rx_timeout;
 	struct pconn		pconn;
 	struct iv_timer		keepalive_timer;
@@ -45,28 +64,13 @@ struct client_conn
 #define HANDSHAKE_TIMEOUT	10
 #define KEEPALIVE_INTERVAL	30
 
-static int serverport;
-static const char *itfname;
-static gnutls_x509_privkey_t key;
-
-struct iv_fd listen_fd;
-struct iv_signal sigint;
-
-static void printhex(const uint8_t *a, int len)
-{
-	int i;
-
-	for (i = 0; i < len; i++) {
-		printf("%.2x", a[i]);
-		if (i < len - 1)
-			printf(":");
-	}
-}
-
 static void client_conn_kill(struct client_conn *cc)
 {
-	if (cc->state == STATE_CONNECTED)
-		tun_interface_unregister(&cc->tun);
+	if (cc->le != NULL) {
+		if (cc->state == STATE_CONNECTED)
+			itf_set_state(tun_interface_get_name(&cc->le->tun), 0);
+		cc->le->current = NULL;
+	}
 
 	if (iv_timer_registered(&cc->rx_timeout))
 		iv_timer_unregister(&cc->rx_timeout);
@@ -80,26 +84,50 @@ static void client_conn_kill(struct client_conn *cc)
 	free(cc);
 }
 
+static void printhex(const uint8_t *a, int len)
+{
+	int i;
+
+	for (i = 0; i < len; i++) {
+		printf("%.2x", a[i]);
+		if (i < len - 1)
+			printf(":");
+	}
+}
+
 static int verify_key_id(void *_cc, const uint8_t *id, int len)
 {
+	struct client_conn *cc = _cc;
+	struct iv_list_head *lh;
+
 	printf("key id: ");
 	printhex(id, len);
 	printf("\n");
 
-	return 0;
+	iv_list_for_each (lh, &cc->ls->cls->listen_entries) {
+		struct conf_listen_entry *ce;
+
+		ce = iv_list_entry(lh, struct conf_listen_entry, list);
+		if (!memcmp(ce->fingerprint, id, 20)) {
+			cc->le = ce->userptr;
+			return 0;
+		}
+	}
+
+	return 1;
 }
 
 static void handshake_done(void *_cc)
 {
 	struct client_conn *cc = _cc;
+	struct listen_entry *le = cc->le;
 	uint8_t id[64];
 
 	fprintf(stderr, "%p: handshake done\n", cc);
 
-	if (tun_interface_register(&cc->tun) < 0) {
-		client_conn_kill(cc);
-		return;
-	}
+	if (le->current != NULL)
+		client_conn_kill(le->current);
+	le->current = cc;
 
 	cc->state = STATE_CONNECTED;
 
@@ -114,13 +142,13 @@ static void handshake_done(void *_cc)
 	cc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
 	iv_timer_register(&cc->keepalive_timer);
 
-	x509_get_key_id(id + 2, sizeof(id) - 2, key);
+	x509_get_key_id(id + 2, sizeof(id) - 2, cc->ls->key);
 
 	id[0] = 0xfe;
 	id[1] = 0x80;
-	itf_add_v6(tun_interface_get_name(&cc->tun), id, 10);
+	itf_add_v6(tun_interface_get_name(&le->tun), id, 10);
 
-	itf_set_state(tun_interface_get_name(&cc->tun), 1);
+	itf_set_state(tun_interface_get_name(&le->tun), 1);
 }
 
 static void record_received(void *_cc, const uint8_t *rec, int len)
@@ -142,7 +170,7 @@ static void record_received(void *_cc, const uint8_t *rec, int len)
 	if (rlen + 2 != len)
 		return;
 
-	if (tun_interface_send_packet(&cc->tun, rec + 2, rlen) < 0)
+	if (tun_interface_send_packet(&cc->le->tun, rec + 2, rlen) < 0)
 		client_conn_kill(cc);
 }
 
@@ -153,26 +181,6 @@ static void connection_lost(void *_cc)
 	fprintf(stderr, "%p: connection lost\n", cc);
 
 	client_conn_kill(cc);
-}
-
-static void got_packet(void *_cc, uint8_t *buf, int len)
-{
-	struct client_conn *cc = _cc;
-	uint8_t sndbuf[len + 2];
-
-	iv_validate_now();
-
-	iv_timer_unregister(&cc->keepalive_timer);
-	cc->keepalive_timer.expires = iv_now;
-	cc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
-	iv_timer_register(&cc->keepalive_timer);
-
-	sndbuf[0] = len >> 8;
-	sndbuf[1] = len & 0xff;
-	memcpy(sndbuf + 2, buf, len);
-
-	if (pconn_record_send(&cc->pconn, sndbuf, len + 2))
-		client_conn_kill(cc);
 }
 
 static void rx_timeout(void *_cc)
@@ -203,16 +211,17 @@ static void send_keepalive(void *_cc)
 	iv_timer_register(&cc->keepalive_timer);
 }
 
-static void got_connection(void *_dummy)
+static void got_connection(void *_ls)
 {
-	struct sockaddr_in6 addr;
+	struct listening_socket *ls = _ls;
+	struct sockaddr_storage addr;
 	socklen_t addrlen;
 	int fd;
 	struct client_conn *cc;
 
 	addrlen = sizeof(addr);
 
-	fd = accept(listen_fd.fd, (struct sockaddr *)&addr, &addrlen);
+	fd = accept(ls->listen_fd.fd, (struct sockaddr *)&addr, &addrlen);
 	if (fd < 0) {
 		perror("accept");
 		return;
@@ -224,11 +233,10 @@ static void got_connection(void *_dummy)
 		return;
 	}
 
-	cc->state = STATE_HANDSHAKE;
+	cc->ls = ls;
+	cc->le = NULL;
 
-	cc->tun.itfname = itfname;
-	cc->tun.cookie = cc;
-	cc->tun.got_packet = got_packet;
+	cc->state = STATE_HANDSHAKE;
 
 	iv_validate_now();
 
@@ -241,7 +249,7 @@ static void got_connection(void *_dummy)
 
 	cc->pconn.fd = fd;
 	cc->pconn.role = PCONN_ROLE_SERVER;
-	cc->pconn.key = key;
+	cc->pconn.key = ls->key;
 	cc->pconn.cookie = cc;
 	cc->pconn.verify_key_id = verify_key_id;
 	cc->pconn.handshake_done = handshake_done;
@@ -255,62 +263,180 @@ static void got_connection(void *_dummy)
 	pconn_start(&cc->pconn);
 }
 
-static void got_sigint(void *_dummy)
+static void got_packet(void *_le, uint8_t *buf, int len)
 {
-	fprintf(stderr, "SIGINT received, shutting down\n");
+	struct listen_entry *le = _le;
+	struct client_conn *cc;
+	uint8_t sndbuf[len + 2];
 
-	iv_fd_unregister(&listen_fd);
-	close(listen_fd.fd);
+	cc = le->current;
+	if (cc == NULL)
+		return;
 
-	iv_signal_unregister(&sigint);
+	iv_validate_now();
+
+	iv_timer_unregister(&cc->keepalive_timer);
+	cc->keepalive_timer.expires = iv_now;
+	cc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	iv_timer_register(&cc->keepalive_timer);
+
+	sndbuf[0] = len >> 8;
+	sndbuf[1] = len & 0xff;
+	memcpy(sndbuf + 2, buf, len);
+
+	if (pconn_record_send(&cc->pconn, sndbuf, len + 2))
+		client_conn_kill(cc);
 }
 
-int main(void)
+static void *listening_socket_add(struct conf_listening_socket *cls,
+				  gnutls_x509_privkey_t key)
 {
+	struct listening_socket *ls;
 	int fd;
-	struct sockaddr_in6 addr;
 	int yes;
+	struct iv_list_head *lh;
 
-	gnutls_global_init();
-
-	iv_init();
-
-	serverport = 19275;
-	itfname = "tap%d";
-	if (x509_read_privkey(&key, "server.key") < 0)
-		return 1;
-
-	fd = socket(PF_INET6, SOCK_STREAM, 0);
+	fd = socket(cls->listen_address.ss_family, SOCK_STREAM, 0);
 	if (fd < 0) {
 		perror("socket");
-		return 1;
+		return NULL;
 	}
 
-	addr.sin6_family = AF_INET6;
-	addr.sin6_port = htons(serverport);
-	addr.sin6_flowinfo = 0;
-	addr.sin6_addr = in6addr_any;
-	addr.sin6_scope_id = 0;
-	if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+	if (bind(fd, (struct sockaddr *)&cls->listen_address,
+		 sizeof(cls->listen_address)) < 0) {
 		perror("bind");
-		return 1;
+		close(fd);
+		return NULL;
 	}
 
 	yes = 1;
 	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0) {
 		perror("setsockopt");
-		return 1;
+		close(fd);
+		return NULL;
 	}
 
 	if (listen(fd, 100) < 0) {
 		perror("listen");
-		return 1;
+		close(fd);
+		return NULL;
 	}
 
-	IV_FD_INIT(&listen_fd);
-	listen_fd.fd = fd;
-	listen_fd.handler_in = got_connection;
-	iv_fd_register(&listen_fd);
+	ls = malloc(sizeof(*ls));
+	if (ls == NULL)
+		return NULL;
+
+	ls->cls = cls;
+	ls->key = key;
+
+	IV_FD_INIT(&ls->listen_fd);
+	ls->listen_fd.fd = fd;
+	ls->listen_fd.cookie = ls;
+	ls->listen_fd.handler_in = got_connection;
+	iv_fd_register(&ls->listen_fd);
+
+	iv_list_for_each (lh, &cls->listen_entries) {
+		struct conf_listen_entry *cle;
+		struct listen_entry *le;
+
+		cle = iv_list_entry(lh, struct conf_listen_entry, list);
+
+		le = malloc(sizeof(*le));
+		if (le == NULL) {
+			iv_fd_unregister(&ls->listen_fd);
+			close(ls->listen_fd.fd);
+			return NULL;
+		}
+
+		cle->userptr = le;
+
+		le->cle = cle;
+
+		le->tun.itfname = cle->tunitf;
+		le->tun.cookie = le;
+		le->tun.got_packet = got_packet;
+		if (tun_interface_register(&le->tun) < 0) {
+			iv_fd_unregister(&ls->listen_fd);
+			close(ls->listen_fd.fd);
+			return NULL;
+		}
+
+		le->current = NULL;
+	}
+
+	return ls;
+}
+
+static void listening_socket_del(void *_ls)
+{
+	struct listening_socket *ls = _ls;
+	struct iv_list_head *lh;
+
+	iv_fd_unregister(&ls->listen_fd);
+	close(ls->listen_fd.fd);
+
+	iv_list_for_each (lh, &ls->cls->listen_entries) {
+		struct conf_listen_entry *cle;
+
+		cle = iv_list_entry(lh, struct conf_listen_entry, list);
+
+		if (cle->userptr != NULL) {
+			struct listen_entry *le = cle->userptr;
+
+			tun_interface_unregister(&le->tun);
+			if (le->current != NULL)
+				client_conn_kill(le->current);
+
+			free(le);
+		}
+	}
+
+	free(ls);
+}
+
+static struct conf *conf;
+static struct iv_signal sigint;
+
+static void got_sigint(void *_dummy)
+{
+	struct iv_list_head *lh;
+
+	fprintf(stderr, "SIGINT received, shutting down\n");
+
+	iv_signal_unregister(&sigint);
+
+	iv_list_for_each (lh, &conf->listening_sockets) {
+		struct conf_listening_socket *cls;
+
+		cls = iv_list_entry(lh, struct conf_listening_socket, list);
+
+		if (cls->userptr != NULL)
+			listening_socket_del(cls->userptr);
+	}
+}
+
+int main(void)
+{
+	gnutls_x509_privkey_t key;
+	struct iv_list_head *lh;
+
+	conf = parse_config("server.ini");
+	if (conf == NULL)
+		return 1;
+
+	gnutls_global_init();
+
+	if (x509_read_privkey(&key, conf->private_key) < 0)
+		return 1;
+
+	iv_init();
+
+	iv_list_for_each (lh, &conf->listening_sockets) {
+		struct conf_listening_socket *cls;
+
+		cls = iv_list_entry(lh, struct conf_listening_socket, list);
+		cls->userptr = listening_socket_add(cls, key);
+	}
 
 	IV_SIGNAL_INIT(&sigint);
 	sigint.signum = SIGINT;
@@ -326,6 +452,8 @@ int main(void)
 	gnutls_x509_privkey_deinit(key);
 
 	gnutls_global_deinit();
+
+	free_config(conf);
 
 	return 0;
 }
