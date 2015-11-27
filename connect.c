@@ -24,7 +24,6 @@
 #include <gnutls/gnutls.h>
 #include <gnutls/x509.h>
 #include <iv.h>
-#include <iv_signal.h>
 #include <netdb.h>
 #include <string.h>
 #include "conf.h"
@@ -465,8 +464,7 @@ static void rx_timeout_expired(void *_sp)
 	}
 }
 
-static void *
-server_peer_add(struct conf_connect_entry *ce, gnutls_x509_privkey_t key)
+void *server_peer_add(struct conf_connect_entry *ce, gnutls_x509_privkey_t key)
 {
 	struct server_peer *sp;
 
@@ -505,7 +503,7 @@ server_peer_add(struct conf_connect_entry *ce, gnutls_x509_privkey_t key)
 	return (void *)sp;
 }
 
-static void server_peer_del(void *_sp)
+void server_peer_del(void *_sp)
 {
 	struct server_peer *sp = _sp;
 
@@ -532,68 +530,4 @@ static void server_peer_del(void *_sp)
 	}
 
 	free(sp);
-}
-
-static struct conf *conf;
-static struct iv_signal sigint;
-
-static void got_sigint(void *_dummy)
-{
-	struct iv_list_head *lh;
-
-	fprintf(stderr, "SIGINT received, shutting down\n");
-
-	iv_signal_unregister(&sigint);
-
-	iv_list_for_each (lh, &conf->connect_entries) {
-		struct conf_connect_entry *ce;
-
-		ce = iv_list_entry(lh, struct conf_connect_entry, list);
-
-		if (ce->userptr != NULL)
-			server_peer_del(ce->userptr);
-	}
-}
-
-int main(void)
-{
-	gnutls_x509_privkey_t key;
-	struct iv_list_head *lh;
-
-	conf = parse_config("client.ini");
-	if (conf == NULL)
-		return 1;
-
-	gnutls_global_init();
-
-	if (x509_read_privkey(&key, conf->private_key) < 0)
-		return 1;
-
-	iv_init();
-
-	iv_list_for_each (lh, &conf->connect_entries) {
-		struct conf_connect_entry *ce;
-
-		ce = iv_list_entry(lh, struct conf_connect_entry, list);
-		ce->userptr = server_peer_add(ce, key);
-	}
-
-	IV_SIGNAL_INIT(&sigint);
-	sigint.signum = SIGINT;
-	sigint.flags = 0;
-	sigint.cookie = NULL;
-	sigint.handler = got_sigint;
-	iv_signal_register(&sigint);
-
-	iv_main();
-
-	iv_deinit();
-
-	gnutls_x509_privkey_deinit(key);
-
-	gnutls_global_deinit();
-
-	free_config(conf);
-
-	return 0;
 }
