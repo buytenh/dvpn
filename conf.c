@@ -89,7 +89,7 @@ static int parse_config_default(struct local_conf *lc, struct ini_cfgobj *co)
 
 	ret = ini_get_config_valueobj("default", "DefaultPort", co,
 				      INI_GET_FIRST_VALUE, &vo);
-	if (ret == 0) {
+	if (ret == 0 && vo != NULL) {
 		int port;
 
 		port = ini_get_int_config_value(vo, 1, 0, &ret);
