@@ -465,15 +465,27 @@ static void rx_timeout_expired(void *_sp)
 	}
 }
 
-static int server_peer_register(struct server_peer *sp)
+static void *
+server_peer_add(struct conf_connect_entry *ce, gnutls_x509_privkey_t key)
 {
+	struct server_peer *sp;
+
+	sp = malloc(sizeof(*sp));
+	if (sp == NULL)
+		return NULL;
+
+	sp->ce = ce;
+	sp->key = key;
+
 	sp->state = STATE_RESOLVE;
 
 	sp->tun.itfname = sp->ce->tunitf;
 	sp->tun.cookie = sp;
 	sp->tun.got_packet = got_packet;
-	if (tun_interface_register(&sp->tun) < 0)
-		return 1;
+	if (tun_interface_register(&sp->tun) < 0) {
+		free(sp);
+		return NULL;
+	}
 
 	IV_TIMER_INIT(&sp->rx_timeout);
 	iv_validate_now();
@@ -490,11 +502,13 @@ static int server_peer_register(struct server_peer *sp)
 
 	iv_timer_register(&sp->rx_timeout);
 
-	return 0;
+	return (void *)sp;
 }
 
-static void server_peer_unregister(struct server_peer *sp)
+static void server_peer_del(void *_sp)
 {
+	struct server_peer *sp = _sp;
+
 	tun_interface_unregister(&sp->tun);
 
 	iv_timer_unregister(&sp->rx_timeout);
@@ -516,6 +530,8 @@ static void server_peer_unregister(struct server_peer *sp)
 	} else {
 		abort();
 	}
+
+	free(sp);
 }
 
 static struct conf *conf;
@@ -531,15 +547,11 @@ static void got_sigint(void *_dummy)
 
 	iv_list_for_each (lh, &conf->connect_entries) {
 		struct conf_connect_entry *ce;
-		struct server_peer *sp;
 
 		ce = iv_list_entry(lh, struct conf_connect_entry, list);
 
-		sp = ce->userptr;
-		if (sp != NULL) {
-			server_peer_unregister(sp);
-			free(sp);
-		}
+		if (ce->userptr != NULL)
+			server_peer_del(ce->userptr);
 	}
 }
 
@@ -561,21 +573,9 @@ int main(void)
 
 	iv_list_for_each (lh, &conf->connect_entries) {
 		struct conf_connect_entry *ce;
-		struct server_peer *sp;
 
 		ce = iv_list_entry(lh, struct conf_connect_entry, list);
-
-		sp = malloc(sizeof(*sp));
-		if (sp == NULL)
-			return 1;
-
-		sp->ce = ce;
-		sp->key = key;
-		if (server_peer_register(sp) == 0) {
-			ce->userptr = sp;
-		} else {
-			free(sp);
-		}
+		ce->userptr = server_peer_add(ce, key);
 	}
 
 	IV_SIGNAL_INIT(&sigint);
