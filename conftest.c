@@ -63,8 +63,7 @@ static void print_config(struct conf *conf)
 	struct iv_list_head *lh;
 
 	printf("private key: %s\n", conf->private_key ? : "(null)");
-
-	printf("default port: %d\n", conf->default_port);
+	printf("\n");
 
 	iv_list_for_each (lh, &conf->connect_entries) {
 		struct conf_connect_entry *ce;

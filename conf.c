@@ -30,6 +30,12 @@
 #include <strings.h>
 #include "conf.h"
 
+struct local_conf
+{
+	struct conf	*conf;
+	int		default_port;
+};
+
 static struct ini_cfgobj *parse_cfgfile(const char *file)
 {
 	struct ini_cfgobj *co;
@@ -64,7 +70,7 @@ static struct ini_cfgobj *parse_cfgfile(const char *file)
 	return co;
 }
 
-static int parse_config_default(struct conf *conf, struct ini_cfgobj *co)
+static int parse_config_default(struct local_conf *lc, struct ini_cfgobj *co)
 {
 	struct value_obj *vo;
 	int ret;
@@ -78,7 +84,7 @@ static int parse_config_default(struct conf *conf, struct ini_cfgobj *co)
 		if (ret)
 			return -1;
 
-		conf->private_key = key;
+		lc->conf->private_key = key;
 	}
 
 	ret = ini_get_config_valueobj("default", "DefaultPort", co,
@@ -90,7 +96,7 @@ static int parse_config_default(struct conf *conf, struct ini_cfgobj *co)
 		if (ret)
 			return -1;
 
-		conf->default_port = port;
+		lc->default_port = port;
 	}
 
 	return 0;
@@ -116,7 +122,7 @@ get_const_value(struct ini_cfgobj *co, const char *section, const char *name)
 }
 
 static int
-add_connect_peer(struct conf *conf, const char *peer, const char *connect,
+add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 		 const uint8_t *fp, const char *itf)
 {
 	struct conf_connect_entry *ce;
@@ -128,7 +134,7 @@ add_connect_peer(struct conf *conf, const char *peer, const char *connect,
 		if (sscanf(colon + 1, "%d", &port) != 1)
 			return -1;
 	} else {
-		port = conf->default_port;
+		port = lc->default_port;
 	}
 
 	ce = malloc(sizeof(*ce));
@@ -144,7 +150,7 @@ add_connect_peer(struct conf *conf, const char *peer, const char *connect,
 	ce->tunitf = strdup(itf);
 	ce->userptr = NULL;
 
-	iv_list_add_tail(&ce->list, &conf->connect_entries);
+	iv_list_add_tail(&ce->list, &lc->conf->connect_entries);
 
 	return 0;
 }
@@ -235,16 +241,16 @@ static int addr_compare(const struct sockaddr_storage *a,
 }
 
 static struct conf_listening_socket *
-get_listening_socket(struct conf *conf, const char *listen)
+get_listening_socket(struct local_conf *lc, const char *listen)
 {
 	struct sockaddr_storage addr;
 	struct iv_list_head *lh;
 	struct conf_listening_socket *cls;
 
-	if (parse_listen_addr(&addr, listen, conf->default_port) < 0)
+	if (parse_listen_addr(&addr, listen, lc->default_port) < 0)
 		return NULL;
 
-	iv_list_for_each (lh, &conf->listening_sockets) {
+	iv_list_for_each (lh, &lc->conf->listening_sockets) {
 		cls = iv_list_entry(lh, struct conf_listening_socket, list);
 		if (addr_compare(&addr, &cls->listen_address) == 0)
 			return cls;
@@ -254,7 +260,7 @@ get_listening_socket(struct conf *conf, const char *listen)
 	if (cls == NULL)
 		return NULL;
 
-	iv_list_add_tail(&cls->list, &conf->listening_sockets);
+	iv_list_add_tail(&cls->list, &lc->conf->listening_sockets);
 	cls->listen_address = addr;
 	INIT_IV_LIST_HEAD(&cls->listen_entries);
 	cls->userptr = NULL;
@@ -263,13 +269,13 @@ get_listening_socket(struct conf *conf, const char *listen)
 }
 
 static int
-add_listen_peer(struct conf *conf, const char *peer, const char *listen,
+add_listen_peer(struct local_conf *lc, const char *peer, const char *listen,
 		const uint8_t *fp, const char *itf)
 {
 	struct conf_listening_socket *cls;
 	struct conf_listen_entry *ce;
 
-	cls = get_listening_socket(conf, listen);
+	cls = get_listening_socket(lc, listen);
 	if (cls == NULL)
 		return -1;
 
@@ -286,8 +292,8 @@ add_listen_peer(struct conf *conf, const char *peer, const char *listen,
 	return 0;
 }
 
-static int
-parse_config_peer(struct conf *conf, struct ini_cfgobj *co, const char *peer)
+static int parse_config_peer(struct local_conf *lc,
+			     struct ini_cfgobj *co, const char *peer)
 {
 	const char *connect;
 	const char *listen;
@@ -318,9 +324,9 @@ parse_config_peer(struct conf *conf, struct ini_cfgobj *co, const char *peer)
 		return -1;
 
 	if (connect != NULL)
-		return add_connect_peer(conf, peer, connect, f, itf);
+		return add_connect_peer(lc, peer, connect, f, itf);
 	else
-		return add_listen_peer(conf, peer, listen, f, itf);
+		return add_listen_peer(lc, peer, listen, f, itf);
 
 	return 0;
 }
@@ -329,6 +335,7 @@ struct conf *parse_config(const char *file)
 {
 	struct conf *conf;
 	struct ini_cfgobj *co;
+	struct local_conf lc;
 	char **section;
 	int num_sections;
 	int err;
@@ -338,7 +345,6 @@ struct conf *parse_config(const char *file)
 		return NULL;
 
 	conf->private_key = NULL;
-	conf->default_port = 0;
 	INIT_IV_LIST_HEAD(&conf->connect_entries);
 	INIT_IV_LIST_HEAD(&conf->listening_sockets);
 
@@ -348,7 +354,10 @@ struct conf *parse_config(const char *file)
 		return NULL;
 	}
 
-	if (parse_config_default(conf, co) < 0) {
+	lc.conf = conf;
+	lc.default_port = 0;
+
+	if (parse_config_default(&lc, co) < 0) {
 		ini_config_destroy(co);
 		free(conf);
 		return NULL;
@@ -362,7 +371,7 @@ struct conf *parse_config(const char *file)
 			if (strcasecmp(section[i], "default") == 0)
 				continue;
 
-			if (parse_config_peer(conf, co, section[i]) < 0) {
+			if (parse_config_peer(&lc, co, section[i]) < 0) {
 				ini_free_section_list(section);
 				ini_config_destroy(co);
 				free(conf);
