@@ -43,18 +43,14 @@ static void got_sigint(void *_dummy)
 		struct conf_connect_entry *cce;
 
 		cce = iv_list_entry(lh, struct conf_connect_entry, list);
-
-		if (cce->userptr != NULL)
-			server_peer_del(cce->userptr);
+		server_peer_del(cce->userptr);
 	}
 
 	iv_list_for_each (lh, &conf->listening_sockets) {
 		struct conf_listening_socket *cls;
 
 		cls = iv_list_entry(lh, struct conf_listening_socket, list);
-
-		if (cls->userptr != NULL)
-			listening_socket_del(cls->userptr);
+		listening_socket_del(cls->userptr);
 	}
 }
 
@@ -105,14 +101,20 @@ int main(int argc, char *argv[])
 		struct conf_connect_entry *cce;
 
 		cce = iv_list_entry(lh, struct conf_connect_entry, list);
+
 		cce->userptr = server_peer_add(cce, key);
+		if (cce->userptr == NULL)
+			return 1;
 	}
 
 	iv_list_for_each (lh, &conf->listening_sockets) {
 		struct conf_listening_socket *cls;
 
 		cls = iv_list_entry(lh, struct conf_listening_socket, list);
+
 		cls->userptr = listening_socket_add(cls, key);
+		if (cls->userptr == NULL)
+			return 1;
 	}
 
 	IV_SIGNAL_INIT(&sigint);
