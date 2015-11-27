@@ -235,8 +235,6 @@ static void send_keepalive(void *_cc)
 	static uint8_t keepalive[] = { 0x00, 0x00 };
 	struct client_conn *cc = _cc;
 
-	fprintf(stderr, "%s: sending keepalive\n", cc->le->cle->name);
-
 	if (pconn_record_send(&cc->pconn, keepalive, 2)) {
 		client_conn_kill(cc);
 		return;

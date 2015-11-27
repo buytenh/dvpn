@@ -128,8 +128,6 @@ static void send_keepalive(void *_sp)
 	static uint8_t keepalive[] = { 0x00, 0x00 };
 	struct server_peer *sp = _sp;
 
-	fprintf(stderr, "%s: sending keepalive\n", sp->cce->name);
-
 	if (sp->state != STATE_CONNECTED)
 		abort();
 
