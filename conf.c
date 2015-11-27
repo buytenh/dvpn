@@ -129,12 +129,20 @@ add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 		 const uint8_t *fp, const char *itf)
 {
 	struct conf_connect_entry *ce;
-	const char *colon;
+	char *delim;
 	int port;
 
-	colon = strchr(connect, ':');
-	if (colon != NULL) {
-		if (sscanf(colon + 1, "%d", &port) != 1)
+	delim = strstr(connect, "]:");
+	if (delim != NULL) {
+		delim++;
+	} else {
+		delim = strchr(connect, ':');
+		if (delim != NULL && strchr(delim + 1, ':') != NULL)
+			delim = NULL;
+	}
+
+	if (delim != NULL) {
+		if (sscanf(delim + 1, "%d", &port) != 1)
 			return -1;
 	} else {
 		port = lc->default_port;
@@ -145,9 +153,16 @@ add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 		return -1;
 
 	ce->name = strdup(peer);
-	ce->hostname = strdup(connect);
-	if (colon != NULL)
-		ce->hostname[colon - connect] = 0;
+	if (connect[0] == '[') {
+		ce->hostname = strdup(connect + 1);
+		delim = strchr(ce->hostname, ']');
+		if (delim != NULL)
+			*delim = 0;
+	} else {
+		ce->hostname = strdup(connect);
+		if (delim != NULL)
+			ce->hostname[delim - connect] = 0;
+	}
 	asprintf(&ce->port, "%d", port);
 	memcpy(ce->fingerprint, fp, 20);
 	ce->tunitf = strdup(itf);
