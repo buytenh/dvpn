@@ -503,6 +503,7 @@ static void rx_timeout_expired(void *_sp)
 			fprintf(stderr, "%s: receive timeout\n", sp->cce->name);
 			pconn_destroy(&sp->pconn);
 			close(sp->pconn.fd);
+			iv_timer_unregister(&sp->keepalive_timer);
 		} else {
 			abort();
 		}
