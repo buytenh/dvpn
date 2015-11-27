@@ -375,7 +375,7 @@ struct conf *parse_config(const char *file)
 	}
 
 	lc.conf = conf;
-	lc.default_port = 0;
+	lc.default_port = 19275;
 
 	if (parse_config_default(&lc, co) < 0) {
 		ini_config_destroy(co);
