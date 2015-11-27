@@ -18,11 +18,13 @@
  */
 
 #include <stdio.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <gnutls/gnutls.h>
 #include <gnutls/abstract.h>
 #include <gnutls/x509.h>
 #include <stdint.h>
+#include <string.h>
 #include <unistd.h>
 #include "x509.h"
 
@@ -36,7 +38,8 @@ int x509_read_privkey(gnutls_x509_privkey_t *key, const char *file)
 
 	fd = open(file, O_RDONLY);
 	if (fd < 0) {
-		perror("open");
+		fprintf(stderr, "error opening %s: %s\n", file,
+			strerror(errno));
 		return -1;
 	}
 
