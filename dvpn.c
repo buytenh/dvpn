@@ -19,6 +19,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <getopt.h>
 #include <gnutls/x509.h>
 #include <iv.h>
 #include <iv_signal.h>
@@ -57,12 +58,39 @@ static void got_sigint(void *_dummy)
 	}
 }
 
-int main(void)
+int main(int argc, char *argv[])
 {
+	static struct option long_options[] = {
+		{ "config-file", required_argument, 0, 'c' },
+		{ 0, 0, 0, 0, },
+	};
+	const char *config = "/etc/dvpn.ini";
 	gnutls_x509_privkey_t key;
 	struct iv_list_head *lh;
 
-	conf = parse_config("dvpn.ini");
+	while (1) {
+		int c;
+
+		c = getopt_long(argc, argv, "c:", long_options, NULL);
+		if (c == -1)
+			break;
+
+		switch (c) {
+		case 'c':
+			config = optarg;
+			break;
+
+		case '?':
+			fprintf(stderr, "syntax: %s [-c <config.ini>]\n",
+				argv[0]);
+			return 1;
+
+		default:
+			abort();
+		}
+	}
+
+	conf = parse_config(config);
 	if (conf == NULL)
 		return 1;
 
