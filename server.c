@@ -30,7 +30,7 @@
 #include "tun.h"
 #include "x509.h"
 
-struct client
+struct client_conn
 {
 	int			state;
 	struct pconn		conn;
@@ -63,24 +63,24 @@ static void printhex(const uint8_t *a, int len)
 	}
 }
 
-static void client_kill(struct client *cl)
+static void client_conn_kill(struct client_conn *cc)
 {
-	pconn_destroy(&cl->conn);
-	close(cl->conn.fd);
+	pconn_destroy(&cc->conn);
+	close(cc->conn.fd);
 
-	if (cl->state == STATE_CONNECTED)
-		tun_interface_unregister(&cl->tun);
+	if (cc->state == STATE_CONNECTED)
+		tun_interface_unregister(&cc->tun);
 
-	if (iv_timer_registered(&cl->rx_timeout))
-		iv_timer_unregister(&cl->rx_timeout);
+	if (iv_timer_registered(&cc->rx_timeout))
+		iv_timer_unregister(&cc->rx_timeout);
 
-	if (iv_timer_registered(&cl->keepalive_timer))
-		iv_timer_unregister(&cl->keepalive_timer);
+	if (iv_timer_registered(&cc->keepalive_timer))
+		iv_timer_unregister(&cc->keepalive_timer);
 
-	free(cl);
+	free(cc);
 }
 
-static int verify_key_id(void *_cl, const uint8_t *id, int len)
+static int verify_key_id(void *_cc, const uint8_t *id, int len)
 {
 	printf("key id: ");
 	printhex(id, len);
@@ -89,51 +89,51 @@ static int verify_key_id(void *_cl, const uint8_t *id, int len)
 	return 0;
 }
 
-static void handshake_done(void *_cl)
+static void handshake_done(void *_cc)
 {
-	struct client *cl = _cl;
+	struct client_conn *cc = _cc;
 	uint8_t id[64];
 
-	fprintf(stderr, "%p: handshake done\n", cl);
+	fprintf(stderr, "%p: handshake done\n", cc);
 
-	if (tun_interface_register(&cl->tun) < 0) {
-		client_kill(cl);
+	if (tun_interface_register(&cc->tun) < 0) {
+		client_conn_kill(cc);
 		return;
 	}
 
-	cl->state = STATE_CONNECTED;
+	cc->state = STATE_CONNECTED;
 
 	iv_validate_now();
 
-	iv_timer_unregister(&cl->rx_timeout);
-	cl->rx_timeout.expires = iv_now;
-	cl->rx_timeout.expires.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
-	iv_timer_register(&cl->rx_timeout);
+	iv_timer_unregister(&cc->rx_timeout);
+	cc->rx_timeout.expires = iv_now;
+	cc->rx_timeout.expires.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
+	iv_timer_register(&cc->rx_timeout);
 
-	cl->keepalive_timer.expires = iv_now;
-	cl->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
-	iv_timer_register(&cl->keepalive_timer);
+	cc->keepalive_timer.expires = iv_now;
+	cc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	iv_timer_register(&cc->keepalive_timer);
 
 	x509_get_key_id(id + 2, sizeof(id) - 2, key);
 
 	id[0] = 0xfe;
 	id[1] = 0x80;
-	itf_add_v6(tun_interface_get_name(&cl->tun), id, 10);
+	itf_add_v6(tun_interface_get_name(&cc->tun), id, 10);
 
-	itf_set_state(tun_interface_get_name(&cl->tun), 1);
+	itf_set_state(tun_interface_get_name(&cc->tun), 1);
 }
 
-static void record_received(void *_cl, const uint8_t *rec, int len)
+static void record_received(void *_cc, const uint8_t *rec, int len)
 {
-	struct client *cl = _cl;
+	struct client_conn *cc = _cc;
 	int rlen;
 
 	iv_validate_now();
 
-	iv_timer_unregister(&cl->rx_timeout);
-	cl->rx_timeout.expires = iv_now;
-	cl->rx_timeout.expires.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
-	iv_timer_register(&cl->rx_timeout);
+	iv_timer_unregister(&cc->rx_timeout);
+	cc->rx_timeout.expires = iv_now;
+	cc->rx_timeout.expires.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
+	iv_timer_register(&cc->rx_timeout);
 
 	if (len <= 2)
 		return;
@@ -142,65 +142,65 @@ static void record_received(void *_cl, const uint8_t *rec, int len)
 	if (rlen + 2 != len)
 		return;
 
-	if (tun_interface_send_packet(&cl->tun, rec + 2, rlen) < 0)
-		client_kill(cl);
+	if (tun_interface_send_packet(&cc->tun, rec + 2, rlen) < 0)
+		client_conn_kill(cc);
 }
 
-static void connection_lost(void *_cl)
+static void connection_lost(void *_cc)
 {
-	struct client *cl = _cl;
+	struct client_conn *cc = _cc;
 
-	fprintf(stderr, "%p: connection lost\n", cl);
+	fprintf(stderr, "%p: connection lost\n", cc);
 
-	client_kill(cl);
+	client_conn_kill(cc);
 }
 
-static void got_packet(void *_cl, uint8_t *buf, int len)
+static void got_packet(void *_cc, uint8_t *buf, int len)
 {
-	struct client *cl = _cl;
+	struct client_conn *cc = _cc;
 	uint8_t sndbuf[len + 2];
 
 	iv_validate_now();
 
-	iv_timer_unregister(&cl->keepalive_timer);
-	cl->keepalive_timer.expires = iv_now;
-	cl->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
-	iv_timer_register(&cl->keepalive_timer);
+	iv_timer_unregister(&cc->keepalive_timer);
+	cc->keepalive_timer.expires = iv_now;
+	cc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	iv_timer_register(&cc->keepalive_timer);
 
 	sndbuf[0] = len >> 8;
 	sndbuf[1] = len & 0xff;
 	memcpy(sndbuf + 2, buf, len);
 
-	if (pconn_record_send(&cl->conn, sndbuf, len + 2))
-		client_kill(cl);
+	if (pconn_record_send(&cc->conn, sndbuf, len + 2))
+		client_conn_kill(cc);
 }
 
-static void rx_timeout(void *_cl)
+static void rx_timeout(void *_cc)
 {
-	struct client *cl = _cl;
+	struct client_conn *cc = _cc;
 
-	fprintf(stderr, "%p: rx timeout\n", cl);
+	fprintf(stderr, "%p: rx timeout\n", cc);
 
-	client_kill(cl);
+	client_conn_kill(cc);
 }
 
-static void send_keepalive(void *_cl)
+static void send_keepalive(void *_cc)
 {
 	static uint8_t keepalive[] = { 0x00, 0x00 };
-	struct client *cl = _cl;
+	struct client_conn *cc = _cc;
 
-	fprintf(stderr, "%p: sending keepalive\n", cl);
+	fprintf(stderr, "%p: sending keepalive\n", cc);
 
-	if (pconn_record_send(&cl->conn, keepalive, 2)) {
-		client_kill(cl);
+	if (pconn_record_send(&cc->conn, keepalive, 2)) {
+		client_conn_kill(cc);
 		return;
 	}
 
 	iv_validate_now();
 
-	cl->keepalive_timer.expires = iv_now;
-	cl->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
-	iv_timer_register(&cl->keepalive_timer);
+	cc->keepalive_timer.expires = iv_now;
+	cc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	iv_timer_register(&cc->keepalive_timer);
 }
 
 static void got_connection(void *_dummy)
@@ -208,7 +208,7 @@ static void got_connection(void *_dummy)
 	struct sockaddr_in6 addr;
 	socklen_t addrlen;
 	int fd;
-	struct client *cl;
+	struct client_conn *cc;
 
 	addrlen = sizeof(addr);
 
@@ -218,41 +218,41 @@ static void got_connection(void *_dummy)
 		return;
 	}
 
-	cl = malloc(sizeof(*cl));
-	if (cl == NULL) {
+	cc = malloc(sizeof(*cc));
+	if (cc == NULL) {
 		close(fd);
 		return;
 	}
 
-	cl->state = STATE_HANDSHAKE;
+	cc->state = STATE_HANDSHAKE;
 
-	cl->conn.fd = fd;
-	cl->conn.role = PCONN_ROLE_SERVER;
-	cl->conn.key = key;
-	cl->conn.cookie = cl;
-	cl->conn.verify_key_id = verify_key_id;
-	cl->conn.handshake_done = handshake_done;
-	cl->conn.record_received = record_received;
-	cl->conn.connection_lost = connection_lost;
+	cc->conn.fd = fd;
+	cc->conn.role = PCONN_ROLE_SERVER;
+	cc->conn.key = key;
+	cc->conn.cookie = cc;
+	cc->conn.verify_key_id = verify_key_id;
+	cc->conn.handshake_done = handshake_done;
+	cc->conn.record_received = record_received;
+	cc->conn.connection_lost = connection_lost;
 
-	cl->tun.itfname = itfname;
-	cl->tun.cookie = cl;
-	cl->tun.got_packet = got_packet;
+	cc->tun.itfname = itfname;
+	cc->tun.cookie = cc;
+	cc->tun.got_packet = got_packet;
 
 	iv_validate_now();
 
-	IV_TIMER_INIT(&cl->rx_timeout);
-	cl->rx_timeout.expires = iv_now;
-	cl->rx_timeout.expires.tv_sec += HANDSHAKE_TIMEOUT;
-	cl->rx_timeout.cookie = cl;
-	cl->rx_timeout.handler = rx_timeout;
-	iv_timer_register(&cl->rx_timeout);
+	IV_TIMER_INIT(&cc->rx_timeout);
+	cc->rx_timeout.expires = iv_now;
+	cc->rx_timeout.expires.tv_sec += HANDSHAKE_TIMEOUT;
+	cc->rx_timeout.cookie = cc;
+	cc->rx_timeout.handler = rx_timeout;
+	iv_timer_register(&cc->rx_timeout);
 
-	IV_TIMER_INIT(&cl->keepalive_timer);
-	cl->keepalive_timer.cookie = cl;
-	cl->keepalive_timer.handler = send_keepalive;
+	IV_TIMER_INIT(&cc->keepalive_timer);
+	cc->keepalive_timer.cookie = cc;
+	cc->keepalive_timer.handler = send_keepalive;
 
-	pconn_start(&cl->conn);
+	pconn_start(&cc->conn);
 }
 
 static void got_sigint(void *_dummy)
