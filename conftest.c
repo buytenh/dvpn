@@ -43,7 +43,7 @@ static void print_address(const struct sockaddr_storage *addr)
 		const struct sockaddr_in *a4 =
 			(const struct sockaddr_in *)addr;
 
-		printf("%s:%d",
+		printf("[%s]:%d",
 		       inet_ntop(AF_INET, &a4->sin_addr, dst, sizeof(dst)),
 		       ntohs(a4->sin_port));
 	} else if (addr->ss_family == AF_INET6) {
@@ -71,8 +71,7 @@ static void print_config(struct conf *conf)
 		ce = iv_list_entry(lh, struct conf_connect_entry, list);
 
 		printf("connect [%s]\n", ce->name);
-		printf("- hostname: %s\n", ce->hostname);
-		printf("- port: %s\n", ce->port);
+		printf("- hostname: [%s]:%s\n", ce->hostname, ce->port);
 		printf("- fp: ");
 		printhex(ce->fingerprint, 20);
 		printf("\n");
