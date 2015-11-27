@@ -17,11 +17,6 @@
  * Boston, MA 02110-1301, USA.
  */
 
-/*
- * TODO:
- * - parse [12::34]:5678 IPv6 address/port format properly
- */
-
 #define _GNU_SOURCE
 
 #include <stdio.h>
@@ -176,40 +171,61 @@ add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 static int parse_listen_addr(struct sockaddr_storage *dst,
 			     const char *listen, int default_port)
 {
-	char *l;
-	char *colon;
+	char *delim;
 	int port;
-	struct sockaddr_in6 *addr;
+	char *l;
+	struct sockaddr_in6 *a6;
+	struct sockaddr_in *a4;
 
-	l = strdup(listen);
-	if (l == NULL)
-		return -1;
+	delim = strstr(listen, "]:");
+	if (delim != NULL) {
+		delim++;
+	} else {
+		delim = strchr(listen, ':');
+		if (delim != NULL && strchr(delim + 1, ':') != NULL)
+			delim = NULL;
+	}
 
-	colon = strchr(l, ':');
-	if (colon != NULL) {
-		if (sscanf(colon + 1, "%d", &port) != 1)
+	if (delim != NULL) {
+		if (sscanf(delim + 1, "%d", &port) != 1)
 			return -1;
-		*colon = 0;
 	} else {
 		port = default_port;
 	}
 
-	// @@@
-	if (strcmp(l, "") && strcmp(l, "*")) {
-		free(l);
-		return -1;
+	if (listen[0] == '[') {
+		l = strdup(listen + 1);
+		delim = strchr(l, ']');
+		if (delim != NULL)
+			*delim = 0;
+	} else {
+		l = strdup(listen);
+		if (delim != NULL)
+			l[delim - listen] = 0;
 	}
 
-	free(l);
+	a6 = (struct sockaddr_in6 *)dst;
+	a6->sin6_family = AF_INET6;
+	a6->sin6_port = htons(port);
+	a6->sin6_flowinfo = 0;
+	a6->sin6_scope_id = 0;
 
-	addr = (struct sockaddr_in6 *)dst;
-	addr->sin6_family = AF_INET6;
-	addr->sin6_port = htons(port);
-	addr->sin6_flowinfo = 0;
-	addr->sin6_addr = in6addr_any;
-	addr->sin6_scope_id = 0;
+	if (!strcmp(l, "") || !strcmp(l, "*")) {
+		a6->sin6_addr = in6addr_any;
+		return 0;
+	}
 
-	return 0;
+	if (inet_pton(AF_INET6, l, &a6->sin6_addr))
+		return 0;
+
+	a4 = (struct sockaddr_in *)dst;
+	a4->sin_family = AF_INET;
+	a4->sin_port = htons(port);
+
+	if (inet_pton(AF_INET, l, &a4->sin_addr))
+		return 0;
+
+	return -1;
 }
 
 static int addr_compare(const struct sockaddr_storage *a,
