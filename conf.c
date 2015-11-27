@@ -47,6 +47,7 @@ static struct ini_cfgobj *parse_cfgfile(const char *file)
 		return NULL;
 
 	if (ini_config_file_open(file, 0, &cf)) {
+		fprintf(stderr, "error opening %s\n", file);
 		ini_config_destroy(co);
 		return NULL;
 	}
