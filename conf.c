@@ -188,8 +188,10 @@ static int parse_listen_addr(struct sockaddr_storage *dst,
 
 	addr = (struct sockaddr_in6 *)dst;
 	addr->sin6_family = AF_INET6;
-	addr->sin6_addr = in6addr_any;
 	addr->sin6_port = htons(port);
+	addr->sin6_flowinfo = 0;
+	addr->sin6_addr = in6addr_any;
+	addr->sin6_scope_id = 0;
 
 	return 0;
 }
