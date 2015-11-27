@@ -27,6 +27,7 @@
 #include <iv_signal.h>
 #include <netdb.h>
 #include <string.h>
+#include "conf.h"
 #include "itf.h"
 #include "iv_getaddrinfo.h"
 #include "pconn.h"
@@ -35,10 +36,8 @@
 
 struct server_conn
 {
-	const char		*server;
-	const char		*port;
-	const char		*itf;
-	gnutls_x509_privkey_t	key;
+	struct conf_connect_entry	*ce;
+	gnutls_x509_privkey_t		key;
 
 	int			state;
 	struct tun_interface	tun;
@@ -85,11 +84,14 @@ static void printhex(const uint8_t *a, int len)
 
 static int verify_key_id(void *_sc, const uint8_t *id, int len)
 {
+	struct server_conn *sc = _sc;
+	struct conf_connect_entry *ce = sc->ce;
+
 	printf("key id: ");
 	printhex(id, len);
 	printf("\n");
 
-	return 0;
+	return memcmp(ce->fingerprint, id, 20);
 }
 
 static void send_keepalive(void *_sc)
@@ -377,8 +379,8 @@ static int start_resolve(struct server_conn *sc)
 	sc->hints.ai_protocol = 0;
 	sc->hints.ai_flags = AI_ADDRCONFIG | AI_V4MAPPED | AI_NUMERICSERV;
 
-	sc->addrinfo.node = sc->server;
-	sc->addrinfo.service = sc->port;
+	sc->addrinfo.node = sc->ce->hostname;
+	sc->addrinfo.service = sc->ce->port;
 	sc->addrinfo.hints = &sc->hints;
 	sc->addrinfo.cookie = sc;
 	sc->addrinfo.handler = resolve_complete;
@@ -467,7 +469,7 @@ static int server_conn_register(struct server_conn *sc)
 {
 	sc->state = STATE_RESOLVE;
 
-	sc->tun.itfname = sc->itf;
+	sc->tun.itfname = sc->ce->tunitf;
 	sc->tun.cookie = sc;
 	sc->tun.got_packet = got_packet;
 	if (tun_interface_register(&sc->tun) < 0)
@@ -516,31 +518,65 @@ static void server_conn_unregister(struct server_conn *sc)
 	}
 }
 
-static struct server_conn sc;
+static struct conf *conf;
 static struct iv_signal sigint;
 
 static void got_sigint(void *_dummy)
 {
+	struct iv_list_head *lh;
+
 	fprintf(stderr, "SIGINT received, shutting down\n");
 
 	iv_signal_unregister(&sigint);
 
-	server_conn_unregister(&sc);
+	iv_list_for_each (lh, &conf->connect_entries) {
+		struct conf_connect_entry *ce;
+		struct server_conn *sc;
+
+		ce = iv_list_entry(lh, struct conf_connect_entry, list);
+
+		sc = ce->userptr;
+		if (sc != NULL) {
+			server_conn_unregister(sc);
+			free(sc);
+		}
+	}
 }
 
 int main(void)
 {
+	gnutls_x509_privkey_t key;
+	struct iv_list_head *lh;
+
+	conf = parse_config("client.ini");
+	if (conf == NULL)
+		return 1;
+
 	gnutls_global_init();
+
+	if (x509_read_privkey(&key, conf->private_key) < 0)
+		return 1;
 
 	iv_init();
 
-	sc.server = "localhost";
-	sc.port = "19275";
-	sc.itf = "tapc%d";
-	if (x509_read_privkey(&sc.key, "client.key") < 0)
-		return 1;
+	iv_list_for_each (lh, &conf->connect_entries) {
+		struct conf_connect_entry *ce;
+		struct server_conn *sc;
 
-	server_conn_register(&sc);
+		ce = iv_list_entry(lh, struct conf_connect_entry, list);
+
+		sc = malloc(sizeof(*sc));
+		if (sc == NULL)
+			return 1;
+
+		sc->ce = ce;
+		sc->key = key;
+		if (server_conn_register(sc) == 0) {
+			ce->userptr = sc;
+		} else {
+			free(sc);
+		}
+	}
 
 	IV_SIGNAL_INIT(&sigint);
 	sigint.signum = SIGINT;
@@ -553,9 +589,11 @@ int main(void)
 
 	iv_deinit();
 
-	gnutls_x509_privkey_deinit(sc.key);
+	gnutls_x509_privkey_deinit(key);
 
 	gnutls_global_deinit();
+
+	free_config(conf);
 
 	return 0;
 }

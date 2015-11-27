@@ -8,8 +8,8 @@ clean:
 		rm -f server
 		rm -f test
 
-client:		client.c itf.c itf.h iv_getaddrinfo.c iv_getaddrinfo.h pconn.c pconn.h tun.c tun.h x509.c x509.h
-		gcc -Wall -g -o client client.c itf.c iv_getaddrinfo.c pconn.c tun.c x509.c -lgnutls -livykis
+client:		client.c conf.c conf.h itf.c itf.h iv_getaddrinfo.c iv_getaddrinfo.h pconn.c pconn.h tun.c tun.h x509.c x509.h
+		gcc -Wall -g -o client client.c conf.c itf.c iv_getaddrinfo.c pconn.c tun.c x509.c -lgnutls -lini_config -livykis
 
 conftest:	conftest.c conf.c conf.h
 		gcc -Wall -g -o conftest conftest.c conf.c -lini_config
