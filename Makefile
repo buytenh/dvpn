@@ -1,10 +1,11 @@
-all:		conftest dvpn gencert genkey
+all:		conftest dvpn gencert genkey keyid
 
 clean:
 		rm -f conftest
 		rm -f dvpn
 		rm -f gencert
 		rm -f genkey
+		rm -f keyid
 
 conftest:	conftest.c conf.c conf.h
 		gcc -Wall -g -o conftest conftest.c conf.c -lini_config
@@ -17,3 +18,6 @@ gencert:	gencert.c x509.c x509.h
 
 genkey:		genkey.c x509.c x509.h
 		gcc -Wall -g -o genkey genkey.c x509.c -lgnutls
+
+keyid:		keyid.c x509.c x509.h
+		gcc -Wall -g -o keyid keyid.c x509.c -lgnutls
