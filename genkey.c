@@ -23,6 +23,7 @@
 #include <gnutls/x509.h>
 #include <stdint.h>
 #include <unistd.h>
+#include "x509.h"
 
 int main(int argc, char *argv[])
 {
@@ -32,6 +33,7 @@ int main(int argc, char *argv[])
 	int fd;
 	uint8_t buf[8192];
 	size_t size;
+	ssize_t len;
 
 	if (argc < 3 || sscanf(argv[2], "%d", &bits) != 1) {
 		fprintf(stderr, "usage: %s [keyfile] [bits]\n", argv[0]);
@@ -68,6 +70,18 @@ int main(int argc, char *argv[])
 
 	write(fd, buf, size);
 	close(fd);
+
+	len = x509_get_key_id(buf, sizeof(buf), key);
+	if (len == 20) {
+		int i;
+
+		for (i = 0; i < 20; i++) {
+			printf("%.2x", buf[i]);
+			if (i != 19)
+				printf(":");
+		}
+		printf("\n");
+	}
 
 	gnutls_x509_privkey_deinit(key);
 
