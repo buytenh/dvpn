@@ -109,12 +109,27 @@ int main(int argc, char *argv[])
 
 	iv_list_for_each (lh, &conf->listening_sockets) {
 		struct conf_listening_socket *cls;
+		void *ptr;
+		struct iv_list_head *lh2;
 
 		cls = iv_list_entry(lh, struct conf_listening_socket, list);
 
-		cls->userptr = listening_socket_add(cls, key);
-		if (cls->userptr == NULL)
+		ptr = listening_socket_add(cls, key);
+		if (ptr == NULL)
 			return 1;
+
+		cls->userptr = ptr;
+
+		iv_list_for_each (lh2, &cls->listen_entries) {
+			struct conf_listen_entry *cle;
+
+			cle = iv_list_entry(lh2, struct conf_listen_entry,
+					    list);
+
+			cle->userptr = listening_socket_add_entry(ptr, cle);
+			if (cle->userptr == NULL)
+				return 1;
+		}
 	}
 
 	IV_SIGNAL_INIT(&sigint);

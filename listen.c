@@ -336,7 +336,6 @@ void *listening_socket_add(struct conf_listening_socket *cls,
 	struct listening_socket *ls;
 	int fd;
 	int yes;
-	struct iv_list_head *lh;
 
 	fd = socket(cls->listen_address.ss_family, SOCK_STREAM, 0);
 	if (fd < 0) {
@@ -377,36 +376,42 @@ void *listening_socket_add(struct conf_listening_socket *cls,
 	ls->listen_fd.handler_in = got_connection;
 	iv_fd_register(&ls->listen_fd);
 
-	iv_list_for_each (lh, &cls->listen_entries) {
-		struct conf_listen_entry *cle;
-		struct listen_entry *le;
+	return ls;
+}
 
-		cle = iv_list_entry(lh, struct conf_listen_entry, list);
+void *listening_socket_add_entry(void *_ls, struct conf_listen_entry *cle)
+{
+	struct listening_socket *ls = _ls;
+	struct listen_entry *le;
 
-		le = malloc(sizeof(*le));
-		if (le == NULL) {
-			iv_fd_unregister(&ls->listen_fd);
-			close(ls->listen_fd.fd);
-			return NULL;
-		}
+	le = malloc(sizeof(*le));
+	if (le == NULL)
+		return NULL;
 
-		cle->userptr = le;
+	le->cle = cle;
 
-		le->cle = cle;
-
-		le->tun.itfname = cle->tunitf;
-		le->tun.cookie = le;
-		le->tun.got_packet = got_packet;
-		if (tun_interface_register(&le->tun) < 0) {
-			iv_fd_unregister(&ls->listen_fd);
-			close(ls->listen_fd.fd);
-			return NULL;
-		}
-
-		le->current = NULL;
+	le->tun.itfname = cle->tunitf;
+	le->tun.cookie = le;
+	le->tun.got_packet = got_packet;
+	if (tun_interface_register(&le->tun) < 0) {
+		free(le);
+		return NULL;
 	}
 
-	return ls;
+	le->current = NULL;
+
+	return le;
+}
+
+void listening_socket_del_entry(void *_ls, void *_le)
+{
+	struct listen_entry *le = _le;
+
+	if (le->current != NULL)
+		client_conn_kill(le->current);
+	tun_interface_unregister(&le->tun);
+
+	free(le);
 }
 
 void listening_socket_del(void *_ls)
@@ -422,15 +427,8 @@ void listening_socket_del(void *_ls)
 
 		cle = iv_list_entry(lh, struct conf_listen_entry, list);
 
-		if (cle->userptr != NULL) {
-			struct listen_entry *le = cle->userptr;
-
-			if (le->current != NULL)
-				client_conn_kill(le->current);
-			tun_interface_unregister(&le->tun);
-
-			free(le);
-		}
+		if (cle->userptr != NULL)
+			listening_socket_del_entry(ls, cle->userptr);
 	}
 
 	free(ls);

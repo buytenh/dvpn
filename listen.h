@@ -25,6 +25,8 @@
 
 void *listening_socket_add(struct conf_listening_socket *cls,
 			   gnutls_x509_privkey_t key);
+void *listening_socket_add_entry(void *ls, struct conf_listen_entry *cle);
+void listening_socket_del_entry(void *ls, void *le);
 void listening_socket_del(void *ls);
 
 
