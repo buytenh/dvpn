@@ -345,16 +345,16 @@ void *listening_socket_add(struct conf_listening_socket *cls,
 		return NULL;
 	}
 
-	if (bind(fd, (struct sockaddr *)&cls->listen_address,
-		 sizeof(cls->listen_address)) < 0) {
-		perror("bind");
+	yes = 1;
+	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0) {
+		perror("setsockopt");
 		close(fd);
 		return NULL;
 	}
 
-	yes = 1;
-	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0) {
-		perror("setsockopt");
+	if (bind(fd, (struct sockaddr *)&cls->listen_address,
+		 sizeof(cls->listen_address)) < 0) {
+		perror("bind");
 		close(fd);
 		return NULL;
 	}
