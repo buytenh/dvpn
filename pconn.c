@@ -502,7 +502,7 @@ static void pconn_do_record_send(struct pconn *pc)
 		return;
 	}
 
-	if (ret) {
+	if (ret < 0) {
 		gtls_perror("gnutls_record_send", ret);
 		pconn_connection_abort(pc, 1);
 		return;
