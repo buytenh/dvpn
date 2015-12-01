@@ -35,13 +35,15 @@ struct listening_socket
 	struct conf_listening_socket	*cls;
 	gnutls_x509_privkey_t		key;
 
-	struct iv_fd	listen_fd;
+	struct iv_fd		listen_fd;
+	struct iv_list_head	listen_entries;
 };
 
 struct listen_entry
 {
 	struct conf_listen_entry	*cle;
 
+	struct iv_list_head	list;
 	struct tun_interface	tun;
 	struct client_conn	*current;
 };
@@ -143,13 +145,13 @@ static int verify_key_id(void *_cc, const uint8_t *id, int len)
 	fprintf(stderr, "%p: peer key ID ", cc);
 	printhex(id, len);
 
-	iv_list_for_each (lh, &cc->ls->cls->listen_entries) {
-		struct conf_listen_entry *cle;
+	iv_list_for_each (lh, &cc->ls->listen_entries) {
+		struct listen_entry *le;
 
-		cle = iv_list_entry(lh, struct conf_listen_entry, list);
-		if (!memcmp(cle->fingerprint, id, 20)) {
-			fprintf(stderr, " - matches [%s]\n", cle->name);
-			cc->le = cle->userptr;
+		le = iv_list_entry(lh, struct listen_entry, list);
+		if (!memcmp(le->cle->fingerprint, id, 20)) {
+			fprintf(stderr, " - matches [%s]\n", le->cle->name);
+			cc->le = le;
 			return 0;
 		}
 	}
@@ -376,6 +378,8 @@ void *listening_socket_add(struct conf_listening_socket *cls,
 	ls->listen_fd.handler_in = got_connection;
 	iv_fd_register(&ls->listen_fd);
 
+	INIT_IV_LIST_HEAD(&ls->listen_entries);
+
 	return ls;
 }
 
@@ -389,6 +393,8 @@ void *listening_socket_add_entry(void *_ls, struct conf_listen_entry *cle)
 		return NULL;
 
 	le->cle = cle;
+
+	iv_list_add_tail(&le->list, &ls->listen_entries);
 
 	le->tun.itfname = cle->tunitf;
 	le->tun.cookie = le;
@@ -409,6 +415,8 @@ void listening_socket_del_entry(void *_ls, void *_le)
 
 	if (le->current != NULL)
 		client_conn_kill(le->current);
+
+	iv_list_del(&le->list);
 	tun_interface_unregister(&le->tun);
 
 	free(le);
@@ -418,17 +426,16 @@ void listening_socket_del(void *_ls)
 {
 	struct listening_socket *ls = _ls;
 	struct iv_list_head *lh;
+	struct iv_list_head *lh2;
 
 	iv_fd_unregister(&ls->listen_fd);
 	close(ls->listen_fd.fd);
 
-	iv_list_for_each (lh, &ls->cls->listen_entries) {
-		struct conf_listen_entry *cle;
+	iv_list_for_each_safe (lh, lh2, &ls->listen_entries) {
+		struct listen_entry *le;
 
-		cle = iv_list_entry(lh, struct conf_listen_entry, list);
-
-		if (cle->userptr != NULL)
-			listening_socket_del_entry(ls, cle->userptr);
+		le = iv_list_entry(lh, struct listen_entry, list);
+		listening_socket_del_entry(ls, le);
 	}
 
 	free(ls);
