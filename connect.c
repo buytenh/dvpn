@@ -440,10 +440,10 @@ static void resolve_complete(void *_sp, int rc, struct addrinfo *res)
 
 static int start_resolve(struct server_peer *sp)
 {
+	int ret;
+
 	if (sp->state != STATE_RESOLVE)
 		abort();
-
-	fprintf(stderr, "%s: starting address resolution\n", sp->cce->name);
 
 	sp->hints.ai_family = PF_UNSPEC;
 	sp->hints.ai_socktype = SOCK_STREAM;
@@ -456,7 +456,13 @@ static int start_resolve(struct server_peer *sp)
 	sp->addrinfo.cookie = sp;
 	sp->addrinfo.handler = resolve_complete;
 
-	return iv_getaddrinfo_submit(&sp->addrinfo);
+	ret = iv_getaddrinfo_submit(&sp->addrinfo);
+	if (ret == 0) {
+		fprintf(stderr, "%s: starting address resolution\n",
+			sp->cce->name);
+	}
+
+	return ret;
 }
 
 static void got_packet(void *_sp, uint8_t *buf, int len)
@@ -516,6 +522,10 @@ static void rx_timeout_expired(void *_sp)
 		if (start_resolve(sp) == 0) {
 			sp->rx_timeout.expires.tv_sec += RESOLVE_TIMEOUT;
 		} else {
+			fprintf(stderr, "%s: error starting address "
+					"resolution, retrying in %d seconds\n",
+				sp->cce->name, RETRY_WAIT_TIME);
+
 			sp->state = STATE_WAITING_RETRY;
 			sp->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
 		}
@@ -572,9 +582,13 @@ void *server_peer_add(struct conf_connect_entry *cce, gnutls_x509_privkey_t key)
 	sp->rx_timeout.cookie = sp;
 	sp->rx_timeout.handler = rx_timeout_expired;
 
-	if (start_resolve(sp) < 0) {
+	if (start_resolve(sp) == 0) {
 		sp->rx_timeout.expires.tv_sec += RESOLVE_TIMEOUT;
 	} else {
+		fprintf(stderr, "%s: error starting address "
+				"resolution, retrying in %d seconds\n",
+			sp->cce->name, RETRY_WAIT_TIME);
+
 		sp->state = STATE_WAITING_RETRY;
 		sp->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
 	}
