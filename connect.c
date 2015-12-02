@@ -174,11 +174,17 @@ static void handshake_done(void *_sp)
 	sp->keepalive_timer.handler = send_keepalive;
 	iv_timer_register(&sp->keepalive_timer);
 
-	x509_get_key_id(id + 2, sizeof(id) - 2, sp->key);
+	x509_get_key_id(id, sizeof(id), sp->key);
 
 	id[0] = 0xfe;
 	id[1] = 0x80;
-	itf_add_v6(tun_interface_get_name(&sp->tun), id, 10);
+	itf_add_addr_v6(tun_interface_get_name(&sp->tun), id, 10);
+
+	id[0] = 0x20;
+	id[1] = 0x01;
+	id[2] = 0x00;
+	id[3] = 0x2f;
+	itf_add_addr_v6(tun_interface_get_name(&sp->tun), id, 32);
 
 	itf_set_state(tun_interface_get_name(&sp->tun), 1);
 }

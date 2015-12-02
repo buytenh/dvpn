@@ -190,11 +190,20 @@ static void handshake_done(void *_cc)
 	cc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
 	iv_timer_register(&cc->keepalive_timer);
 
-	x509_get_key_id(id + 2, sizeof(id) - 2, cc->ls->key);
+	x509_get_key_id(id, sizeof(id), cc->ls->key);
 
 	id[0] = 0xfe;
 	id[1] = 0x80;
-	itf_add_v6(tun_interface_get_name(&le->tun), id, 10);
+	itf_add_addr_v6(tun_interface_get_name(&le->tun), id, 10);
+
+	id[0] = 0x20;
+	id[1] = 0x01;
+	id[2] = 0x00;
+	id[3] = 0x2f;
+	itf_add_addr_v6(tun_interface_get_name(&le->tun), id, 128);
+
+	memcpy(id + 4, le->cle->fingerprint + 4, 12);
+	itf_add_route_v6(tun_interface_get_name(&le->tun), id, 128);
 
 	itf_set_state(tun_interface_get_name(&le->tun), 1);
 }

@@ -20,7 +20,8 @@
 #ifndef __ITF_H
 #define __ITF_H
 
-int itf_add_v6(const char *itf, const uint8_t *addr, int len);
+int itf_add_addr_v6(const char *itf, const uint8_t *addr, int len);
+int itf_add_route_v6(const char *itf, const uint8_t *addr, int len);
 int itf_set_state(const char *itf, int up);
 
 

@@ -56,10 +56,13 @@ static int spawnvp(const char *file, char *const *argv)
 	return 0;
 }
 
-int itf_add_v6(const char *itf, const uint8_t *addr, int len)
+int itf_add_addr_v6(const char *itf, const uint8_t *addr, int len)
 {
-	char *args[7];
 	char caddr[64];
+	char *args[7];
+
+	inet_ntop(AF_INET6, addr, caddr, sizeof(caddr));
+	sprintf(caddr + strlen(caddr), "/%d", len);
 
 	args[0] = "ip";
 	args[1] = "addr";
@@ -69,8 +72,24 @@ int itf_add_v6(const char *itf, const uint8_t *addr, int len)
 	args[5] = (char *)itf;
 	args[6] = NULL;
 
+	return spawnvp("ip", args);
+}
+
+int itf_add_route_v6(const char *itf, const uint8_t *addr, int len)
+{
+	char caddr[64];
+	char *args[7];
+
 	inet_ntop(AF_INET6, addr, caddr, sizeof(caddr));
 	sprintf(caddr + strlen(caddr), "/%d", len);
+
+	args[0] = "ip";
+	args[1] = "route";
+	args[2] = "add";
+	args[3] = caddr;
+	args[4] = "dev";
+	args[5] = (char *)itf;
+	args[6] = NULL;
 
 	return spawnvp("ip", args);
 }
