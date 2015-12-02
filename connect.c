@@ -126,13 +126,13 @@ static int verify_key_id(void *_sp, const uint8_t *id, int len)
 
 static void send_keepalive(void *_sp)
 {
-	static uint8_t keepalive[] = { 0x00, 0x00 };
+	static uint8_t keepalive[] = { 0x00, 0x00, 0x00 };
 	struct server_peer *sp = _sp;
 
 	if (sp->state != STATE_CONNECTED)
 		abort();
 
-	if (pconn_record_send(&sp->pconn, keepalive, 2)) {
+	if (pconn_record_send(&sp->pconn, keepalive, 3)) {
 		pconn_destroy(&sp->pconn);
 		close(sp->pconn.fd);
 

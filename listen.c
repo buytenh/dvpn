@@ -268,10 +268,10 @@ static void connection_lost(void *_cc)
 
 static void send_keepalive(void *_cc)
 {
-	static uint8_t keepalive[] = { 0x00, 0x00 };
+	static uint8_t keepalive[] = { 0x00, 0x00, 0x00 };
 	struct client_conn *cc = _cc;
 
-	if (pconn_record_send(&cc->pconn, keepalive, 2)) {
+	if (pconn_record_send(&cc->pconn, keepalive, 3)) {
 		client_conn_kill(cc);
 		return;
 	}
