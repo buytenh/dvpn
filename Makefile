@@ -38,7 +38,7 @@ client.ini:	keyid server.key
 		@echo TunInterface=tapc%d >> client.ini
 
 client.key:	genkey
-		./genkey client.key 1024 > /dev/null
+		./genkey client.key 4096 > /dev/null
 
 server.ini:	client.key keyid
 		@echo PrivateKey=server.key > server.ini
@@ -49,4 +49,4 @@ server.ini:	client.key keyid
 		@echo TunInterface=tap0 >> server.ini
 
 server.key:	genkey
-		./genkey server.key 1024 > /dev/null
+		./genkey server.key 4096 > /dev/null
