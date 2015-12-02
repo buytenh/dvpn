@@ -156,23 +156,29 @@ static void handshake_done(void *_sp)
 {
 	struct server_peer *sp = _sp;
 	uint8_t id[64];
-	int mtu;
+	int i;
 	socklen_t len;
 
 	fprintf(stderr, "%s: handshake done\n", sp->cce->name);
 
-	len = sizeof(mtu);
-	if (getsockopt(sp->pconn.fd, SOL_TCP, TCP_MAXSEG, &mtu, &len) < 0) {
+	i = 1;
+	if (setsockopt(sp->pconn.fd, SOL_TCP, TCP_NODELAY, &i, sizeof(i)) < 0) {
+		perror("setsockopt(SOL_TCP, TCP_NODELAY)");
+		abort();
+	}
+
+	len = sizeof(i);
+	if (getsockopt(sp->pconn.fd, SOL_TCP, TCP_MAXSEG, &i, &len) < 0) {
 		perror("getsockopt(SOL_TCP, TCP_MAXSEG)");
 		abort();
 	}
 
-	mtu -= 5 + 8 + 3 + 16;
-	if (mtu < 576)
-		mtu = 576;
-	else if (mtu > 1500)
-		mtu = 1500;
-	itf_set_mtu(tun_interface_get_name(&sp->tun), mtu);
+	i -= 5 + 8 + 3 + 16;
+	if (i < 576)
+		i = 576;
+	else if (i > 1500)
+		i = 1500;
+	itf_set_mtu(tun_interface_get_name(&sp->tun), i);
 
 	sp->state = STATE_CONNECTED;
 

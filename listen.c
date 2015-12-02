@@ -167,7 +167,7 @@ static void handshake_done(void *_cc)
 	struct client_conn *cc = _cc;
 	struct listen_entry *le = cc->le;
 	uint8_t id[64];
-	int mtu;
+	int i;
 	socklen_t len;
 
 	if (le->current != NULL) {
@@ -180,18 +180,24 @@ static void handshake_done(void *_cc)
 
 	le->current = cc;
 
-	len = sizeof(mtu);
-	if (getsockopt(cc->pconn.fd, SOL_TCP, TCP_MAXSEG, &mtu, &len) < 0) {
+	i = 1;
+	if (setsockopt(cc->pconn.fd, SOL_TCP, TCP_NODELAY, &i, sizeof(i)) < 0) {
+		perror("setsockopt(SOL_TCP, TCP_NODELAY)");
+		abort();
+	}
+
+	len = sizeof(i);
+	if (getsockopt(cc->pconn.fd, SOL_TCP, TCP_MAXSEG, &i, &len) < 0) {
 		perror("getsockopt(SOL_TCP, TCP_MAXSEG)");
 		abort();
 	}
 
-	mtu -= 5 + 8 + 3 + 16;
-	if (mtu < 576)
-		mtu = 576;
-	else if (mtu > 1500)
-		mtu = 1500;
-	itf_set_mtu(tun_interface_get_name(&le->tun), mtu);
+	i -= 5 + 8 + 3 + 16;
+	if (i < 576)
+		i = 576;
+	else if (i > 1500)
+		i = 1500;
+	itf_set_mtu(tun_interface_get_name(&le->tun), i);
 
 	cc->state = STATE_CONNECTED;
 
