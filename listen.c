@@ -220,14 +220,17 @@ static void record_received(void *_cc, const uint8_t *rec, int len)
 	cc->rx_timeout.expires.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
 	iv_timer_register(&cc->rx_timeout);
 
-	if (len <= 2)
+	if (len <= 3)
 		return;
 
-	rlen = (rec[0] << 8) | rec[1];
-	if (rlen + 2 != len)
+	if (rec[0] != 0x00)
 		return;
 
-	if (tun_interface_send_packet(&cc->le->tun, rec + 2, rlen) < 0)
+	rlen = (rec[1] << 8) | rec[2];
+	if (rlen + 3 != len)
+		return;
+
+	if (tun_interface_send_packet(&cc->le->tun, rec + 3, rlen) < 0)
 		client_conn_kill(cc);
 }
 
@@ -320,7 +323,7 @@ static void got_packet(void *_le, uint8_t *buf, int len)
 {
 	struct listen_entry *le = _le;
 	struct client_conn *cc;
-	uint8_t sndbuf[len + 2];
+	uint8_t sndbuf[len + 3];
 
 	cc = le->current;
 	if (cc == NULL)
@@ -333,11 +336,12 @@ static void got_packet(void *_le, uint8_t *buf, int len)
 	cc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
 	iv_timer_register(&cc->keepalive_timer);
 
-	sndbuf[0] = len >> 8;
-	sndbuf[1] = len & 0xff;
-	memcpy(sndbuf + 2, buf, len);
+	sndbuf[0] = 0x00;
+	sndbuf[1] = len >> 8;
+	sndbuf[2] = len & 0xff;
+	memcpy(sndbuf + 3, buf, len);
 
-	if (pconn_record_send(&cc->pconn, sndbuf, len + 2))
+	if (pconn_record_send(&cc->pconn, sndbuf, len + 3))
 		client_conn_kill(cc);
 }
 

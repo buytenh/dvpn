@@ -199,14 +199,17 @@ static void record_received(void *_sp, const uint8_t *rec, int len)
 	iv_timer_unregister(&sp->rx_timeout);
 	sp->rx_timeout.expires = iv_now;
 
-	if (len <= 2)
+	if (len <= 3)
 		goto out;
 
-	rlen = (rec[0] << 8) | rec[1];
-	if (rlen + 2 != len)
+	if (rec[0] != 0x00)
 		goto out;
 
-	if (tun_interface_send_packet(&sp->tun, rec + 2, rlen) < 0) {
+	rlen = (rec[1] << 8) | rec[2];
+	if (rlen + 3 != len)
+		goto out;
+
+	if (tun_interface_send_packet(&sp->tun, rec + 3, rlen) < 0) {
 		pconn_destroy(&sp->pconn);
 		close(sp->pconn.fd);
 
@@ -437,20 +440,21 @@ static int start_resolve(struct server_peer *sp)
 static void got_packet(void *_sp, uint8_t *buf, int len)
 {
 	struct server_peer *sp = _sp;
-	uint8_t sndbuf[len + 2];
+	uint8_t sndbuf[len + 3];
 
 	if (sp->state != STATE_CONNECTED)
 		return;
 
 	iv_timer_unregister(&sp->keepalive_timer);
 
-	sndbuf[0] = len >> 8;
-	sndbuf[1] = len & 0xff;
-	memcpy(sndbuf + 2, buf, len);
+	sndbuf[0] = 0x00;
+	sndbuf[1] = len >> 8;
+	sndbuf[2] = len & 0xff;
+	memcpy(sndbuf + 3, buf, len);
 
 	iv_validate_now();
 
-	if (pconn_record_send(&sp->pconn, sndbuf, len + 2)) {
+	if (pconn_record_send(&sp->pconn, sndbuf, len + 3)) {
 		pconn_destroy(&sp->pconn);
 		close(sp->pconn.fd);
 
