@@ -23,6 +23,7 @@
 #include <gnutls/gnutls.h>
 #include <gnutls/x509.h>
 #include <iv.h>
+#include <netinet/tcp.h>
 #include <string.h>
 #include "conf.h"
 #include "itf.h"
@@ -166,6 +167,8 @@ static void handshake_done(void *_cc)
 	struct client_conn *cc = _cc;
 	struct listen_entry *le = cc->le;
 	uint8_t id[64];
+	int mtu;
+	socklen_t len;
 
 	if (le->current != NULL) {
 		fprintf(stderr, "%s: handshake done, disconnecting "
@@ -176,6 +179,19 @@ static void handshake_done(void *_cc)
 	}
 
 	le->current = cc;
+
+	len = sizeof(mtu);
+	if (getsockopt(cc->pconn.fd, SOL_TCP, TCP_MAXSEG, &mtu, &len) < 0) {
+		perror("getsockopt(SOL_TCP, TCP_MAXSEG)");
+		abort();
+	}
+
+	mtu -= 5 + 8 + 3 + 16;
+	if (mtu < 576)
+		mtu = 576;
+	else if (mtu > 1500)
+		mtu = 1500;
+	itf_set_mtu(tun_interface_get_name(&le->tun), mtu);
 
 	cc->state = STATE_CONNECTED;
 

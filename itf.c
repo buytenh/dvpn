@@ -94,6 +94,24 @@ int itf_add_route_v6(const char *itf, const uint8_t *addr, int len)
 	return spawnvp("ip", args);
 }
 
+int itf_set_mtu(const char *itf, int mtu)
+{
+	char cmtu[32];
+	char *args[7];
+
+	sprintf(cmtu, "%d", mtu);
+
+	args[0] = "ip";
+	args[1] = "link";
+	args[2] = "set";
+	args[3] = (char *)itf;
+	args[4] = "mtu";
+	args[5] = cmtu;
+	args[6] = NULL;
+
+	return spawnvp("ip", args);
+}
+
 int itf_set_state(const char *itf, int up)
 {
 	char *args[6];

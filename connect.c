@@ -26,6 +26,7 @@
 #include <gnutls/x509.h>
 #include <iv.h>
 #include <netdb.h>
+#include <netinet/tcp.h>
 #include <string.h>
 #include "conf.h"
 #include "itf.h"
@@ -155,8 +156,23 @@ static void handshake_done(void *_sp)
 {
 	struct server_peer *sp = _sp;
 	uint8_t id[64];
+	int mtu;
+	socklen_t len;
 
 	fprintf(stderr, "%s: handshake done\n", sp->cce->name);
+
+	len = sizeof(mtu);
+	if (getsockopt(sp->pconn.fd, SOL_TCP, TCP_MAXSEG, &mtu, &len) < 0) {
+		perror("getsockopt(SOL_TCP, TCP_MAXSEG)");
+		abort();
+	}
+
+	mtu -= 5 + 8 + 3 + 16;
+	if (mtu < 576)
+		mtu = 576;
+	else if (mtu > 1500)
+		mtu = 1500;
+	itf_set_mtu(tun_interface_get_name(&sp->tun), mtu);
 
 	sp->state = STATE_CONNECTED;
 
