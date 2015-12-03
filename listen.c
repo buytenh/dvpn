@@ -212,6 +212,8 @@ static void handshake_done(void *_cc)
 	cc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
 	iv_timer_register(&cc->keepalive_timer);
 
+	itf_set_state(tun_interface_get_name(&le->tun), 1);
+
 	x509_get_key_id(id, sizeof(id), cc->ls->key);
 
 	id[0] = 0xfe;
@@ -226,8 +228,6 @@ static void handshake_done(void *_cc)
 
 	memcpy(id + 4, le->cle->fingerprint + 4, 12);
 	itf_add_route_v6(tun_interface_get_name(&le->tun), id, 128);
-
-	itf_set_state(tun_interface_get_name(&le->tun), 1);
 }
 
 static void record_received(void *_cc, const uint8_t *rec, int len)
