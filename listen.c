@@ -439,6 +439,8 @@ void *listening_socket_add_entry(void *_ls, struct conf_listen_entry *cle)
 		return NULL;
 	}
 
+	itf_set_state(tun_interface_get_name(&le->tun), 0);
+
 	le->current = NULL;
 
 	return le;
