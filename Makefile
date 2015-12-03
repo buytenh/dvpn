@@ -35,6 +35,7 @@ client.ini:	keyid server.key
 		@echo [local] >> client.ini
 		@echo Connect=localhost:19275 >> client.ini
 		@echo PeerFingerprint=`./keyid server.key` >> client.ini
+		@echo PeerType=peer >> client.ini
 		@echo TunInterface=tapc%d >> client.ini
 
 client.key:	genkey
@@ -46,6 +47,7 @@ server.ini:	client.key keyid
 		@echo [local] >> server.ini
 		@echo Listen=0.0.0.0:19275 >> server.ini
 		@echo PeerFingerprint=`./keyid client.key` >> server.ini
+		@echo PeerType=peer >> server.ini
 		@echo TunInterface=tap0 >> server.ini
 
 server.key:	genkey
