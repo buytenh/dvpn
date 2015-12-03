@@ -206,7 +206,14 @@ static void handshake_done(void *_sp)
 	id[1] = 0x01;
 	id[2] = 0x00;
 	id[3] = 0x2f;
-	itf_add_addr_v6(tun_interface_get_name(&sp->tun), id, 32);
+	if (sp->cce->is_peer) {
+		itf_add_addr_v6(tun_interface_get_name(&sp->tun), id, 128);
+
+		memcpy(id + 4, sp->cce->fingerprint + 4, 12);
+		itf_add_route_v6(tun_interface_get_name(&sp->tun), id, 128);
+	} else {
+		itf_add_addr_v6(tun_interface_get_name(&sp->tun), id, 32);
+	}
 
 	itf_set_state(tun_interface_get_name(&sp->tun), 1);
 }
