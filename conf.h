@@ -40,6 +40,7 @@ struct conf_connect_entry
 	char			*hostname;
 	char			*port;
 	uint8_t			fingerprint[20];
+	int			is_peer;
 	char			*tunitf;
 
 	void			*userptr;
@@ -61,6 +62,7 @@ struct conf_listen_entry
 
 	char			*name;
 	uint8_t			fingerprint[20];
+	int			is_peer;
 	char			*tunitf;
 
 	void			*userptr;

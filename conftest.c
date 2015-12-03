@@ -63,20 +63,20 @@ static void print_config(struct conf *conf)
 	struct iv_list_head *lh;
 
 	printf("private key: %s\n", conf->private_key ? : "(null)");
-	printf("\n");
 
 	iv_list_for_each (lh, &conf->connect_entries) {
 		struct conf_connect_entry *cce;
 
 		cce = iv_list_entry(lh, struct conf_connect_entry, list);
 
+		printf("\n");
 		printf("connect [%s]\n", cce->name);
 		printf("- hostname: [%s]:%s\n", cce->hostname, cce->port);
 		printf("- fp: ");
 		printhex(cce->fingerprint, 20);
 		printf("\n");
+		printf("- is_peer: %d\n", cce->is_peer);
 		printf("- tunitf: %s\n", cce->tunitf);
-		printf("\n");
 	}
 
 	iv_list_for_each (lh, &conf->listening_sockets) {
@@ -85,6 +85,7 @@ static void print_config(struct conf *conf)
 
 		cls = iv_list_entry(lh, struct conf_listening_socket, list);
 
+		printf("\n");
 		printf("listening socket\n");
 		printf("- address: ");
 		print_address(&cls->listen_address);
@@ -100,10 +101,9 @@ static void print_config(struct conf *conf)
 			printf("  - fp: ");
 			printhex(cle->fingerprint, 20);
 			printf("\n");
+			printf("  - is_peer: %d\n", cle->is_peer);
 			printf("  - tunitf: %s\n", cle->tunitf);
 		}
-
-		printf("\n");
 	}
 }
 

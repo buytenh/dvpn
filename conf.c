@@ -121,7 +121,7 @@ get_const_value(struct ini_cfgobj *co, const char *section, const char *name)
 
 static int
 add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
-		 const uint8_t *fp, const char *itf)
+		 const uint8_t *fp, const char *peertype, const char *itf)
 {
 	struct conf_connect_entry *cce;
 	char *delim;
@@ -160,6 +160,7 @@ add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 	}
 	asprintf(&cce->port, "%d", port);
 	memcpy(cce->fingerprint, fp, 20);
+	cce->is_peer = !!(peertype != NULL && !strcasecmp(peertype, "peer"));
 	cce->tunitf = strdup(itf);
 	cce->userptr = NULL;
 
@@ -306,7 +307,7 @@ get_listening_socket(struct local_conf *lc, const char *listen)
 
 static int
 add_listen_peer(struct local_conf *lc, const char *peer, const char *listen,
-		const uint8_t *fp, const char *itf)
+		const uint8_t *fp, const char *peertype, const char *itf)
 {
 	struct conf_listening_socket *cls;
 	struct conf_listen_entry *cle;
@@ -322,6 +323,7 @@ add_listen_peer(struct local_conf *lc, const char *peer, const char *listen,
 	iv_list_add_tail(&cle->list, &cls->listen_entries);
 	cle->name = strdup(peer);
 	memcpy(cle->fingerprint, fp, 20);
+	cle->is_peer = !!(peertype != NULL && !strcasecmp(peertype, "peer"));
 	cle->tunitf = strdup(itf);
 	cle->userptr = NULL;
 
@@ -334,6 +336,7 @@ static int parse_config_peer(struct local_conf *lc,
 	const char *connect;
 	const char *listen;
 	const char *fp;
+	const char *peertype;
 	const char *itf;
 	uint8_t f[20];
 
@@ -355,14 +358,16 @@ static int parse_config_peer(struct local_conf *lc,
 		return -1;
 	}
 
+	peertype = get_const_value(co, peer, "PeerType");
+
 	itf = get_const_value(co, peer, "TunInterface");
 	if (itf == NULL)
 		return -1;
 
 	if (connect != NULL)
-		return add_connect_peer(lc, peer, connect, f, itf);
+		return add_connect_peer(lc, peer, connect, f, peertype, itf);
 	else
-		return add_listen_peer(lc, peer, listen, f, itf);
+		return add_listen_peer(lc, peer, listen, f, peertype, itf);
 
 	return 0;
 }
