@@ -133,6 +133,8 @@ static void send_keepalive(void *_sp)
 		abort();
 
 	if (pconn_record_send(&sp->pconn, keepalive, 3)) {
+		itf_set_state(tun_interface_get_name(&sp->tun), 0);
+
 		pconn_destroy(&sp->pconn);
 		close(sp->pconn.fd);
 
@@ -239,6 +241,8 @@ static void record_received(void *_sp, const uint8_t *rec, int len)
 		goto out;
 
 	if (tun_interface_send_packet(&sp->tun, rec + 3, rlen) < 0) {
+		itf_set_state(tun_interface_get_name(&sp->tun), 0);
+
 		pconn_destroy(&sp->pconn);
 		close(sp->pconn.fd);
 
@@ -264,6 +268,8 @@ static void connection_lost(void *_sp)
 	fprintf(stderr, "%s: connection lost, retrying in %d seconds\n",
 		sp->cce->name, RETRY_WAIT_TIME);
 
+	itf_set_state(tun_interface_get_name(&sp->tun), 0);
+
 	pconn_destroy(&sp->pconn);
 	close(sp->pconn.fd);
 
@@ -271,8 +277,6 @@ static void connection_lost(void *_sp)
 	    iv_timer_registered(&sp->keepalive_timer)) {
 		iv_timer_unregister(&sp->keepalive_timer);
 	}
-
-	itf_set_state(tun_interface_get_name(&sp->tun), 0);
 
 	sp->state = STATE_WAITING_RETRY;
 
@@ -490,6 +494,8 @@ static void got_packet(void *_sp, uint8_t *buf, int len)
 	iv_validate_now();
 
 	if (pconn_record_send(&sp->pconn, sndbuf, len + 3)) {
+		itf_set_state(tun_interface_get_name(&sp->tun), 0);
+
 		pconn_destroy(&sp->pconn);
 		close(sp->pconn.fd);
 
@@ -549,6 +555,7 @@ static void rx_timeout_expired(void *_sp)
 			close(sp->pconn.fd);
 		} else if (sp->state == STATE_CONNECTED) {
 			fprintf(stderr, "%s: receive timeout\n", sp->cce->name);
+			itf_set_state(tun_interface_get_name(&sp->tun), 0);
 			pconn_destroy(&sp->pconn);
 			close(sp->pconn.fd);
 			iv_timer_unregister(&sp->keepalive_timer);
