@@ -23,17 +23,7 @@
 #include <string.h>
 #include <strings.h>
 #include "conf.h"
-
-static void printhex(const uint8_t *a, int len)
-{
-	int i;
-
-	for (i = 0; i < len; i++) {
-		printf("%.2x", a[i]);
-		if (i < len - 1)
-			printf(":");
-	}
-}
+#include "util.h"
 
 static void print_address(const struct sockaddr_storage *addr)
 {
@@ -73,7 +63,7 @@ static void print_config(struct conf *conf)
 		printf("connect '%s'\n", cce->name);
 		printf("- hostname: [%s]:%s\n", cce->hostname, cce->port);
 		printf("- fp: ");
-		printhex(cce->fingerprint, 20);
+		printhex(stdout, cce->fingerprint, 20);
 		printf("\n");
 		printf("- is_peer: %d\n", cce->is_peer);
 		printf("- tunitf: %s\n", cce->tunitf);
@@ -99,7 +89,7 @@ static void print_config(struct conf *conf)
 
 			printf("- entry '%s'\n", cle->name);
 			printf("  - fp: ");
-			printhex(cle->fingerprint, 20);
+			printhex(stdout, cle->fingerprint, 20);
 			printf("\n");
 			printf("  - is_peer: %d\n", cle->is_peer);
 			printf("  - tunitf: %s\n", cle->tunitf);

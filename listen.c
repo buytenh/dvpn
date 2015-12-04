@@ -29,6 +29,7 @@
 #include "itf.h"
 #include "pconn.h"
 #include "tun.h"
+#include "util.h"
 #include "x509.h"
 
 struct listening_socket
@@ -127,24 +128,13 @@ static void rx_timeout(void *_cc)
 	client_conn_kill(cc);
 }
 
-static void printhex(const uint8_t *a, int len)
-{
-	int i;
-
-	for (i = 0; i < len; i++) {
-		fprintf(stderr, "%.2x", a[i]);
-		if (i < len - 1)
-			fprintf(stderr, ":");
-	}
-}
-
 static int verify_key_id(void *_cc, const uint8_t *id, int len)
 {
 	struct client_conn *cc = _cc;
 	struct iv_list_head *lh;
 
 	fprintf(stderr, "%p: peer key ID ", cc);
-	printhex(id, len);
+	printhex(stderr, id, len);
 
 	iv_list_for_each (lh, &cc->ls->listen_entries) {
 		struct listen_entry *le;

@@ -33,6 +33,7 @@
 #include "iv_getaddrinfo.h"
 #include "pconn.h"
 #include "tun.h"
+#include "util.h"
 #include "x509.h"
 
 struct server_peer
@@ -95,24 +96,13 @@ static void print_address(const struct sockaddr *addr)
 	}
 }
 
-static void printhex(const uint8_t *a, int len)
-{
-	int i;
-
-	for (i = 0; i < len; i++) {
-		fprintf(stderr, "%.2x", a[i]);
-		if (i < len - 1)
-			fprintf(stderr, ":");
-	}
-}
-
 static int verify_key_id(void *_sp, const uint8_t *id, int len)
 {
 	struct server_peer *sp = _sp;
 	struct conf_connect_entry *cce = sp->cce;
 
 	fprintf(stderr, "%s: peer key ID ", cce->name);
-	printhex(id, len);
+	printhex(stderr, id, len);
 
 	if (memcmp(cce->fingerprint, id, 20)) {
 		fprintf(stderr, " - mismatch\n");

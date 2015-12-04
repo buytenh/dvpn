@@ -10,11 +10,11 @@ clean:
 		rm -f server.ini
 		rm -f server.key
 
-conftest:	conftest.c conf.c conf.h
-		gcc -Wall -g -o conftest conftest.c conf.c -lini_config
+conftest:	conftest.c conf.c conf.h util.c util.h
+		gcc -Wall -g -o conftest conftest.c conf.c util.c -lini_config
 
-dvpn:		dvpn.c conf.c conf.h connect.c connect.h itf.c itf.h iv_getaddrinfo.c iv_getaddrinfo.h listen.c listen.h pconn.c pconn.h tun.c tun.h x509.c x509.h
-		gcc -Wall -g -o dvpn dvpn.c conf.c connect.c itf.c iv_getaddrinfo.c listen.c pconn.c tun.c x509.c -lgnutls -lini_config -livykis
+dvpn:		dvpn.c conf.c conf.h connect.c connect.h itf.c itf.h iv_getaddrinfo.c iv_getaddrinfo.h listen.c listen.h pconn.c pconn.h tun.c tun.h util.c util.h x509.c x509.h
+		gcc -Wall -g -o dvpn dvpn.c conf.c connect.c itf.c iv_getaddrinfo.c listen.c pconn.c tun.c util.c x509.c -lgnutls -lini_config -livykis
 
 genkey:		genkey.c x509.c x509.h
 		gcc -Wall -g -o genkey genkey.c x509.c -lgnutls
