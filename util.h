@@ -20,8 +20,10 @@
 #ifndef __UTIL_H
 #define __UTIL_H
 
+#include <arpa/inet.h>
 #include <stdint.h>
 
+void print_address(FILE *fp, const struct sockaddr *addr);
 void printhex(FILE *fp, const uint8_t *a, int len);
 
 

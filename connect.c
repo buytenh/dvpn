@@ -73,29 +73,6 @@ struct server_peer
 #define KEEPALIVE_INTERVAL	30
 #define RETRY_WAIT_TIME		10
 
-static void print_address(const struct sockaddr *addr)
-{
-	char dst[128];
-
-	if (addr->sa_family == AF_INET) {
-		const struct sockaddr_in *a4 =
-			(const struct sockaddr_in *)addr;
-
-		fprintf(stderr, "[%s]:%d",
-			inet_ntop(AF_INET, &a4->sin_addr, dst, sizeof(dst)),
-			ntohs(a4->sin_port));
-	} else if (addr->sa_family == AF_INET6) {
-		const struct sockaddr_in6 *a6 =
-			(const struct sockaddr_in6 *)addr;
-
-		fprintf(stderr, "[%s]:%d",
-			inet_ntop(AF_INET6, &a6->sin6_addr, dst, sizeof(dst)),
-			ntohs(a6->sin6_port));
-	} else {
-		fprintf(stderr, "unknownaf:%d", addr->sa_family);
-	}
-}
-
 static int verify_key_id(void *_sp, const uint8_t *id, int len)
 {
 	struct server_peer *sp = _sp;
@@ -313,7 +290,7 @@ static void try_connect(struct server_peer *sp)
 
 	while (sp->rp != NULL) {
 		fprintf(stderr, "%s: attempting connection to ", sp->cce->name);
-		print_address(sp->rp->ai_addr);
+		print_address(stderr, sp->rp->ai_addr);
 		fprintf(stderr, "\n");
 
 		fd = socket(sp->rp->ai_family, sp->rp->ai_socktype,

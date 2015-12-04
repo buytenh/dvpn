@@ -25,29 +25,6 @@
 #include "conf.h"
 #include "util.h"
 
-static void print_address(const struct sockaddr_storage *addr)
-{
-	char dst[128];
-
-	if (addr->ss_family == AF_INET) {
-		const struct sockaddr_in *a4 =
-			(const struct sockaddr_in *)addr;
-
-		printf("[%s]:%d",
-		       inet_ntop(AF_INET, &a4->sin_addr, dst, sizeof(dst)),
-		       ntohs(a4->sin_port));
-	} else if (addr->ss_family == AF_INET6) {
-		const struct sockaddr_in6 *a6 =
-			(const struct sockaddr_in6 *)addr;
-
-		printf("[%s]:%d",
-		       inet_ntop(AF_INET6, &a6->sin6_addr, dst, sizeof(dst)),
-		       ntohs(a6->sin6_port));
-	} else {
-		printf("unknownaf:%d", addr->ss_family);
-	}
-}
-
 static void print_config(struct conf *conf)
 {
 	struct iv_list_head *lh;
@@ -78,7 +55,7 @@ static void print_config(struct conf *conf)
 		printf("\n");
 		printf("listening socket\n");
 		printf("- address: ");
-		print_address(&cls->listen_address);
+		print_address(stdout, (struct sockaddr *)&cls->listen_address);
 		printf("\n");
 
 		iv_list_for_each (lh2, &cls->listen_entries) {

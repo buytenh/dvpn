@@ -67,29 +67,6 @@ struct client_conn
 #define HANDSHAKE_TIMEOUT	30
 #define KEEPALIVE_INTERVAL	30
 
-static void print_address(const struct sockaddr *addr)
-{
-	char dst[128];
-
-	if (addr->sa_family == AF_INET) {
-		const struct sockaddr_in *a4 =
-			(const struct sockaddr_in *)addr;
-
-		fprintf(stderr, "[%s]:%d",
-			inet_ntop(AF_INET, &a4->sin_addr, dst, sizeof(dst)),
-			ntohs(a4->sin_port));
-	} else if (addr->sa_family == AF_INET6) {
-		const struct sockaddr_in6 *a6 =
-			(const struct sockaddr_in6 *)addr;
-
-		fprintf(stderr, "[%s]:%d",
-			inet_ntop(AF_INET6, &a6->sin6_addr, dst, sizeof(dst)),
-			ntohs(a6->sin6_port));
-	} else {
-		fprintf(stderr, "unknownaf:%d", addr->sa_family);
-	}
-}
-
 static void client_conn_kill(struct client_conn *cc)
 {
 	if (cc->le != NULL) {
@@ -296,9 +273,9 @@ static void got_connection(void *_ls)
 	}
 
 	fprintf(stderr, "%p: incoming connection from ", cc);
-	print_address((struct sockaddr *)&addr);
+	print_address(stderr, (struct sockaddr *)&addr);
 	fprintf(stderr, " to ");
-	print_address((struct sockaddr *)&ls->cls->listen_address);
+	print_address(stderr, (struct sockaddr *)&ls->cls->listen_address);
 	fprintf(stderr, "\n");
 
 	cc->ls = ls;

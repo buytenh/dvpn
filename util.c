@@ -21,6 +21,29 @@
 #include <stdlib.h>
 #include "util.h"
 
+void print_address(FILE *fp, const struct sockaddr *addr)
+{
+	char dst[128];
+
+	if (addr->sa_family == AF_INET) {
+		const struct sockaddr_in *a4 =
+			(const struct sockaddr_in *)addr;
+
+		fprintf(fp, "[%s]:%d",
+			inet_ntop(AF_INET, &a4->sin_addr, dst, sizeof(dst)),
+			ntohs(a4->sin_port));
+	} else if (addr->sa_family == AF_INET6) {
+		const struct sockaddr_in6 *a6 =
+			(const struct sockaddr_in6 *)addr;
+
+		fprintf(fp, "[%s]:%d",
+			inet_ntop(AF_INET6, &a6->sin6_addr, dst, sizeof(dst)),
+			ntohs(a6->sin6_port));
+	} else {
+		fprintf(fp, "unknownaf:%d", addr->sa_family);
+	}
+}
+
 void printhex(FILE *fp, const uint8_t *a, int len)
 {
 	int i;
