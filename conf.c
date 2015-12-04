@@ -161,7 +161,7 @@ add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 	asprintf(&cce->port, "%d", port);
 	memcpy(cce->fingerprint, fp, 20);
 	cce->is_peer = !!(peertype != NULL && !strcasecmp(peertype, "peer"));
-	cce->tunitf = strdup(itf);
+	cce->tunitf = strdup(itf ? : cce->is_peer ? "tunp%d" : "tunu%d");
 	cce->userptr = NULL;
 
 	iv_list_add_tail(&cce->list, &lc->conf->connect_entries);
@@ -324,7 +324,7 @@ add_listen_peer(struct local_conf *lc, const char *peer, const char *listen,
 	cle->name = strdup(peer);
 	memcpy(cle->fingerprint, fp, 20);
 	cle->is_peer = !!(peertype != NULL && !strcasecmp(peertype, "peer"));
-	cle->tunitf = strdup(itf);
+	cle->tunitf = strdup(itf ? : cle->is_peer ? "tunp%d" : "tunc%d");
 	cle->userptr = NULL;
 
 	return 0;
@@ -359,10 +359,7 @@ static int parse_config_peer(struct local_conf *lc,
 	}
 
 	peertype = get_const_value(co, peer, "PeerType");
-
 	itf = get_const_value(co, peer, "TunInterface");
-	if (itf == NULL)
-		return -1;
 
 	if (connect != NULL)
 		return add_connect_peer(lc, peer, connect, f, peertype, itf);
