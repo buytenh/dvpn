@@ -70,7 +70,7 @@ static void print_config(struct conf *conf)
 		cce = iv_list_entry(lh, struct conf_connect_entry, list);
 
 		printf("\n");
-		printf("connect [%s]\n", cce->name);
+		printf("connect '%s'\n", cce->name);
 		printf("- hostname: [%s]:%s\n", cce->hostname, cce->port);
 		printf("- fp: ");
 		printhex(cce->fingerprint, 20);
@@ -97,7 +97,7 @@ static void print_config(struct conf *conf)
 			cle = iv_list_entry(lh2, struct conf_listen_entry,
 					    list);
 
-			printf("- entry [%s]\n", cle->name);
+			printf("- entry '%s'\n", cle->name);
 			printf("  - fp: ");
 			printhex(cle->fingerprint, 20);
 			printf("\n");

@@ -336,7 +336,7 @@ static void try_connect(struct server_peer *sp)
 			if (ret == 0 || errno == EINPROGRESS)
 				break;
 
-			fprintf(stderr, "%s: connect error [%s]\n",
+			fprintf(stderr, "%s: connect error '%s'\n",
 				sp->cce->name, strerror(errno));
 			close(fd);
 		}
@@ -390,7 +390,7 @@ static void connect_pollout(void *_sp)
 
 	len = sizeof(ret);
 	if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &ret, &len) < 0) {
-		fprintf(stderr, "%s: getsockopt error [%s]\n",
+		fprintf(stderr, "%s: getsockopt error '%s'\n",
 			sp->cce->name, strerror(errno));
 		return;
 	}
@@ -403,7 +403,7 @@ static void connect_pollout(void *_sp)
 	if (ret == 0) {
 		connect_success(sp, fd);
 	} else {
-		fprintf(stderr, "%s: connect error [%s]\n",
+		fprintf(stderr, "%s: connect error '%s'\n",
 			sp->cce->name, strerror(ret));
 		close(fd);
 

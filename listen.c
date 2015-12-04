@@ -151,7 +151,7 @@ static int verify_key_id(void *_cc, const uint8_t *id, int len)
 
 		le = iv_list_entry(lh, struct listen_entry, list);
 		if (!memcmp(le->cle->fingerprint, id, 20)) {
-			fprintf(stderr, " - matches [%s]\n", le->cle->name);
+			fprintf(stderr, " - matches '%s'\n", le->cle->name);
 			cc->le = le;
 			return 0;
 		}
