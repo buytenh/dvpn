@@ -44,13 +44,10 @@ static void tun_got_packet(void *cookie)
 	} while (ret == -1 && errno == EINTR);
 
 	if (ret <= 0) {
-		if (ret < 0) {
-			if (errno == EAGAIN)
-				return;
-
+		if (ret < 0 && errno != EAGAIN) {
 			fprintf(stderr, "tun_got_packet: read(2) got "
 					"error: %s\n", strerror(errno));
-			exit(1);
+			abort();
 		}
 		return;
 	}
