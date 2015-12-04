@@ -38,14 +38,20 @@ static void stop_config(struct conf *conf)
 		struct conf_connect_entry *cce;
 
 		cce = iv_list_entry(lh, struct conf_connect_entry, list);
-		server_peer_del(cce->userptr);
+		if (cce->userptr != NULL) {
+			server_peer_del(cce->userptr);
+			cce->userptr = NULL;
+		}
 	}
 
 	iv_list_for_each (lh, &conf->listening_sockets) {
 		struct conf_listening_socket *cls;
 
 		cls = iv_list_entry(lh, struct conf_listening_socket, list);
-		listening_socket_del(cls->userptr);
+		if (cls->userptr != NULL) {
+			listening_socket_del(cls->userptr);
+			cls->userptr = NULL;
+		}
 	}
 }
 
@@ -59,8 +65,10 @@ static int start_config(struct conf *conf)
 		cce = iv_list_entry(lh, struct conf_connect_entry, list);
 
 		cce->userptr = server_peer_add(cce, key);
-		if (cce->userptr == NULL)
+		if (cce->userptr == NULL) {
+			stop_config(conf);
 			return 1;
+		}
 	}
 
 	iv_list_for_each (lh, &conf->listening_sockets) {
@@ -71,8 +79,10 @@ static int start_config(struct conf *conf)
 		cls = iv_list_entry(lh, struct conf_listening_socket, list);
 
 		ptr = listening_socket_add(cls, key);
-		if (ptr == NULL)
+		if (ptr == NULL) {
+			stop_config(conf);
 			return 1;
+		}
 
 		cls->userptr = ptr;
 
@@ -83,8 +93,10 @@ static int start_config(struct conf *conf)
 					    list);
 
 			cle->userptr = listening_socket_add_entry(ptr, cle);
-			if (cle->userptr == NULL)
+			if (cle->userptr == NULL) {
+				stop_config(conf);
 				return 1;
+			}
 		}
 	}
 
