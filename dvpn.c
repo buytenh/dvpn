@@ -28,16 +28,11 @@
 #include "listen.h"
 #include "x509.h"
 
-static struct conf *conf;
-static struct iv_signal sigint;
+static gnutls_x509_privkey_t key;
 
-static void got_sigint(void *_dummy)
+static void stop_config(struct conf *conf)
 {
 	struct iv_list_head *lh;
-
-	fprintf(stderr, "SIGINT received, shutting down\n");
-
-	iv_signal_unregister(&sigint);
 
 	iv_list_for_each (lh, &conf->connect_entries) {
 		struct conf_connect_entry *cce;
@@ -54,48 +49,9 @@ static void got_sigint(void *_dummy)
 	}
 }
 
-int main(int argc, char *argv[])
+static int start_config(struct conf *conf)
 {
-	static struct option long_options[] = {
-		{ "config-file", required_argument, 0, 'c' },
-		{ 0, 0, 0, 0, },
-	};
-	const char *config = "/etc/dvpn.ini";
-	gnutls_x509_privkey_t key;
 	struct iv_list_head *lh;
-
-	while (1) {
-		int c;
-
-		c = getopt_long(argc, argv, "c:", long_options, NULL);
-		if (c == -1)
-			break;
-
-		switch (c) {
-		case 'c':
-			config = optarg;
-			break;
-
-		case '?':
-			fprintf(stderr, "syntax: %s [-c <config.ini>]\n",
-				argv[0]);
-			return 1;
-
-		default:
-			abort();
-		}
-	}
-
-	conf = parse_config(config);
-	if (conf == NULL)
-		return 1;
-
-	gnutls_global_init();
-
-	if (x509_read_privkey(&key, conf->private_key) < 0)
-		return 1;
-
-	iv_init();
 
 	iv_list_for_each (lh, &conf->connect_entries) {
 		struct conf_connect_entry *cce;
@@ -131,6 +87,65 @@ int main(int argc, char *argv[])
 				return 1;
 		}
 	}
+
+	return 0;
+}
+
+static struct conf *conf;
+static struct iv_signal sigint;
+
+static void got_sigint(void *_dummy)
+{
+	fprintf(stderr, "SIGINT received, shutting down\n");
+
+	iv_signal_unregister(&sigint);
+
+	stop_config(conf);
+}
+
+int main(int argc, char *argv[])
+{
+	static struct option long_options[] = {
+		{ "config-file", required_argument, 0, 'c' },
+		{ 0, 0, 0, 0, },
+	};
+	const char *config = "/etc/dvpn.ini";
+
+	while (1) {
+		int c;
+
+		c = getopt_long(argc, argv, "c:", long_options, NULL);
+		if (c == -1)
+			break;
+
+		switch (c) {
+		case 'c':
+			config = optarg;
+			break;
+
+		case '?':
+			fprintf(stderr, "syntax: %s [-c <config.ini>]\n",
+				argv[0]);
+			return 1;
+
+		default:
+			abort();
+		}
+	}
+
+	conf = parse_config(config);
+	if (conf == NULL)
+		return 1;
+
+	gnutls_global_init();
+
+	if (x509_read_privkey(&key, conf->private_key) < 0)
+		return 1;
+
+	iv_init();
+
+	if (start_config(conf))
+		return 1;
 
 	IV_SIGNAL_INIT(&sigint);
 	sigint.signum = SIGINT;
