@@ -87,19 +87,19 @@ static void client_conn_kill(struct client_conn *cc)
 	free(cc);
 }
 
-static void print_name(struct client_conn *cc)
+static void print_name(FILE *fp, struct client_conn *cc)
 {
 	if (cc->le != NULL)
-		fprintf(stderr, "%s", cc->le->cle->name);
+		fprintf(fp, "%s", cc->le->cle->name);
 	else
-		fprintf(stderr, "%p", cc);
+		fprintf(fp, "conn%d", cc->pconn.fd);
 }
 
 static void rx_timeout(void *_cc)
 {
 	struct client_conn *cc = _cc;
 
-	print_name(cc);
+	print_name(stderr, cc);
 	fprintf(stderr, ": receive timeout\n");
 
 	client_conn_kill(cc);
@@ -164,6 +164,9 @@ static void handshake_done(void *_cc)
 		i = 576;
 	else if (i > 1500)
 		i = 1500;
+
+	fprintf(stderr, "%s: setting interface MTU to %d\n",
+		cc->le->cle->name, i);
 	itf_set_mtu(tun_interface_get_name(&le->tun), i);
 
 	cc->state = STATE_CONNECTED;
@@ -219,15 +222,19 @@ static void record_received(void *_cc, const uint8_t *rec, int len)
 	if (rlen + 3 != len)
 		return;
 
-	if (tun_interface_send_packet(&cc->le->tun, rec + 3, rlen) < 0)
+	if (tun_interface_send_packet(&cc->le->tun, rec + 3, rlen) < 0) {
+		fprintf(stderr, "%s: error forwarding received packet "
+				"to tun interface, disconnecting\n", 
+			cc->le->cle->name);
 		client_conn_kill(cc);
+	}
 }
 
 static void connection_lost(void *_cc)
 {
 	struct client_conn *cc = _cc;
 
-	print_name(cc);
+	print_name(stderr, cc);
 	fprintf(stderr, ": connection lost\n");
 
 	client_conn_kill(cc);
@@ -239,6 +246,8 @@ static void send_keepalive(void *_cc)
 	struct client_conn *cc = _cc;
 
 	if (pconn_record_send(&cc->pconn, keepalive, 3)) {
+		fprintf(stderr, "%s: error sending keepalive, disconnecting\n", 
+			cc->le->cle->name);
 		client_conn_kill(cc);
 		return;
 	}
@@ -262,12 +271,13 @@ static void got_connection(void *_ls)
 
 	fd = accept(ls->listen_fd.fd, (struct sockaddr *)&addr, &addrlen);
 	if (fd < 0) {
-		perror("accept");
+		perror("got_connection: accept");
 		return;
 	}
 
 	cc = malloc(sizeof(*cc));
 	if (cc == NULL) {
+		fprintf(stderr, "error allocating memory for cc object\n");
 		close(fd);
 		return;
 	}
@@ -330,8 +340,11 @@ static void got_packet(void *_le, uint8_t *buf, int len)
 	sndbuf[2] = len & 0xff;
 	memcpy(sndbuf + 3, buf, len);
 
-	if (pconn_record_send(&cc->pconn, sndbuf, len + 3))
+	if (pconn_record_send(&cc->pconn, sndbuf, len + 3)) {
+		fprintf(stderr, "%s: error sending TLS record, disconnecting\n",
+			cc->le->cle->name);
 		client_conn_kill(cc);
+	}
 }
 
 void *listening_socket_add(struct conf_listening_socket *cls,
@@ -343,33 +356,36 @@ void *listening_socket_add(struct conf_listening_socket *cls,
 
 	fd = socket(cls->listen_address.ss_family, SOCK_STREAM, 0);
 	if (fd < 0) {
-		perror("socket");
+		perror("listening_socket_add: socket");
 		return NULL;
 	}
 
 	yes = 1;
 	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0) {
-		perror("setsockopt");
+		perror("listening_socket_add: setsockopt");
 		close(fd);
 		return NULL;
 	}
 
 	if (bind(fd, (struct sockaddr *)&cls->listen_address,
 		 sizeof(cls->listen_address)) < 0) {
-		perror("bind");
+		perror("listening_socket_add: bind");
 		close(fd);
 		return NULL;
 	}
 
 	if (listen(fd, 100) < 0) {
-		perror("listen");
+		perror("listening_socket_add: listen");
 		close(fd);
 		return NULL;
 	}
 
 	ls = malloc(sizeof(*ls));
-	if (ls == NULL)
+	if (ls == NULL) {
+		fprintf(stderr, "error allocating memory for ls object\n");
+		close(fd);
 		return NULL;
+	}
 
 	ls->cls = cls;
 	ls->key = key;
@@ -391,8 +407,10 @@ void *listening_socket_add_entry(void *_ls, struct conf_listen_entry *cle)
 	struct listen_entry *le;
 
 	le = malloc(sizeof(*le));
-	if (le == NULL)
+	if (le == NULL) {
+		fprintf(stderr, "error allocating memory for le object\n");
 		return NULL;
+	}
 
 	le->cle = cle;
 
