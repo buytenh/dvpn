@@ -17,6 +17,11 @@
  * Boston, MA 02110-1301, USA.
  */
 
+/*
+ * TODO:
+ * - make SIGHUP handling smarter
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
@@ -103,13 +108,55 @@ static int start_config(struct conf *conf)
 	return 0;
 }
 
+static const char *config = "/etc/dvpn.ini";
 static struct conf *conf;
+static struct iv_signal sighup;
 static struct iv_signal sigint;
+
+static void got_sighup(void *_dummy)
+{
+	struct conf *newconf;
+
+	fprintf(stderr, "SIGHUP received, re-reading configuration\n");
+
+	newconf = parse_config(config);
+	if (newconf == NULL) {
+		fprintf(stderr, "=> error parsing new configuration, "
+				"not applying any changes\n");
+		return;
+	}
+
+	stop_config(conf);
+
+	if (start_config(newconf) == 0) {
+		fprintf(stderr, "=> successfully applied new configuration\n");
+		free_config(conf);
+		conf = newconf;
+		return;
+	}
+
+	free_config(newconf);
+	fprintf(stderr, "=> error applying new configuration, trying to "
+			"revert to old configuration\n");
+
+	if (start_config(conf) == 0) {
+		fprintf(stderr, "=> successfully reverted to old "
+				"configuration\n");
+		return;
+	}
+
+	fprintf(stderr, "=> error reverting to old configuration, "
+			"shutting down\n");
+
+	iv_signal_unregister(&sighup);
+	iv_signal_unregister(&sigint);
+}
 
 static void got_sigint(void *_dummy)
 {
 	fprintf(stderr, "SIGINT received, shutting down\n");
 
+	iv_signal_unregister(&sighup);
 	iv_signal_unregister(&sigint);
 
 	stop_config(conf);
@@ -121,7 +168,6 @@ int main(int argc, char *argv[])
 		{ "config-file", required_argument, 0, 'c' },
 		{ 0, 0, 0, 0, },
 	};
-	const char *config = "/etc/dvpn.ini";
 
 	while (1) {
 		int c;
@@ -158,6 +204,13 @@ int main(int argc, char *argv[])
 
 	if (start_config(conf))
 		return 1;
+
+	IV_SIGNAL_INIT(&sighup);
+	sighup.signum = SIGHUP;
+	sighup.flags = 0;
+	sighup.cookie = NULL;
+	sighup.handler = got_sighup;
+	iv_signal_register(&sighup);
 
 	IV_SIGNAL_INIT(&sigint);
 	sigint.signum = SIGINT;
