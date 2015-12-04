@@ -100,6 +100,10 @@ static void send_keepalive(void *_sp)
 		abort();
 
 	if (pconn_record_send(&sp->pconn, keepalive, 3)) {
+		fprintf(stderr, "%s: error sending keepalive, disconnecting "
+				"and retrying in %d seconds\n",
+			sp->cce->name, RETRY_WAIT_TIME);
+
 		itf_set_state(tun_interface_get_name(&sp->tun), 0);
 
 		pconn_destroy(&sp->pconn);
@@ -147,6 +151,9 @@ static void handshake_done(void *_sp)
 		i = 576;
 	else if (i > 1500)
 		i = 1500;
+
+	fprintf(stderr, "%s: setting interface MTU to %d\n",
+		sp->cce->name, i);
 	itf_set_mtu(tun_interface_get_name(&sp->tun), i);
 
 	sp->state = STATE_CONNECTED;
@@ -208,6 +215,11 @@ static void record_received(void *_sp, const uint8_t *rec, int len)
 		goto out;
 
 	if (tun_interface_send_packet(&sp->tun, rec + 3, rlen) < 0) {
+		fprintf(stderr, "%s: error forwarding received packet "
+				"to tun interface, disconnecting and "
+				"retrying in %d seconds\n",
+			sp->cce->name, RETRY_WAIT_TIME);
+
 		itf_set_state(tun_interface_get_name(&sp->tun), 0);
 
 		pconn_destroy(&sp->pconn);
@@ -401,7 +413,7 @@ static void resolve_complete(void *_sp, int rc, struct addrinfo *res)
 		if (res != NULL)
 			freeaddrinfo(res);
 
-		fprintf(stderr, "%s: address resolution returned error %s, "
+		fprintf(stderr, "%s: address resolution returned error '%s', "
 				"retrying in %d seconds\n",
 			sp->cce->name, gai_strerror(rc), RETRY_WAIT_TIME);
 
@@ -461,6 +473,10 @@ static void got_packet(void *_sp, uint8_t *buf, int len)
 	iv_validate_now();
 
 	if (pconn_record_send(&sp->pconn, sndbuf, len + 3)) {
+		fprintf(stderr, "%s: error sending TLS record, disconnecting "
+				"and retrying in %d seconds\n",
+			sp->cce->name, RETRY_WAIT_TIME);
+
 		itf_set_state(tun_interface_get_name(&sp->tun), 0);
 
 		pconn_destroy(&sp->pconn);
@@ -512,16 +528,16 @@ static void rx_timeout_expired(void *_sp)
 		iv_timer_register(&sp->rx_timeout);
 	} else {
 		if (sp->state == STATE_RESOLVE) {
-			fprintf(stderr, "%s: address resolution timed out\n",
+			fprintf(stderr, "%s: address resolution timed out",
 				sp->cce->name);
 			iv_getaddrinfo_cancel(&sp->addrinfo);
 		} else if (sp->state == STATE_TLS_HANDSHAKE) {
-			fprintf(stderr, "%s: TLS handshake timed out\n",
+			fprintf(stderr, "%s: TLS handshake timed out",
 				sp->cce->name);
 			pconn_destroy(&sp->pconn);
 			close(sp->pconn.fd);
 		} else if (sp->state == STATE_CONNECTED) {
-			fprintf(stderr, "%s: receive timeout\n", sp->cce->name);
+			fprintf(stderr, "%s: receive timeout", sp->cce->name);
 			itf_set_state(tun_interface_get_name(&sp->tun), 0);
 			pconn_destroy(&sp->pconn);
 			close(sp->pconn.fd);
@@ -529,6 +545,8 @@ static void rx_timeout_expired(void *_sp)
 		} else {
 			abort();
 		}
+
+		fprintf(stderr, ", retrying in %d seconds\n", RETRY_WAIT_TIME);
 
 		sp->state = STATE_WAITING_RETRY;
 		sp->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
@@ -541,8 +559,10 @@ void *server_peer_add(struct conf_connect_entry *cce, gnutls_x509_privkey_t key)
 	struct server_peer *sp;
 
 	sp = malloc(sizeof(*sp));
-	if (sp == NULL)
+	if (sp == NULL) {
+		fprintf(stderr, "error allocating memory for sp object\n");
 		return NULL;
+	}
 
 	sp->cce = cce;
 	sp->key = key;
