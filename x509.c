@@ -45,7 +45,7 @@ int x509_read_privkey(gnutls_x509_privkey_t *key, const char *file)
 
 	size = read(fd, buf, sizeof(buf));
 	if (size < 0) {
-		perror("read");
+		perror("x509_read_privkey: read");
 		close(fd);
 		return -1;
 	}
@@ -54,6 +54,7 @@ int x509_read_privkey(gnutls_x509_privkey_t *key, const char *file)
 
 	ret = gnutls_x509_privkey_init(key);
 	if (ret) {
+		fprintf(stderr, "x509_read_privkey: ");
 		gnutls_perror(ret);
 		return -1;
 	}
@@ -63,6 +64,7 @@ int x509_read_privkey(gnutls_x509_privkey_t *key, const char *file)
 
 	ret = gnutls_x509_privkey_import(*key, &datum, GNUTLS_X509_FMT_PEM);
 	if (ret) {
+		fprintf(stderr, "x509_read_privkey: ");
 		gnutls_perror(ret);
 		gnutls_x509_privkey_deinit(*key);
 		return -1;
@@ -111,6 +113,7 @@ err_free_priv:
 	gnutls_privkey_deinit(privkey);
 
 err:
+	fprintf(stderr, "x509_get_key_id: ");
 	gnutls_perror(ret);
 
 	return -1;
@@ -216,6 +219,7 @@ err_free_crt:
 	gnutls_x509_crt_deinit(*crt);
 
 err:
+	fprintf(stderr, "x509_generate_cert: ");
 	gnutls_perror(ret);
 
 	return -1;
