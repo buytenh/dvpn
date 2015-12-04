@@ -41,7 +41,7 @@ static int spawnvp(const char *file, char *const *argv)
 	if (pid == 0) {
 		execvp(file, argv);
 		perror("execvp");
-		exit(-1);
+		exit(1);
 	}
 
 	ret = waitpid(pid, &status, 0);
