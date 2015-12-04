@@ -113,5 +113,10 @@ int tun_interface_send_packet(struct tun_interface *ti,
 		ret = write(ti->fd.fd, buf, len);
 	} while (ret < 0 && errno == EINTR);
 
+	if (ret < 0) {
+		fprintf(stderr, "tun_interface_send_packet: write(2) got "
+				"error: %s\n", strerror(errno));
+	}
+
 	return ret;
 }
