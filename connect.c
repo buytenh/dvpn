@@ -71,7 +71,8 @@ struct server_peer
 #define CONNECT_TIMEOUT		10
 #define HANDSHAKE_TIMEOUT	30
 #define KEEPALIVE_INTERVAL	30
-#define RETRY_WAIT_TIME		10
+#define SHORT_RETRY_WAIT_TIME	2
+#define LONG_RETRY_WAIT_TIME	10
 
 static int verify_key_id(void *_sp, const uint8_t *id, int len)
 {
@@ -102,7 +103,7 @@ static void send_keepalive(void *_sp)
 	if (pconn_record_send(&sp->pconn, keepalive, 3)) {
 		fprintf(stderr, "%s: error sending keepalive, disconnecting "
 				"and retrying in %d seconds\n",
-			sp->cce->name, RETRY_WAIT_TIME);
+			sp->cce->name, SHORT_RETRY_WAIT_TIME);
 
 		itf_set_state(tun_interface_get_name(&sp->tun), 0);
 
@@ -115,7 +116,7 @@ static void send_keepalive(void *_sp)
 
 		iv_timer_unregister(&sp->rx_timeout);
 		sp->rx_timeout.expires = iv_now;
-		sp->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
+		sp->rx_timeout.expires.tv_sec += SHORT_RETRY_WAIT_TIME;
 		iv_timer_register(&sp->rx_timeout);
 
 		return;
@@ -218,7 +219,7 @@ static void record_received(void *_sp, const uint8_t *rec, int len)
 		fprintf(stderr, "%s: error forwarding received packet "
 				"to tun interface, disconnecting and "
 				"retrying in %d seconds\n",
-			sp->cce->name, RETRY_WAIT_TIME);
+			sp->cce->name, SHORT_RETRY_WAIT_TIME);
 
 		itf_set_state(tun_interface_get_name(&sp->tun), 0);
 
@@ -229,7 +230,7 @@ static void record_received(void *_sp, const uint8_t *rec, int len)
 
 		sp->state = STATE_WAITING_RETRY;
 
-		sp->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
+		sp->rx_timeout.expires.tv_sec += SHORT_RETRY_WAIT_TIME;
 		iv_timer_register(&sp->rx_timeout);
 
 		return;
@@ -243,9 +244,15 @@ out:
 static void connection_lost(void *_sp)
 {
 	struct server_peer *sp = _sp;
+	int waittime;
+
+	if (sp->state == STATE_CONNECTED)
+		waittime = SHORT_RETRY_WAIT_TIME;
+	else
+		waittime = LONG_RETRY_WAIT_TIME;
 
 	fprintf(stderr, "%s: connection lost, retrying in %d seconds\n",
-		sp->cce->name, RETRY_WAIT_TIME);
+		sp->cce->name, waittime);
 
 	itf_set_state(tun_interface_get_name(&sp->tun), 0);
 
@@ -263,7 +270,7 @@ static void connection_lost(void *_sp)
 
 	iv_timer_unregister(&sp->rx_timeout);
 	sp->rx_timeout.expires = iv_now;
-	sp->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
+	sp->rx_timeout.expires.tv_sec += waittime;
 	iv_timer_register(&sp->rx_timeout);
 }
 
@@ -327,7 +334,8 @@ static void try_connect(struct server_peer *sp)
 		freeaddrinfo(sp->res);
 
 		fprintf(stderr, "%s: error connecting, retrying in %d "
-				"seconds\n", sp->cce->name, RETRY_WAIT_TIME);
+				"seconds\n", sp->cce->name,
+			LONG_RETRY_WAIT_TIME);
 
 		sp->state = STATE_WAITING_RETRY;
 
@@ -336,7 +344,7 @@ static void try_connect(struct server_peer *sp)
 		if (iv_timer_registered(&sp->rx_timeout))
 			iv_timer_unregister(&sp->rx_timeout);
 		sp->rx_timeout.expires = iv_now;
-		sp->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
+		sp->rx_timeout.expires.tv_sec += LONG_RETRY_WAIT_TIME;
 		iv_timer_register(&sp->rx_timeout);
 
 		return;
@@ -415,7 +423,7 @@ static void resolve_complete(void *_sp, int rc, struct addrinfo *res)
 
 		fprintf(stderr, "%s: address resolution returned error '%s', "
 				"retrying in %d seconds\n",
-			sp->cce->name, gai_strerror(rc), RETRY_WAIT_TIME);
+			sp->cce->name, gai_strerror(rc), SHORT_RETRY_WAIT_TIME);
 
 		sp->state = STATE_WAITING_RETRY;
 
@@ -423,7 +431,7 @@ static void resolve_complete(void *_sp, int rc, struct addrinfo *res)
 
 		iv_timer_unregister(&sp->rx_timeout);
 		sp->rx_timeout.expires = iv_now;
-		sp->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
+		sp->rx_timeout.expires.tv_sec += SHORT_RETRY_WAIT_TIME;
 		iv_timer_register(&sp->rx_timeout);
 	}
 }
@@ -475,7 +483,7 @@ static void got_packet(void *_sp, uint8_t *buf, int len)
 	if (pconn_record_send(&sp->pconn, sndbuf, len + 3)) {
 		fprintf(stderr, "%s: error sending TLS record, disconnecting "
 				"and retrying in %d seconds\n",
-			sp->cce->name, RETRY_WAIT_TIME);
+			sp->cce->name, SHORT_RETRY_WAIT_TIME);
 
 		itf_set_state(tun_interface_get_name(&sp->tun), 0);
 
@@ -486,7 +494,7 @@ static void got_packet(void *_sp, uint8_t *buf, int len)
 
 		iv_timer_unregister(&sp->rx_timeout);
 		sp->rx_timeout.expires = iv_now;
-		sp->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
+		sp->rx_timeout.expires.tv_sec += SHORT_RETRY_WAIT_TIME;
 		iv_timer_register(&sp->rx_timeout);
 
 		return;
@@ -500,10 +508,7 @@ static void got_packet(void *_sp, uint8_t *buf, int len)
 static void rx_timeout_expired(void *_sp)
 {
 	struct server_peer *sp = _sp;
-
-	iv_validate_now();
-
-	sp->rx_timeout.expires = iv_now;
+	int waittime;
 
 	if (sp->state == STATE_CONNECT) {
 		fprintf(stderr, "%s: connect timed out\n", sp->cce->name);
@@ -513,45 +518,55 @@ static void rx_timeout_expired(void *_sp)
 
 		sp->rp = sp->rp->ai_next;
 		try_connect(sp);
-	} else if (sp->state == STATE_WAITING_RETRY) {
+
+		return;
+	}
+
+	if (sp->state == STATE_WAITING_RETRY) {
 		sp->state = STATE_RESOLVE;
 		if (start_resolve(sp) == 0) {
-			sp->rx_timeout.expires.tv_sec += RESOLVE_TIMEOUT;
+			waittime = RESOLVE_TIMEOUT;
 		} else {
 			fprintf(stderr, "%s: error starting address "
-					"resolution, retrying in %d seconds\n",
-				sp->cce->name, RETRY_WAIT_TIME);
+					"resolution", sp->cce->name);
 
 			sp->state = STATE_WAITING_RETRY;
-			sp->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
+			waittime = SHORT_RETRY_WAIT_TIME;
 		}
-		iv_timer_register(&sp->rx_timeout);
 	} else {
+		fprintf(stderr, "%s: ", sp->cce->name);
+
 		if (sp->state == STATE_RESOLVE) {
-			fprintf(stderr, "%s: address resolution timed out",
-				sp->cce->name);
+			fprintf(stderr, "address resolution timed out");
 			iv_getaddrinfo_cancel(&sp->addrinfo);
+			waittime = SHORT_RETRY_WAIT_TIME;
 		} else if (sp->state == STATE_TLS_HANDSHAKE) {
-			fprintf(stderr, "%s: TLS handshake timed out",
-				sp->cce->name);
+			fprintf(stderr, "TLS handshake timed out");
 			pconn_destroy(&sp->pconn);
 			close(sp->pconn.fd);
+			waittime = LONG_RETRY_WAIT_TIME;
 		} else if (sp->state == STATE_CONNECTED) {
-			fprintf(stderr, "%s: receive timeout", sp->cce->name);
+			fprintf(stderr, "receive timeout");
 			itf_set_state(tun_interface_get_name(&sp->tun), 0);
 			pconn_destroy(&sp->pconn);
 			close(sp->pconn.fd);
 			iv_timer_unregister(&sp->keepalive_timer);
+			waittime = SHORT_RETRY_WAIT_TIME;
 		} else {
 			abort();
 		}
 
-		fprintf(stderr, ", retrying in %d seconds\n", RETRY_WAIT_TIME);
-
 		sp->state = STATE_WAITING_RETRY;
-		sp->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
-		iv_timer_register(&sp->rx_timeout);
 	}
+
+	if (sp->state == STATE_WAITING_RETRY)
+		fprintf(stderr, ", retrying in %d seconds\n", waittime);
+
+	iv_validate_now();
+
+	sp->rx_timeout.expires = iv_now;
+	sp->rx_timeout.expires.tv_sec += waittime;
+	iv_timer_register(&sp->rx_timeout);
 }
 
 void *server_peer_add(struct conf_connect_entry *cce, gnutls_x509_privkey_t key)
@@ -588,10 +603,10 @@ void *server_peer_add(struct conf_connect_entry *cce, gnutls_x509_privkey_t key)
 	} else {
 		fprintf(stderr, "%s: error starting address "
 				"resolution, retrying in %d seconds\n",
-			sp->cce->name, RETRY_WAIT_TIME);
+			sp->cce->name, SHORT_RETRY_WAIT_TIME);
 
 		sp->state = STATE_WAITING_RETRY;
-		sp->rx_timeout.expires.tv_sec += RETRY_WAIT_TIME;
+		sp->rx_timeout.expires.tv_sec += SHORT_RETRY_WAIT_TIME;
 	}
 
 	iv_timer_register(&sp->rx_timeout);
