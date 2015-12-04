@@ -38,8 +38,10 @@ static struct ini_cfgobj *parse_cfgfile(const char *file)
 	struct ini_cfgobj *co;
 	struct ini_cfgfile *cf;
 
-	if (ini_config_create(&co))
+	if (ini_config_create(&co)) {
+		fprintf(stderr, "error creating ini config object\n");
 		return NULL;
+	}
 
 	if (ini_config_file_open(file, 0, &cf)) {
 		fprintf(stderr, "error opening %s\n", file);
@@ -49,6 +51,7 @@ static struct ini_cfgobj *parse_cfgfile(const char *file)
 
 	if (ini_config_parse(cf, INI_STOP_ON_ANY,
 			     INI_MS_ERROR | INI_MV1S_ALLOW, 0, co)) {
+		fprintf(stderr, "error parsing configuration file\n");
 		if (ini_config_error_count(co)) {
 			char **errors = NULL;
 
@@ -75,14 +78,19 @@ static int parse_config_default(struct local_conf *lc, struct ini_cfgobj *co)
 
 	ret = ini_get_config_valueobj("default", "PrivateKey", co,
 				      INI_GET_FIRST_VALUE, &vo);
-	if (ret == 0) {
+	if (ret == 0 && vo != NULL) {
 		char *key;
 
 		key = ini_get_string_config_value(vo, &ret);
-		if (ret)
+		if (ret) {
+			fprintf(stderr, "error retrieving PrivateKey value\n");
 			return -1;
+		}
 
 		lc->conf->private_key = key;
+	} else {
+		fprintf(stderr, "mandatory PrivateKey option missing\n");
+		return -1;
 	}
 
 	ret = ini_get_config_valueobj("default", "DefaultPort", co,
@@ -91,8 +99,10 @@ static int parse_config_default(struct local_conf *lc, struct ini_cfgobj *co)
 		int port;
 
 		port = ini_get_int_config_value(vo, 1, 0, &ret);
-		if (ret)
+		if (ret) {
+			fprintf(stderr, "error retrieving DefaultPort value\n");
 			return -1;
+		}
 
 		lc->default_port = port;
 	}
@@ -137,15 +147,20 @@ add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 	}
 
 	if (delim != NULL) {
-		if (sscanf(delim + 1, "%d", &port) != 1)
+		if (sscanf(delim + 1, "%d", &port) != 1) {
+			fprintf(stderr, "error parsing port number in '%s'\n",
+				connect);
 			return -1;
+		}
 	} else {
 		port = lc->default_port;
 	}
 
 	cce = malloc(sizeof(*cce));
-	if (cce == NULL)
+	if (cce == NULL) {
+		fprintf(stderr, "error allocating memory for cce object\n");
 		return -1;
+	}
 
 	cce->name = strdup(peer);
 	if (connect[0] == '[') {
@@ -189,8 +204,11 @@ static int parse_listen_addr(struct sockaddr_storage *dst,
 	}
 
 	if (delim != NULL) {
-		if (sscanf(delim + 1, "%d", &port) != 1)
+		if (sscanf(delim + 1, "%d", &port) != 1) {
+			fprintf(stderr, "error parsing port number in '%s'\n",
+				listen);
 			return -1;
+		}
 	} else {
 		port = default_port;
 	}
@@ -220,8 +238,10 @@ static int parse_listen_addr(struct sockaddr_storage *dst,
 		a4->sin_family = AF_INET;
 		a4->sin_port = htons(port);
 
-		if (!inet_pton(AF_INET, l, &a4->sin_addr))
+		if (!inet_pton(AF_INET, l, &a4->sin_addr)) {
+			fprintf(stderr, "error parsing address '%s'\n", l);
 			ret = -1;
+		}
 	}
 
 	free(l);
@@ -274,6 +294,9 @@ static int addr_compare(const struct sockaddr_storage *a,
 		return 0;
 	}
 
+	fprintf(stderr, "error comparing addresses of family %d\n",
+		a->ss_family);
+
 	abort();
 }
 
@@ -294,8 +317,10 @@ get_listening_socket(struct local_conf *lc, const char *listen)
 	}
 
 	cls = malloc(sizeof(*cls));
-	if (cls == NULL)
+	if (cls == NULL) {
+		fprintf(stderr, "error allocating memory for cls object\n");
 		return NULL;
+	}
 
 	iv_list_add_tail(&cls->list, &lc->conf->listening_sockets);
 	cls->listen_address = addr;
@@ -317,8 +342,10 @@ add_listen_peer(struct local_conf *lc, const char *peer, const char *listen,
 		return -1;
 
 	cle = malloc(sizeof(*cle));
-	if (cle == NULL)
+	if (cle == NULL) {
+		fprintf(stderr, "error allocating memory for cle object\n");
 		return -1;
+	}
 
 	iv_list_add_tail(&cle->list, &cls->listen_entries);
 	cle->name = strdup(peer);
@@ -342,12 +369,18 @@ static int parse_config_peer(struct local_conf *lc,
 
 	connect = get_const_value(co, peer, "Connect");
 	listen = get_const_value(co, peer, "Listen");
-	if (!!(connect == NULL) == !!(listen == NULL))
+	if (!!(connect == NULL) == !!(listen == NULL)) {
+		fprintf(stderr, "peer object for '%s' needs either a "
+				"Connect or a Listen directive\n", peer);
 		return -1;
+	}
 
 	fp = get_const_value(co, peer, "PeerFingerprint");
-	if (fp == NULL)
+	if (fp == NULL) {
+		fprintf(stderr, "peer object for '%s' lacks a "
+				"PeerFingerprint directive\n", peer);
 		return -1;
+	}
 
 	if (sscanf(fp, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:"
 		       "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
@@ -355,6 +388,8 @@ static int parse_config_peer(struct local_conf *lc,
 		   &f[5], &f[6], &f[7], &f[8], &f[9],
 		   &f[10], &f[11], &f[12], &f[13], &f[14],
 		   &f[15], &f[16], &f[17], &f[18], &f[19]) != 20) {
+		fprintf(stderr, "peer object for '%s' has an unparseable "
+				"PeerFingerprint '%s'\n", peer, fp);
 		return -1;
 	}
 
@@ -379,8 +414,10 @@ struct conf *parse_config(const char *file)
 	int err;
 
 	conf = malloc(sizeof(*conf));
-	if (conf == NULL)
+	if (conf == NULL) {
+		fprintf(stderr, "error allocating memory for conf object\n");
 		return NULL;
+	}
 
 	conf->private_key = NULL;
 	INIT_IV_LIST_HEAD(&conf->connect_entries);
