@@ -148,6 +148,8 @@ int iv_getaddrinfo_submit(struct iv_getaddrinfo *ig)
 
 	iv_work_pool_submit_work(&tinfo->pool, &igt->work);
 
+	ig->task = igt;
+
 	return 0;
 }
 
