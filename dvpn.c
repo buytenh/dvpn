@@ -54,9 +54,9 @@ static void stop_config(struct conf *conf)
 		struct conf_listening_socket *cls;
 
 		cls = iv_list_entry(lh, struct conf_listening_socket, list);
-		if (cls->userptr != NULL) {
-			listening_socket_del(cls->userptr);
-			cls->userptr = NULL;
+		if (cls->registered) {
+			cls->registered = 0;
+			listening_socket_unregister(&cls->ls);
 		}
 	}
 }
@@ -87,18 +87,18 @@ static int start_config(struct conf *conf)
 
 	iv_list_for_each (lh, &conf->listening_sockets) {
 		struct conf_listening_socket *cls;
-		void *ptr;
 		struct iv_list_head *lh2;
 
 		cls = iv_list_entry(lh, struct conf_listening_socket, list);
 
-		ptr = listening_socket_add(cls, key);
-		if (ptr == NULL) {
+		cls->ls.listen_address = cls->listen_address;
+		cls->ls.key = key;
+		if (listening_socket_register(&cls->ls)) {
 			stop_config(conf);
 			return 1;
 		}
 
-		cls->userptr = ptr;
+		cls->registered = 1;
 
 		iv_list_for_each (lh2, &cls->listen_entries) {
 			struct conf_listen_entry *cle;
@@ -106,11 +106,12 @@ static int start_config(struct conf *conf)
 			cle = iv_list_entry(lh2, struct conf_listen_entry,
 					    list);
 
-			cle->userptr = listening_socket_add_entry(ptr, cle);
-			if (cle->userptr == NULL) {
-				stop_config(conf);
-				return 1;
-			}
+			cle->le.ls = &cls->ls;
+			cle->le.tunitf = cle->tunitf;
+			cle->le.name = cle->name;
+			memcpy(cle->le.fingerprint, cle->fingerprint, 20);
+			cle->le.is_peer = cle->is_peer;
+			listen_entry_register(&cle->le);
 		}
 	}
 

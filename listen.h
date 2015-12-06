@@ -23,11 +23,33 @@
 #include <gnutls/x509.h>
 #include "conf.h"
 
-void *listening_socket_add(struct conf_listening_socket *cls,
-			   gnutls_x509_privkey_t key);
-void *listening_socket_add_entry(void *ls, struct conf_listen_entry *cle);
-void listening_socket_del_entry(void *ls, void *le);
-void listening_socket_del(void *ls);
+struct listening_socket
+{
+	struct sockaddr_storage	listen_address;
+	gnutls_x509_privkey_t	key;
+
+	struct iv_fd		listen_fd;
+	struct iv_list_head	listen_entries;
+};
+
+int listening_socket_register(struct listening_socket *ls);
+void listening_socket_unregister(struct listening_socket *ls);
+
+struct listen_entry
+{
+	struct listening_socket	*ls;
+	char			*tunitf;
+	char			*name;
+	uint8_t			fingerprint[20];
+	int			is_peer;
+
+	struct iv_list_head	list;
+	struct tun_interface	tun;
+	struct client_conn	*current;
+};
+
+void listen_entry_register(struct listen_entry *le);
+void listen_entry_unregister(struct listen_entry *le);
 
 
 #endif

@@ -24,6 +24,7 @@
 #include <stdint.h>
 #include <sys/socket.h>
 #include "connect.h"
+#include "listen.h"
 
 struct conf
 {
@@ -55,7 +56,8 @@ struct conf_listening_socket
 	struct sockaddr_storage	listen_address;
 	struct iv_list_head	listen_entries;
 
-	void			*userptr;
+	int			registered;
+	struct listening_socket	ls;
 };
 
 struct conf_listen_entry
@@ -67,7 +69,7 @@ struct conf_listen_entry
 	int			is_peer;
 	char			*tunitf;
 
-	void			*userptr;
+	struct listen_entry	le;
 };
 
 struct conf *parse_config(const char *file);

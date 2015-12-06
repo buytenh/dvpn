@@ -27,28 +27,11 @@
 #include <string.h>
 #include "conf.h"
 #include "itf.h"
+#include "listen.h"
 #include "pconn.h"
 #include "tun.h"
 #include "util.h"
 #include "x509.h"
-
-struct listening_socket
-{
-	struct conf_listening_socket	*cls;
-	gnutls_x509_privkey_t		key;
-
-	struct iv_fd		listen_fd;
-	struct iv_list_head	listen_entries;
-};
-
-struct listen_entry
-{
-	struct conf_listen_entry	*cle;
-
-	struct iv_list_head	list;
-	struct tun_interface	tun;
-	struct client_conn	*current;
-};
 
 struct client_conn
 {
@@ -90,7 +73,7 @@ static void client_conn_kill(struct client_conn *cc)
 static void print_name(FILE *fp, struct client_conn *cc)
 {
 	if (cc->le != NULL)
-		fprintf(fp, "%s", cc->le->cle->name);
+		fprintf(fp, "%s", cc->le->name);
 	else
 		fprintf(fp, "conn%d", cc->pconn.fd);
 }
@@ -117,8 +100,8 @@ static int verify_key_id(void *_cc, const uint8_t *id, int len)
 		struct listen_entry *le;
 
 		le = iv_list_entry(lh, struct listen_entry, list);
-		if (!memcmp(le->cle->fingerprint, id, 20)) {
-			fprintf(stderr, " - matches '%s'\n", le->cle->name);
+		if (!memcmp(le->fingerprint, id, 20)) {
+			fprintf(stderr, " - matches '%s'\n", le->name);
 			cc->le = le;
 			return 0;
 		}
@@ -139,10 +122,10 @@ static void handshake_done(void *_cc)
 
 	if (le->current != NULL) {
 		fprintf(stderr, "%s: handshake done, disconnecting "
-				"previous client\n", le->cle->name);
+				"previous client\n", le->name);
 		client_conn_kill(le->current);
 	} else {
-		fprintf(stderr, "%s: handshake done\n", le->cle->name);
+		fprintf(stderr, "%s: handshake done\n", le->name);
 	}
 
 	le->current = cc;
@@ -165,8 +148,7 @@ static void handshake_done(void *_cc)
 	else if (i > 1500)
 		i = 1500;
 
-	fprintf(stderr, "%s: setting interface MTU to %d\n",
-		cc->le->cle->name, i);
+	fprintf(stderr, "%s: setting interface MTU to %d\n", cc->le->name, i);
 	itf_set_mtu(tun_interface_get_name(&le->tun), i);
 
 	cc->state = STATE_CONNECTED;
@@ -196,7 +178,7 @@ static void handshake_done(void *_cc)
 	id[3] = 0x2f;
 	itf_add_addr_v6(tun_interface_get_name(&le->tun), id, 128);
 
-	memcpy(id + 4, le->cle->fingerprint + 4, 12);
+	memcpy(id + 4, le->fingerprint + 4, 12);
 	itf_add_route_v6(tun_interface_get_name(&le->tun), id, 128);
 }
 
@@ -225,7 +207,7 @@ static void record_received(void *_cc, const uint8_t *rec, int len)
 	if (tun_interface_send_packet(&cc->le->tun, rec + 3, rlen) < 0) {
 		fprintf(stderr, "%s: error forwarding received packet "
 				"to tun interface, disconnecting\n", 
-			cc->le->cle->name);
+			cc->le->name);
 		client_conn_kill(cc);
 	}
 }
@@ -247,7 +229,7 @@ static void send_keepalive(void *_cc)
 
 	if (pconn_record_send(&cc->pconn, keepalive, 3)) {
 		fprintf(stderr, "%s: error sending keepalive, disconnecting\n", 
-			cc->le->cle->name);
+			cc->le->name);
 		client_conn_kill(cc);
 		return;
 	}
@@ -285,7 +267,7 @@ static void got_connection(void *_ls)
 	fprintf(stderr, "%p: incoming connection from ", cc);
 	print_address(stderr, (struct sockaddr *)&addr);
 	fprintf(stderr, " to ");
-	print_address(stderr, (struct sockaddr *)&ls->cls->listen_address);
+	print_address(stderr, (struct sockaddr *)&ls->listen_address);
 	fprintf(stderr, "\n");
 
 	cc->ls = ls;
@@ -342,53 +324,41 @@ static void got_packet(void *_le, uint8_t *buf, int len)
 
 	if (pconn_record_send(&cc->pconn, sndbuf, len + 3)) {
 		fprintf(stderr, "%s: error sending TLS record, disconnecting\n",
-			cc->le->cle->name);
+			cc->le->name);
 		client_conn_kill(cc);
 	}
 }
 
-void *listening_socket_add(struct conf_listening_socket *cls,
-			   gnutls_x509_privkey_t key)
+int listening_socket_register(struct listening_socket *ls)
 {
-	struct listening_socket *ls;
 	int fd;
 	int yes;
 
-	fd = socket(cls->listen_address.ss_family, SOCK_STREAM, 0);
+	fd = socket(ls->listen_address.ss_family, SOCK_STREAM, 0);
 	if (fd < 0) {
 		perror("listening_socket_add: socket");
-		return NULL;
+		return 1;
 	}
 
 	yes = 1;
 	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0) {
 		perror("listening_socket_add: setsockopt");
 		close(fd);
-		return NULL;
+		return 1;
 	}
 
-	if (bind(fd, (struct sockaddr *)&cls->listen_address,
-		 sizeof(cls->listen_address)) < 0) {
+	if (bind(fd, (struct sockaddr *)&ls->listen_address,
+		 sizeof(ls->listen_address)) < 0) {
 		perror("listening_socket_add: bind");
 		close(fd);
-		return NULL;
+		return 1;
 	}
 
 	if (listen(fd, 100) < 0) {
 		perror("listening_socket_add: listen");
 		close(fd);
-		return NULL;
+		return 1;
 	}
-
-	ls = malloc(sizeof(*ls));
-	if (ls == NULL) {
-		fprintf(stderr, "error allocating memory for ls object\n");
-		close(fd);
-		return NULL;
-	}
-
-	ls->cls = cls;
-	ls->key = key;
 
 	IV_FD_INIT(&ls->listen_fd);
 	ls->listen_fd.fd = fd;
@@ -398,55 +368,11 @@ void *listening_socket_add(struct conf_listening_socket *cls,
 
 	INIT_IV_LIST_HEAD(&ls->listen_entries);
 
-	return ls;
+	return 0;
 }
 
-void *listening_socket_add_entry(void *_ls, struct conf_listen_entry *cle)
+void listening_socket_unregister(struct listening_socket *ls)
 {
-	struct listening_socket *ls = _ls;
-	struct listen_entry *le;
-
-	le = malloc(sizeof(*le));
-	if (le == NULL) {
-		fprintf(stderr, "error allocating memory for le object\n");
-		return NULL;
-	}
-
-	le->cle = cle;
-
-	iv_list_add_tail(&le->list, &ls->listen_entries);
-
-	le->tun.itfname = cle->tunitf;
-	le->tun.cookie = le;
-	le->tun.got_packet = got_packet;
-	if (tun_interface_register(&le->tun) < 0) {
-		free(le);
-		return NULL;
-	}
-
-	itf_set_state(tun_interface_get_name(&le->tun), 0);
-
-	le->current = NULL;
-
-	return le;
-}
-
-void listening_socket_del_entry(void *_ls, void *_le)
-{
-	struct listen_entry *le = _le;
-
-	if (le->current != NULL)
-		client_conn_kill(le->current);
-
-	iv_list_del(&le->list);
-	tun_interface_unregister(&le->tun);
-
-	free(le);
-}
-
-void listening_socket_del(void *_ls)
-{
-	struct listening_socket *ls = _ls;
 	struct iv_list_head *lh;
 	struct iv_list_head *lh2;
 
@@ -457,8 +383,32 @@ void listening_socket_del(void *_ls)
 		struct listen_entry *le;
 
 		le = iv_list_entry(lh, struct listen_entry, list);
-		listening_socket_del_entry(ls, le);
+		listen_entry_unregister(le);
+	}
+}
+
+void listen_entry_register(struct listen_entry *le)
+{
+	iv_list_add_tail(&le->list, &le->ls->listen_entries);
+
+	le->tun.itfname = le->tunitf;
+	le->tun.cookie = le;
+	le->tun.got_packet = got_packet;
+	if (tun_interface_register(&le->tun) < 0) {
+		free(le);
+		return NULL;
 	}
 
-	free(ls);
+	itf_set_state(tun_interface_get_name(&le->tun), 0);
+
+	le->current = NULL;
+}
+
+void listen_entry_unregister(struct listen_entry *le)
+{
+	if (le->current != NULL)
+		client_conn_kill(le->current);
+
+	iv_list_del(&le->list);
+	tun_interface_unregister(&le->tun);
 }

@@ -324,7 +324,6 @@ get_listening_socket(struct local_conf *lc, const char *listen)
 	iv_list_add_tail(&cls->list, &lc->conf->listening_sockets);
 	cls->listen_address = addr;
 	INIT_IV_LIST_HEAD(&cls->listen_entries);
-	cls->userptr = NULL;
 
 	return cls;
 }
@@ -351,7 +350,6 @@ add_listen_peer(struct local_conf *lc, const char *peer, const char *listen,
 	memcpy(cle->fingerprint, fp, 20);
 	cle->is_peer = !!(peertype != NULL && !strcasecmp(peertype, "peer"));
 	cle->tunitf = strdup(itf ? : cle->is_peer ? "tunp%d" : "tunc%d");
-	cle->userptr = NULL;
 
 	return 0;
 }
