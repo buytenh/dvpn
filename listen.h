@@ -42,6 +42,8 @@ struct listen_entry
 	char			*name;
 	uint8_t			fingerprint[20];
 	int			is_peer;
+	void			*cookie;
+	void			(*set_state)(void *cookie, int up);
 
 	struct iv_list_head	list;
 	struct tun_interface	tun;

@@ -42,6 +42,14 @@ static void connect_set_state(void *_cce, int up)
 		cce->name, up ? "up" : "down");
 }
 
+static void listen_set_state(void *_cle, int up)
+{
+	struct conf_listen_entry *cle = _cle;
+
+	fprintf(stderr, "listen_set_state: %s is now %s\n",
+		cle->name, up ? "up" : "down");
+}
+
 static gnutls_x509_privkey_t key;
 
 static void stop_config(struct conf *conf)
@@ -121,6 +129,8 @@ static int start_config(struct conf *conf)
 			cle->le.name = cle->name;
 			memcpy(cle->le.fingerprint, cle->fingerprint, 20);
 			cle->le.is_peer = cle->is_peer;
+			cle->le.cookie = cle;
+			cle->le.set_state = listen_set_state;
 			listen_entry_register(&cle->le);
 		}
 	}
