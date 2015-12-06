@@ -148,8 +148,8 @@ static void handshake_done(void *_sp)
 	}
 
 	i -= 5 + 8 + 3 + 16;
-	if (i < 576)
-		i = 576;
+	if (i < 1280)
+		i = 1280;
 	else if (i > 1500)
 		i = 1500;
 
