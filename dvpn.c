@@ -44,6 +44,7 @@
 
 static gnutls_x509_privkey_t key;
 static struct iv_avl_tree peers;
+static struct iv_fd topo_fd;
 
 static int compare_peers(const void *_a, const void *_b)
 {
@@ -51,6 +52,94 @@ static int compare_peers(const void *_a, const void *_b)
 	const struct peer *b = _b;
 
 	return memcmp(a->id, b->id, 20);
+}
+
+static void got_topo_request(void *_dummy)
+{
+	uint8_t buf[2048];
+	struct sockaddr_in6 addr;
+	socklen_t addrlen;
+	int ret;
+	int off;
+	struct iv_avl_node *an;
+
+	addrlen = sizeof(addr);
+	ret = recvfrom(topo_fd.fd, buf, sizeof(buf), 0,
+			(struct sockaddr *)&addr, &addrlen);
+	if (ret < 0) {
+		if (errno != EAGAIN)
+			perror("got_topo_request: recvfrom");
+		return;
+	}
+
+	x509_get_key_id(buf, 20, key);
+
+	off = 20;
+	iv_avl_tree_for_each (an, &peers) {
+		struct peer *p;
+		uint16_t type;
+
+		p = iv_container_of(an, struct peer, an);
+		if (!p->up)
+			continue;
+
+		if (sizeof(buf) - off < 128)
+			break;
+
+		memcpy(buf + off, p->id, 20);
+		off += 20;
+
+		type = htons(p->type);
+		memcpy(buf + off, &type, 2);
+		off += 2;
+	}
+
+	sendto(topo_fd.fd, buf, off, 0, (struct sockaddr *)&addr, sizeof(addr));
+}
+
+static int start_topo_listener(void)
+{
+	int fd;
+	int yes;
+	uint8_t id[20];
+	struct sockaddr_in6 addr;
+
+	fd = socket(AF_INET6, SOCK_DGRAM, 0);
+	if (fd < 0) {
+		perror("start_topo_listener: socket");
+		return 1;
+	}
+
+	yes = 1;
+	if (setsockopt(fd, SOL_IP, IP_FREEBIND, &yes, sizeof(yes)) < 0) {
+		perror("start_topo_listener: setsockopt(SOL_IP, IP_FREEBIND)");
+		close(fd);
+		return 1;
+	}
+
+	x509_get_key_id(id, 20, key);
+	id[0] = 0x20;
+	id[1] = 0x01;
+	id[2] = 0x00;
+	id[3] = 0x2f;
+
+	addr.sin6_family = AF_INET6;
+	addr.sin6_port = htons(19275);
+	addr.sin6_flowinfo = 0;
+	memcpy(&addr.sin6_addr, id, 16);
+	addr.sin6_scope_id = 0;
+	if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+		perror("start_topo_listener: bind");
+		close(fd);
+		return 1;
+	}
+
+	IV_FD_INIT(&topo_fd);
+	topo_fd.fd = fd;
+	topo_fd.handler_in = got_topo_request;
+	iv_fd_register(&topo_fd);
+
+	return 0;
 }
 
 static void connect_set_state(void *_cce, int up)
@@ -227,6 +316,7 @@ static void got_sighup(void *_dummy)
 	fprintf(stderr, "=> error reverting to old configuration, "
 			"shutting down\n");
 
+	iv_fd_unregister(&topo_fd);
 	iv_signal_unregister(&sighup);
 	iv_signal_unregister(&sigint);
 	iv_signal_unregister(&sigusr1);
@@ -236,6 +326,7 @@ static void got_sigint(void *_dummy)
 {
 	fprintf(stderr, "SIGINT received, shutting down\n");
 
+	iv_fd_unregister(&topo_fd);
 	iv_signal_unregister(&sighup);
 	iv_signal_unregister(&sigint);
 	iv_signal_unregister(&sigusr1);
@@ -306,6 +397,9 @@ int main(int argc, char *argv[])
 
 	INIT_IV_AVL_TREE(&peers, compare_peers);
 
+	if (start_topo_listener())
+		return 1;
+
 	if (start_config(conf))
 		return 1;
 
@@ -333,6 +427,8 @@ int main(int argc, char *argv[])
 	iv_main();
 
 	iv_deinit();
+
+	close(topo_fd.fd);
 
 	gnutls_x509_privkey_deinit(key);
 
