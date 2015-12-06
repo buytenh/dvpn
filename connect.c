@@ -29,37 +29,13 @@
 #include <netinet/tcp.h>
 #include <string.h>
 #include "conf.h"
+#include "connect.h"
 #include "itf.h"
 #include "iv_getaddrinfo.h"
 #include "pconn.h"
 #include "tun.h"
 #include "util.h"
 #include "x509.h"
-
-struct server_peer
-{
-	struct conf_connect_entry	*cce;
-	gnutls_x509_privkey_t		key;
-
-	int			state;
-	struct tun_interface	tun;
-	struct iv_timer		rx_timeout;
-	union {
-		struct {
-			struct addrinfo		hints;
-			struct iv_getaddrinfo	addrinfo;
-		};
-		struct {
-			struct addrinfo		*res;
-			struct addrinfo		*rp;
-			struct iv_fd		connectfd;
-		};
-		struct {
-			struct pconn		pconn;
-			struct iv_timer		keepalive_timer;
-		};
-	};
-};
 
 #define STATE_RESOLVE		1
 #define STATE_CONNECT		2
@@ -77,12 +53,11 @@ struct server_peer
 static int verify_key_id(void *_sp, const uint8_t *id, int len)
 {
 	struct server_peer *sp = _sp;
-	struct conf_connect_entry *cce = sp->cce;
 
-	fprintf(stderr, "%s: peer key ID ", cce->name);
+	fprintf(stderr, "%s: peer key ID ", sp->name);
 	printhex(stderr, id, len);
 
-	if (memcmp(cce->fingerprint, id, 20)) {
+	if (memcmp(sp->fingerprint, id, 20)) {
 		fprintf(stderr, " - mismatch\n");
 		return 1;
 	}
@@ -103,7 +78,7 @@ static void send_keepalive(void *_sp)
 	if (pconn_record_send(&sp->pconn, keepalive, 3)) {
 		fprintf(stderr, "%s: error sending keepalive, disconnecting "
 				"and retrying in %d seconds\n",
-			sp->cce->name, SHORT_RETRY_WAIT_TIME);
+			sp->name, SHORT_RETRY_WAIT_TIME);
 
 		itf_set_state(tun_interface_get_name(&sp->tun), 0);
 
@@ -133,7 +108,7 @@ static void handshake_done(void *_sp)
 	int i;
 	socklen_t len;
 
-	fprintf(stderr, "%s: handshake done\n", sp->cce->name);
+	fprintf(stderr, "%s: handshake done\n", sp->name);
 
 	i = 1;
 	if (setsockopt(sp->pconn.fd, SOL_TCP, TCP_NODELAY, &i, sizeof(i)) < 0) {
@@ -153,8 +128,7 @@ static void handshake_done(void *_sp)
 	else if (i > 1500)
 		i = 1500;
 
-	fprintf(stderr, "%s: setting interface MTU to %d\n",
-		sp->cce->name, i);
+	fprintf(stderr, "%s: setting interface MTU to %d\n", sp->name, i);
 	itf_set_mtu(tun_interface_get_name(&sp->tun), i);
 
 	sp->state = STATE_CONNECTED;
@@ -183,10 +157,10 @@ static void handshake_done(void *_sp)
 	id[1] = 0x01;
 	id[2] = 0x00;
 	id[3] = 0x2f;
-	if (sp->cce->is_peer) {
+	if (sp->is_peer) {
 		itf_add_addr_v6(tun_interface_get_name(&sp->tun), id, 128);
 
-		memcpy(id + 4, sp->cce->fingerprint + 4, 12);
+		memcpy(id + 4, sp->fingerprint + 4, 12);
 		itf_add_route_v6(tun_interface_get_name(&sp->tun), id, 128);
 	} else {
 		itf_add_addr_v6(tun_interface_get_name(&sp->tun), id, 32);
@@ -219,7 +193,7 @@ static void record_received(void *_sp, const uint8_t *rec, int len)
 		fprintf(stderr, "%s: error forwarding received packet "
 				"to tun interface, disconnecting and "
 				"retrying in %d seconds\n",
-			sp->cce->name, SHORT_RETRY_WAIT_TIME);
+			sp->name, SHORT_RETRY_WAIT_TIME);
 
 		itf_set_state(tun_interface_get_name(&sp->tun), 0);
 
@@ -252,7 +226,7 @@ static void connection_lost(void *_sp)
 		waittime = LONG_RETRY_WAIT_TIME;
 
 	fprintf(stderr, "%s: connection lost, retrying in %d seconds\n",
-		sp->cce->name, waittime);
+		sp->name, waittime);
 
 	itf_set_state(tun_interface_get_name(&sp->tun), 0);
 
@@ -277,7 +251,7 @@ static void connection_lost(void *_sp)
 static void connect_success(struct server_peer *sp, int fd)
 {
 	fprintf(stderr, "%s: connection established, starting TLS handshake\n",
-		sp->cce->name);
+		sp->name);
 
 	freeaddrinfo(sp->res);
 
@@ -308,7 +282,7 @@ static void try_connect(struct server_peer *sp)
 	int ret;
 
 	while (sp->rp != NULL) {
-		fprintf(stderr, "%s: attempting connection to ", sp->cce->name);
+		fprintf(stderr, "%s: attempting connection to ", sp->name);
 		print_address(stderr, sp->rp->ai_addr);
 		fprintf(stderr, "\n");
 
@@ -323,7 +297,7 @@ static void try_connect(struct server_peer *sp)
 				break;
 
 			fprintf(stderr, "%s: connect error '%s'\n",
-				sp->cce->name, strerror(errno));
+				sp->name, strerror(errno));
 			close(fd);
 		}
 
@@ -334,8 +308,7 @@ static void try_connect(struct server_peer *sp)
 		freeaddrinfo(sp->res);
 
 		fprintf(stderr, "%s: error connecting, retrying in %d "
-				"seconds\n", sp->cce->name,
-			LONG_RETRY_WAIT_TIME);
+				"seconds\n", sp->name, LONG_RETRY_WAIT_TIME);
 
 		sp->state = STATE_WAITING_RETRY;
 
@@ -378,7 +351,7 @@ static void connect_pollout(void *_sp)
 	len = sizeof(ret);
 	if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &ret, &len) < 0) {
 		fprintf(stderr, "%s: getsockopt error '%s'\n",
-			sp->cce->name, strerror(errno));
+			sp->name, strerror(errno));
 		return;
 	}
 
@@ -391,7 +364,7 @@ static void connect_pollout(void *_sp)
 		connect_success(sp, fd);
 	} else {
 		fprintf(stderr, "%s: connect error '%s'\n",
-			sp->cce->name, strerror(ret));
+			sp->name, strerror(ret));
 		close(fd);
 
 		sp->rp = sp->rp->ai_next;
@@ -405,7 +378,7 @@ static void resolve_complete(void *_sp, int rc, struct addrinfo *res)
 
 	if (rc == 0) {
 		fprintf(stderr, "%s: address resolution complete\n",
-			sp->cce->name);
+			sp->name);
 
 		sp->state = STATE_CONNECT;
 
@@ -423,7 +396,7 @@ static void resolve_complete(void *_sp, int rc, struct addrinfo *res)
 
 		fprintf(stderr, "%s: address resolution returned error '%s', "
 				"retrying in %d seconds\n",
-			sp->cce->name, gai_strerror(rc), SHORT_RETRY_WAIT_TIME);
+			sp->name, gai_strerror(rc), SHORT_RETRY_WAIT_TIME);
 
 		sp->state = STATE_WAITING_RETRY;
 
@@ -448,17 +421,15 @@ static int start_resolve(struct server_peer *sp)
 	sp->hints.ai_protocol = 0;
 	sp->hints.ai_flags = AI_ADDRCONFIG | AI_V4MAPPED | AI_NUMERICSERV;
 
-	sp->addrinfo.node = sp->cce->hostname;
-	sp->addrinfo.service = sp->cce->port;
+	sp->addrinfo.node = sp->hostname;
+	sp->addrinfo.service = sp->port;
 	sp->addrinfo.hints = &sp->hints;
 	sp->addrinfo.cookie = sp;
 	sp->addrinfo.handler = resolve_complete;
 
 	ret = iv_getaddrinfo_submit(&sp->addrinfo);
-	if (ret == 0) {
-		fprintf(stderr, "%s: starting address resolution\n",
-			sp->cce->name);
-	}
+	if (ret == 0)
+		fprintf(stderr, "%s: starting address resolution\n", sp->name);
 
 	return ret;
 }
@@ -483,7 +454,7 @@ static void got_packet(void *_sp, uint8_t *buf, int len)
 	if (pconn_record_send(&sp->pconn, sndbuf, len + 3)) {
 		fprintf(stderr, "%s: error sending TLS record, disconnecting "
 				"and retrying in %d seconds\n",
-			sp->cce->name, SHORT_RETRY_WAIT_TIME);
+			sp->name, SHORT_RETRY_WAIT_TIME);
 
 		itf_set_state(tun_interface_get_name(&sp->tun), 0);
 
@@ -511,7 +482,7 @@ static void rx_timeout_expired(void *_sp)
 	int waittime;
 
 	if (sp->state == STATE_CONNECT) {
-		fprintf(stderr, "%s: connect timed out\n", sp->cce->name);
+		fprintf(stderr, "%s: connect timed out\n", sp->name);
 
 		iv_fd_unregister(&sp->connectfd);
 		close(sp->connectfd.fd);
@@ -528,13 +499,13 @@ static void rx_timeout_expired(void *_sp)
 			waittime = RESOLVE_TIMEOUT;
 		} else {
 			fprintf(stderr, "%s: error starting address "
-					"resolution", sp->cce->name);
+					"resolution", sp->name);
 
 			sp->state = STATE_WAITING_RETRY;
 			waittime = SHORT_RETRY_WAIT_TIME;
 		}
 	} else {
-		fprintf(stderr, "%s: ", sp->cce->name);
+		fprintf(stderr, "%s: ", sp->name);
 
 		if (sp->state == STATE_RESOLVE) {
 			fprintf(stderr, "address resolution timed out");
@@ -569,28 +540,15 @@ static void rx_timeout_expired(void *_sp)
 	iv_timer_register(&sp->rx_timeout);
 }
 
-void *server_peer_add(struct conf_connect_entry *cce, gnutls_x509_privkey_t key)
+int server_peer_register(struct server_peer *sp)
 {
-	struct server_peer *sp;
-
-	sp = malloc(sizeof(*sp));
-	if (sp == NULL) {
-		fprintf(stderr, "error allocating memory for sp object\n");
-		return NULL;
-	}
-
-	sp->cce = cce;
-	sp->key = key;
-
 	sp->state = STATE_RESOLVE;
 
-	sp->tun.itfname = sp->cce->tunitf;
+	sp->tun.itfname = sp->tunitf;
 	sp->tun.cookie = sp;
 	sp->tun.got_packet = got_packet;
-	if (tun_interface_register(&sp->tun) < 0) {
-		free(sp);
-		return NULL;
-	}
+	if (tun_interface_register(&sp->tun) < 0)
+		return 1;
 
 	IV_TIMER_INIT(&sp->rx_timeout);
 	iv_validate_now();
@@ -603,7 +561,7 @@ void *server_peer_add(struct conf_connect_entry *cce, gnutls_x509_privkey_t key)
 	} else {
 		fprintf(stderr, "%s: error starting address "
 				"resolution, retrying in %d seconds\n",
-			sp->cce->name, SHORT_RETRY_WAIT_TIME);
+			sp->name, SHORT_RETRY_WAIT_TIME);
 
 		sp->state = STATE_WAITING_RETRY;
 		sp->rx_timeout.expires.tv_sec += SHORT_RETRY_WAIT_TIME;
@@ -611,13 +569,11 @@ void *server_peer_add(struct conf_connect_entry *cce, gnutls_x509_privkey_t key)
 
 	iv_timer_register(&sp->rx_timeout);
 
-	return (void *)sp;
+	return 0;
 }
 
-void server_peer_del(void *_sp)
+void server_peer_unregister(struct server_peer *sp)
 {
-	struct server_peer *sp = _sp;
-
 	tun_interface_unregister(&sp->tun);
 
 	iv_timer_unregister(&sp->rx_timeout);
@@ -639,6 +595,4 @@ void server_peer_del(void *_sp)
 	} else {
 		abort();
 	}
-
-	free(sp);
 }

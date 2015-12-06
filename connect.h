@@ -21,10 +21,44 @@
 #define __CONNECT_H
 
 #include <gnutls/x509.h>
-#include "conf.h"
+#include <iv.h>
+#include <netdb.h>
+#include "iv_getaddrinfo.h"
+#include "pconn.h"
+#include "tun.h"
 
-void *server_peer_add(struct conf_connect_entry *ce, gnutls_x509_privkey_t key);
-void server_peer_del(void *sp);
+struct server_peer
+{
+	char			*tunitf;
+	char			*name;
+	char			*hostname;
+	char			*port;
+	gnutls_x509_privkey_t	key;
+	uint8_t			fingerprint[20];
+	int			is_peer;
+
+	int			state;
+	struct tun_interface	tun;
+	struct iv_timer		rx_timeout;
+	union {
+		struct {
+			struct addrinfo		hints;
+			struct iv_getaddrinfo	addrinfo;
+		};
+		struct {
+			struct addrinfo		*res;
+			struct addrinfo		*rp;
+			struct iv_fd		connectfd;
+		};
+		struct {
+			struct pconn		pconn;
+			struct iv_timer		keepalive_timer;
+		};
+	};
+};
+
+int server_peer_register(struct server_peer *sp);
+void server_peer_unregister(struct server_peer *sp);
 
 
 #endif

@@ -28,6 +28,7 @@
 #include <gnutls/x509.h>
 #include <iv.h>
 #include <iv_signal.h>
+#include <string.h>
 #include "conf.h"
 #include "connect.h"
 #include "listen.h"
@@ -43,9 +44,9 @@ static void stop_config(struct conf *conf)
 		struct conf_connect_entry *cce;
 
 		cce = iv_list_entry(lh, struct conf_connect_entry, list);
-		if (cce->userptr != NULL) {
-			server_peer_del(cce->userptr);
-			cce->userptr = NULL;
+		if (cce->registered) {
+			cce->registered = 0;
+			server_peer_unregister(&cce->sp);
 		}
 	}
 
@@ -69,11 +70,19 @@ static int start_config(struct conf *conf)
 
 		cce = iv_list_entry(lh, struct conf_connect_entry, list);
 
-		cce->userptr = server_peer_add(cce, key);
-		if (cce->userptr == NULL) {
+		cce->sp.tunitf = cce->tunitf;
+		cce->sp.name = cce->name;
+		cce->sp.hostname = cce->hostname;
+		cce->sp.port = cce->port;
+		cce->sp.key = key;
+		memcpy(cce->sp.fingerprint, cce->fingerprint, 20);
+		cce->sp.is_peer = cce->is_peer;
+		if (server_peer_register(&cce->sp)) {
 			stop_config(conf);
 			return 1;
 		}
+
+		cce->registered = 1;
 	}
 
 	iv_list_for_each (lh, &conf->listening_sockets) {

@@ -177,7 +177,6 @@ add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 	memcpy(cce->fingerprint, fp, 20);
 	cce->is_peer = !!(peertype != NULL && !strcasecmp(peertype, "peer"));
 	cce->tunitf = strdup(itf ? : cce->is_peer ? "tunp%d" : "tunu%d");
-	cce->userptr = NULL;
 
 	iv_list_add_tail(&cce->list, &lc->conf->connect_entries);
 

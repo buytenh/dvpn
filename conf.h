@@ -23,6 +23,7 @@
 #include <iv_list.h>
 #include <stdint.h>
 #include <sys/socket.h>
+#include "connect.h"
 
 struct conf
 {
@@ -43,7 +44,8 @@ struct conf_connect_entry
 	int			is_peer;
 	char			*tunitf;
 
-	void			*userptr;
+	int			registered;
+	struct server_peer	sp;
 };
 
 struct conf_listening_socket
