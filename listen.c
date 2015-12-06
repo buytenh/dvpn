@@ -95,7 +95,7 @@ static int verify_key_id(void *_cc, const uint8_t *id, int len)
 	struct client_conn *cc = _cc;
 	struct iv_list_head *lh;
 
-	fprintf(stderr, "%p: peer key ID ", cc);
+	fprintf(stderr, "conn%d: peer key ID ", cc->pconn.fd);
 	printhex(stderr, id, len);
 
 	iv_list_for_each (lh, &cc->ls->listen_entries) {
@@ -267,7 +267,7 @@ static void got_connection(void *_ls)
 		return;
 	}
 
-	fprintf(stderr, "%p: incoming connection from ", cc);
+	fprintf(stderr, "conn%d: incoming connection from ", fd);
 	print_address(stderr, (struct sockaddr *)&addr);
 	fprintf(stderr, " to ");
 	print_address(stderr, (struct sockaddr *)&ls->listen_address);
