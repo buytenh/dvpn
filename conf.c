@@ -156,7 +156,7 @@ add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 		port = lc->default_port;
 	}
 
-	cce = malloc(sizeof(*cce));
+	cce = calloc(1, sizeof(*cce));
 	if (cce == NULL) {
 		fprintf(stderr, "error allocating memory for cce object\n");
 		return -1;
@@ -316,7 +316,7 @@ get_listening_socket(struct local_conf *lc, const char *listen)
 			return cls;
 	}
 
-	cls = malloc(sizeof(*cls));
+	cls = calloc(1, sizeof(*cls));
 	if (cls == NULL) {
 		fprintf(stderr, "error allocating memory for cls object\n");
 		return NULL;
@@ -341,7 +341,7 @@ add_listen_peer(struct local_conf *lc, const char *peer, const char *listen,
 	if (cls == NULL)
 		return -1;
 
-	cle = malloc(sizeof(*cle));
+	cle = calloc(1, sizeof(*cle));
 	if (cle == NULL) {
 		fprintf(stderr, "error allocating memory for cle object\n");
 		return -1;
