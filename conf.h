@@ -24,6 +24,7 @@
 #include <stdint.h>
 #include <sys/socket.h>
 #include "connect.h"
+#include "dvpn.h"
 #include "listen.h"
 
 struct conf
@@ -47,6 +48,7 @@ struct conf_connect_entry
 
 	int			registered;
 	struct server_peer	sp;
+	struct peer		peer;
 };
 
 struct conf_listening_socket
@@ -70,6 +72,7 @@ struct conf_listen_entry
 	char			*tunitf;
 
 	struct listen_entry	le;
+	struct peer		peer;
 };
 
 struct conf *parse_config(const char *file);

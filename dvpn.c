@@ -27,30 +27,45 @@
 #include <getopt.h>
 #include <gnutls/x509.h>
 #include <iv.h>
+#include <iv_avl.h>
 #include <iv_signal.h>
 #include <string.h>
 #include "conf.h"
 #include "connect.h"
+#include "dvpn.h"
 #include "listen.h"
+#include "util.h"
 #include "x509.h"
+
+#define TYPE_EPEER	0
+#define TYPE_CUSTOMER	1
+#define TYPE_TRANSIT	2
+#define TYPE_IPEER	3
+
+static gnutls_x509_privkey_t key;
+static struct iv_avl_tree peers;
+
+static int compare_peers(const void *_a, const void *_b)
+{
+	const struct peer *a = _a;
+	const struct peer *b = _b;
+
+	return memcmp(a->id, b->id, 20);
+}
 
 static void connect_set_state(void *_cce, int up)
 {
 	struct conf_connect_entry *cce = _cce;
 
-	fprintf(stderr, "connect_set_state: %s is now %s\n",
-		cce->name, up ? "up" : "down");
+	cce->peer.up = up;
 }
 
 static void listen_set_state(void *_cle, int up)
 {
 	struct conf_listen_entry *cle = _cle;
 
-	fprintf(stderr, "listen_set_state: %s is now %s\n",
-		cle->name, up ? "up" : "down");
+	cle->peer.up = up;
 }
-
-static gnutls_x509_privkey_t key;
 
 static void stop_config(struct conf *conf)
 {
@@ -60,20 +75,34 @@ static void stop_config(struct conf *conf)
 		struct conf_connect_entry *cce;
 
 		cce = iv_list_entry(lh, struct conf_connect_entry, list);
-		if (cce->registered) {
-			cce->registered = 0;
-			server_peer_unregister(&cce->sp);
-		}
+		if (!cce->registered)
+			continue;
+
+		cce->registered = 0;
+		server_peer_unregister(&cce->sp);
+		iv_avl_tree_delete(&peers, &cce->peer.an);
 	}
 
 	iv_list_for_each (lh, &conf->listening_sockets) {
 		struct conf_listening_socket *cls;
+		struct iv_list_head *lh2;
 
 		cls = iv_list_entry(lh, struct conf_listening_socket, list);
-		if (cls->registered) {
-			cls->registered = 0;
-			listening_socket_unregister(&cls->ls);
+		if (!cls->registered)
+			continue;
+
+		cls->registered = 0;
+
+		iv_list_for_each (lh2, &cls->listen_entries) {
+			struct conf_listen_entry *cle;
+
+			cle = iv_list_entry(lh2, struct conf_listen_entry,
+					    list);
+			listen_entry_unregister(&cle->le);
+			iv_avl_tree_delete(&peers, &cle->peer.an);
 		}
+
+		listening_socket_unregister(&cls->ls);
 	}
 }
 
@@ -101,6 +130,11 @@ static int start_config(struct conf *conf)
 		}
 
 		cce->registered = 1;
+
+		memcpy(cce->peer.id, cce->fingerprint, 20);
+		cce->peer.type = cce->is_peer ? TYPE_EPEER : TYPE_TRANSIT;
+		cce->peer.up = 0;
+		iv_avl_tree_insert(&peers, &cce->peer.an);
 	}
 
 	iv_list_for_each (lh, &conf->listening_sockets) {
@@ -132,6 +166,12 @@ static int start_config(struct conf *conf)
 			cle->le.cookie = cle;
 			cle->le.set_state = listen_set_state;
 			listen_entry_register(&cle->le);
+
+			memcpy(cle->peer.id, cle->fingerprint, 20);
+			cle->peer.type = cle->is_peer ? TYPE_EPEER :
+							TYPE_CUSTOMER;
+			cle->peer.up = 0;
+			iv_avl_tree_insert(&peers, &cle->peer.an);
 		}
 	}
 
@@ -231,6 +271,8 @@ int main(int argc, char *argv[])
 		return 1;
 
 	iv_init();
+
+	INIT_IV_AVL_TREE(&peers, compare_peers);
 
 	if (start_config(conf))
 		return 1;
