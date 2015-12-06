@@ -390,7 +390,7 @@ void listening_socket_unregister(struct listening_socket *ls)
 	}
 }
 
-void listen_entry_register(struct listen_entry *le)
+int listen_entry_register(struct listen_entry *le)
 {
 	iv_list_add_tail(&le->list, &le->ls->listen_entries);
 
@@ -399,12 +399,14 @@ void listen_entry_register(struct listen_entry *le)
 	le->tun.got_packet = got_packet;
 	if (tun_interface_register(&le->tun) < 0) {
 		free(le);
-		return NULL;
+		return 1;
 	}
 
 	itf_set_state(tun_interface_get_name(&le->tun), 0);
 
 	le->current = NULL;
+
+	return 0;
 }
 
 void listen_entry_unregister(struct listen_entry *le)

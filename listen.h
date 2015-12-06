@@ -50,7 +50,7 @@ struct listen_entry
 	struct client_conn	*current;
 };
 
-void listen_entry_register(struct listen_entry *le);
+int listen_entry_register(struct listen_entry *le);
 void listen_entry_unregister(struct listen_entry *le);
 
 
