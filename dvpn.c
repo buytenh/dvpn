@@ -34,6 +34,14 @@
 #include "listen.h"
 #include "x509.h"
 
+static void connect_set_state(void *_cce, int up)
+{
+	struct conf_connect_entry *cce = _cce;
+
+	fprintf(stderr, "connect_set_state: %s is now %s\n",
+		cce->name, up ? "up" : "down");
+}
+
 static gnutls_x509_privkey_t key;
 
 static void stop_config(struct conf *conf)
@@ -77,6 +85,8 @@ static int start_config(struct conf *conf)
 		cce->sp.key = key;
 		memcpy(cce->sp.fingerprint, cce->fingerprint, 20);
 		cce->sp.is_peer = cce->is_peer;
+		cce->sp.cookie = cce;
+		cce->sp.set_state = connect_set_state;
 		if (server_peer_register(&cce->sp)) {
 			stop_config(conf);
 			return 1;

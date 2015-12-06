@@ -36,6 +36,8 @@ struct server_peer
 	gnutls_x509_privkey_t	key;
 	uint8_t			fingerprint[20];
 	int			is_peer;
+	void			*cookie;
+	void			(*set_state)(void *cookie, int up);
 
 	int			state;
 	struct tun_interface	tun;
