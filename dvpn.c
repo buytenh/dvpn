@@ -98,6 +98,9 @@ static void stop_config(struct conf *conf)
 
 			cle = iv_list_entry(lh2, struct conf_listen_entry,
 					    list);
+			if (!cle->registered)
+				continue;
+
 			listen_entry_unregister(&cle->le);
 			iv_avl_tree_delete(&peers, &cle->peer.an);
 		}
@@ -165,7 +168,12 @@ static int start_config(struct conf *conf)
 			cle->le.is_peer = cle->is_peer;
 			cle->le.cookie = cle;
 			cle->le.set_state = listen_set_state;
-			listen_entry_register(&cle->le);
+			if (listen_entry_register(&cle->le)) {
+				stop_config(conf);
+				return 1;
+			}
+
+			cle->registered = 1;
 
 			memcpy(cle->peer.id, cle->fingerprint, 20);
 			cle->peer.type = cle->is_peer ? TYPE_EPEER :

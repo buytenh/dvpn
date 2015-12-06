@@ -71,6 +71,7 @@ struct conf_listen_entry
 	int			is_peer;
 	char			*tunitf;
 
+	int			registered;
 	struct listen_entry	le;
 	struct peer		peer;
 };
