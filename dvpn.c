@@ -182,6 +182,7 @@ static const char *config = "/etc/dvpn.ini";
 static struct conf *conf;
 static struct iv_signal sighup;
 static struct iv_signal sigint;
+static struct iv_signal sigusr1;
 
 static void got_sighup(void *_dummy)
 {
@@ -220,6 +221,7 @@ static void got_sighup(void *_dummy)
 
 	iv_signal_unregister(&sighup);
 	iv_signal_unregister(&sigint);
+	iv_signal_unregister(&sigusr1);
 }
 
 static void got_sigint(void *_dummy)
@@ -228,8 +230,30 @@ static void got_sigint(void *_dummy)
 
 	iv_signal_unregister(&sighup);
 	iv_signal_unregister(&sigint);
+	iv_signal_unregister(&sigusr1);
 
 	stop_config(conf);
+}
+
+static void got_sigusr1(void *_dummy)
+{
+	struct iv_avl_node *an;
+
+	fprintf(stderr, "=== configured peers =================="
+			"=======================================\n");
+
+	iv_avl_tree_for_each (an, &peers) {
+		struct peer *p;
+
+		p = iv_container_of(an, struct peer, an);
+
+		printhex(stderr, p->id, 20);
+		fprintf(stderr, " - ");
+		fprintf(stderr, "%s\n", p->up ? "up" : "down");
+	}
+
+	fprintf(stderr, "======================================="
+			"=======================================\n");
 }
 
 int main(int argc, char *argv[])
@@ -290,6 +314,13 @@ int main(int argc, char *argv[])
 	sigint.cookie = NULL;
 	sigint.handler = got_sigint;
 	iv_signal_register(&sigint);
+
+	IV_SIGNAL_INIT(&sigusr1);
+	sigusr1.signum = SIGUSR1;
+	sigusr1.flags = 0;
+	sigusr1.cookie = NULL;
+	sigusr1.handler = got_sigusr1;
+	iv_signal_register(&sigusr1);
 
 	iv_main();
 
