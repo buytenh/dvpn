@@ -1,4 +1,4 @@
-all:		conftest dvpn genkey keyid
+all:		conftest dvpn genkey keyid topowalk
 
 clean:
 		rm -f client.ini
@@ -9,6 +9,7 @@ clean:
 		rm -f keyid
 		rm -f server.ini
 		rm -f server.key
+		rm -f topowalk
 
 conftest:	conftest.c conf.c conf.h util.c util.h
 		gcc -Wall -g -o conftest conftest.c conf.c util.c -lini_config
@@ -21,6 +22,9 @@ genkey:		genkey.c x509.c x509.h
 
 keyid:		keyid.c x509.c x509.h
 		gcc -Wall -g -o keyid keyid.c x509.c -lgnutls
+
+topowalk:	topowalk.c conf.c conf.h util.c util.h x509.c x509.h
+		gcc -Wall -g -o topowalk topowalk.c conf.c util.c x509.c -lgnutls -lini_config
 
 
 test:		client.ini client.key dvpn server.ini server.key
