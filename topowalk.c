@@ -28,13 +28,13 @@
 #include "conf.h"
 #include "cspf.h"
 #include "spf.h"
-#include "util.h"
 #include "x509.h"
 
 struct node
 {
 	struct iv_list_head	list;
 	uint8_t			id[20];
+	char			name[128];
 	struct iv_list_head	edges;
 
 	struct cspf_node	node;
@@ -69,6 +69,13 @@ static struct node *find_node(uint8_t *id)
 
 	iv_list_add_tail(&n->list, &nodes);
 	memcpy(n->id, id, 20);
+	snprintf(n->name, sizeof(n->name),
+		 "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:"
+		 "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x",
+		 id[0],  id[1],  id[2],  id[3],  id[4],
+		 id[5],  id[6],  id[7],  id[8],  id[9],
+		 id[10], id[11], id[12], id[13], id[14],
+		 id[15], id[16], id[17], id[18], id[19]);
 	INIT_IV_LIST_HEAD(&n->edges);
 
 	return n;
@@ -96,9 +103,7 @@ static void query_node(int fd, struct node *n)
 	socklen_t addrlen;
 	int off;
 
-	fprintf(stderr, "- ");
-	printhex(stderr, n->id, 20);
-	fprintf(stderr, "...");
+	fprintf(stderr, "- %s...", n->name);
 
 	buf[0] = 0x20;
 	buf[1] = 0x01;
@@ -192,18 +197,16 @@ static void print_nodes(FILE *fp)
 
 		n = iv_container_of(lh, struct node, list);
 
-		fprintf(fp, "node ");
-		printhex(fp, n->id, 20);
-		fprintf(fp, "\n");
+		fprintf(fp, "node %s\n", n->name);
 
 		iv_list_for_each (lh2, &n->edges) {
 			struct edge *edge;
 
 			edge = iv_container_of(lh2, struct edge, list);
 
-			fprintf(fp, "  => ");
-			printhex(fp, edge->to->id, 20);
-			fprintf(fp, " (%s)\n", cspf_edge_type_name(edge->type));
+			fprintf(fp, "  => %s (%s)\n",
+				edge->to->name,
+				cspf_edge_type_name(edge->type));
 		}
 
 		fprintf(fp, "\n");
@@ -287,22 +290,16 @@ static void print_graphviz(FILE *fp)
 
 		n = iv_list_entry(lh, struct node, list);
 
-		fprintf(fp, "\t\"");
-		printhex(fp, n->id, 20);
-		fprintf(fp, "\" [ label = \"");
-		printhex(fp, n->id, 20);
-		fprintf(fp, "\\ncost: %d\", shape = \"record\" ];\n",
-			cspf_node_cost(&n->node));
+		fprintf(fp, "\t\"%s\" [ label = \"%s\\n"
+			    "cost: %d\", shape = \"record\" ];\n",
+			n->name, n->name, cspf_node_cost(&n->node));
 
 		p = cspf_node_parent(&n->node);
 		if (p == NULL)
 			continue;
 
-		fprintf(fp, "\t\"");
-		printhex(fp, p->id, 20);
-		fprintf(fp, "\" -> \"");
-		printhex(fp, n->id, 20);
-		fprintf(fp, "\" [ label = \"%s, %d\" ];\n",
+		fprintf(fp, "\t\"%s\" -> \"%s\" [ label = \"%s, %d\" ];\n",
+			p->name, n->name,
 			cspf_edge_type_name(find_edge(p, n)->type),
 			cspf_node_cost(&n->node) - cspf_node_cost(&p->node));
 	}
