@@ -33,9 +33,23 @@ struct node
 {
 	struct iv_list_head	list;
 	uint8_t			id[20];
+	struct iv_list_head	edges;
 };
 
+struct edge
+{
+	struct iv_list_head	list;
+	struct node		*to;
+	int			type;
+};
+
+#define EDGE_TYPE_EPEER		0
+#define EDGE_TYPE_CUSTOMER	1
+#define EDGE_TYPE_TRANSIT	2
+#define EDGE_TYPE_IPEER		3
+
 static struct iv_list_head nodes;
+static struct iv_list_head edges;
 
 static struct node *find_node(uint8_t *id)
 {
@@ -54,8 +68,22 @@ static struct node *find_node(uint8_t *id)
 
 	iv_list_add_tail(&n->list, &nodes);
 	memcpy(n->id, id, 20);
+	INIT_IV_LIST_HEAD(&n->edges);
 
 	return n;
+}
+
+static void add_edge(struct node *from, struct node *to, int type)
+{
+	struct edge *edge;
+
+	edge = malloc(sizeof(*edge));
+	if (edge == NULL)
+		abort();
+
+	iv_list_add_tail(&edge->list, &from->edges);
+	edge->to = to;
+	edge->type = type;
 }
 
 static void query_node(int fd, struct node *n)
@@ -65,6 +93,10 @@ static void query_node(int fd, struct node *n)
 	int ret;
 	socklen_t addrlen;
 	int off;
+
+	fprintf(stderr, "- ");
+	printhex(stderr, n->id, 20);
+	fprintf(stderr, "...");
 
 	buf[0] = 0x20;
 	buf[1] = 0x01;
@@ -80,7 +112,7 @@ static void query_node(int fd, struct node *n)
 
 	ret = sendto(fd, buf, 0, 0, (struct sockaddr *)&addr, sizeof(addr));
 	if (ret < 0) {
-		perror("sendto");
+		perror(" sendto");
 		abort();
 	}
 
@@ -89,33 +121,28 @@ static void query_node(int fd, struct node *n)
 	ret = recvfrom(fd, buf, sizeof(buf), 0,
 			(struct sockaddr *)&addr, &addrlen);
 	if (ret < 0) {
-		perror("recvfrom");
+		perror(" recvfrom");
 		abort();
 	}
 
 	if (memcmp(n->id, buf, 20)) {
-		fprintf(stderr, "ID mismatch\n");
+		fprintf(stderr, " node ID mismatch\n");
 		return;
 	}
 
-	printf("node ");
-	printhex(stdout, n->id, 20);
-	printf("\n");
-
 	off = 20;
 	while (off + 22 <= ret) {
-		find_node(buf + off);
+		struct node *to;
+		int type;
 
-		printf("   - ");
-		printhex(stdout, buf + off, 20);
-		printf(" ");
-		printhex(stdout, buf + off + 20, 2);
-		printf("\n");
-
+		to = find_node(buf + off);
+		type = ntohs(*((uint16_t *)(buf + off + 20)));
 		off += 22;
+
+		add_edge(n, to, type);
 	}
 
-	printf("\n");
+	fprintf(stderr, " done\n");
 }
 
 static void scan(uint8_t *initial_id)
@@ -124,6 +151,7 @@ static void scan(uint8_t *initial_id)
 	struct iv_list_head *lh;
 
 	INIT_IV_LIST_HEAD(&nodes);
+	INIT_IV_LIST_HEAD(&edges);
 
 	find_node(initial_id);
 
@@ -133,14 +161,60 @@ static void scan(uint8_t *initial_id)
 		abort();
 	}
 
+	fprintf(stderr, "querying nodes\n");
 	iv_list_for_each (lh, &nodes) {
 		struct node *n;
 
 		n = iv_container_of(lh, struct node, list);
 		query_node(fd, n);
 	}
+	fprintf(stderr, "\n");
 
 	close(fd);
+}
+
+const char *edge_type_name(int type)
+{
+	switch (type) {
+	case EDGE_TYPE_EPEER:
+		return "epeer";
+	case EDGE_TYPE_CUSTOMER:
+		return "customer";
+	case EDGE_TYPE_TRANSIT:
+		return "transit";
+	case EDGE_TYPE_IPEER:
+		return "ipeer";
+	default:
+		return "<unknown>";
+	}
+}
+
+static void print_nodes(FILE *fp)
+{
+	struct iv_list_head *lh;
+
+	iv_list_for_each (lh, &nodes) {
+		struct node *n;
+		struct iv_list_head *lh2;
+
+		n = iv_container_of(lh, struct node, list);
+
+		fprintf(fp, "node ");
+		printhex(fp, n->id, 20);
+		fprintf(fp, "\n");
+
+		iv_list_for_each (lh2, &n->edges) {
+			struct edge *edge;
+
+			edge = iv_container_of(lh2, struct edge, list);
+
+			fprintf(fp, "  => ");
+			printhex(fp, edge->to->id, 20);
+			fprintf(fp, " (%s)\n", edge_type_name(edge->type));
+		}
+
+		fprintf(fp, "\n");
+	}
 }
 
 int main(int argc, char *argv[])
@@ -194,6 +268,7 @@ int main(int argc, char *argv[])
 	free_config(conf);
 
 	scan(id);
+	print_nodes(stderr);
 
 	return 0;
 }
