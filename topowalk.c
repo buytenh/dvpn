@@ -307,11 +307,11 @@ static void prep_cspf(struct spf_context *spf)
 	}
 }
 
-static void print_graphviz(FILE *fp)
+static void print_graphviz(FILE *fp, const char *name)
 {
 	struct iv_list_head *lh;
 
-	fprintf(fp, "digraph g {\n");
+	fprintf(fp, "digraph %s {\n", name);
 	fprintf(fp, "\trankdir = LR;\n");
 
 	iv_list_for_each (lh, &nodes) {
@@ -337,6 +337,33 @@ static void print_graphviz(FILE *fp)
 	fprintf(fp, "}\n");
 }
 
+static void do_cspfs(void)
+{
+	struct spf_context spf;
+	struct iv_list_head *lh;
+
+	prep_cspf(&spf);
+
+	iv_list_for_each (lh, &nodes) {
+		struct node *n;
+		char name[256];
+		FILE *fp;
+
+		n = iv_list_entry(lh, struct node, list);
+
+		cspf_run(&spf, &n->node);
+
+		snprintf(name, sizeof(name), "cspf_%s.dot", n->name);
+
+		fp = fopen(name, "w");
+		if (fp != NULL) {
+			fprintf(stderr, "writing %s\n", name);
+			print_graphviz(fp, n->name);
+			fclose(fp);
+		}
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	static struct option long_options[] = {
@@ -347,7 +374,6 @@ int main(int argc, char *argv[])
 	struct conf *conf;
 	gnutls_x509_privkey_t key;
 	uint8_t id[20];
-	struct spf_context spf;
 
 	while (1) {
 		int c;
@@ -389,12 +415,11 @@ int main(int argc, char *argv[])
 	free_config(conf);
 
 	scan(id);
+
 	map_node_names();
 	print_nodes(stderr);
 
-	prep_cspf(&spf);
-	cspf_run(&spf, &find_node(id)->node);
-	print_graphviz(stdout);
+	do_cspfs();
 
 	return 0;
 }

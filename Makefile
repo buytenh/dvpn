@@ -1,6 +1,7 @@
 all:		conftest dvpn genkey keyid topowalk
 
 clean:
+		rm -f *.dot
 		rm -f client.ini
 		rm -f client.key
 		rm -f conftest
