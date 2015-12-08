@@ -23,8 +23,8 @@ genkey:		genkey.c x509.c x509.h
 keyid:		keyid.c x509.c x509.h
 		gcc -Wall -g -o keyid keyid.c x509.c -lgnutls
 
-topowalk:	topowalk.c conf.c conf.h util.c util.h x509.c x509.h
-		gcc -Wall -g -o topowalk topowalk.c conf.c util.c x509.c -lgnutls -lini_config
+topowalk:	topowalk.c conf.c conf.h cspf.c cspf.h spf.c spf.h util.c util.h x509.c x509.h
+		gcc -Wall -g -o topowalk topowalk.c conf.c cspf.c spf.c util.c x509.c -lgnutls -lini_config
 
 
 test:		client.ini client.key dvpn server.ini server.key

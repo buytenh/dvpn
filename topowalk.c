@@ -26,6 +26,8 @@
 #include <stdint.h>
 #include <string.h>
 #include "conf.h"
+#include "cspf.h"
+#include "spf.h"
 #include "util.h"
 #include "x509.h"
 
@@ -34,19 +36,18 @@ struct node
 	struct iv_list_head	list;
 	uint8_t			id[20];
 	struct iv_list_head	edges;
+
+	struct cspf_node	node;
 };
 
 struct edge
 {
 	struct iv_list_head	list;
 	struct node		*to;
-	int			type;
-};
+	enum cspf_edge_type	type;
 
-#define EDGE_TYPE_EPEER		0
-#define EDGE_TYPE_CUSTOMER	1
-#define EDGE_TYPE_TRANSIT	2
-#define EDGE_TYPE_IPEER		3
+	struct cspf_edge	edge;
+};
 
 static struct iv_list_head nodes;
 static struct iv_list_head edges;
@@ -73,7 +74,8 @@ static struct node *find_node(uint8_t *id)
 	return n;
 }
 
-static void add_edge(struct node *from, struct node *to, int type)
+static void
+add_edge(struct node *from, struct node *to, enum cspf_edge_type type)
 {
 	struct edge *edge;
 
@@ -139,7 +141,14 @@ static void query_node(int fd, struct node *n)
 		type = ntohs(*((uint16_t *)(buf + off + 20)));
 		off += 22;
 
-		add_edge(n, to, type);
+		if (type == 0)
+			add_edge(n, to, EDGE_TYPE_EPEER);
+		else if (type == 1)
+			add_edge(n, to, EDGE_TYPE_CUSTOMER);
+		else if (type == 2)
+			add_edge(n, to, EDGE_TYPE_TRANSIT);
+		else if (type == 3)
+			add_edge(n, to, EDGE_TYPE_IPEER);
 	}
 
 	fprintf(stderr, " done\n");
@@ -173,22 +182,6 @@ static void scan(uint8_t *initial_id)
 	close(fd);
 }
 
-const char *edge_type_name(int type)
-{
-	switch (type) {
-	case EDGE_TYPE_EPEER:
-		return "epeer";
-	case EDGE_TYPE_CUSTOMER:
-		return "customer";
-	case EDGE_TYPE_TRANSIT:
-		return "transit";
-	case EDGE_TYPE_IPEER:
-		return "ipeer";
-	default:
-		return "<unknown>";
-	}
-}
-
 static void print_nodes(FILE *fp)
 {
 	struct iv_list_head *lh;
@@ -210,11 +203,111 @@ static void print_nodes(FILE *fp)
 
 			fprintf(fp, "  => ");
 			printhex(fp, edge->to->id, 20);
-			fprintf(fp, " (%s)\n", edge_type_name(edge->type));
+			fprintf(fp, " (%s)\n", cspf_edge_type_name(edge->type));
 		}
 
 		fprintf(fp, "\n");
 	}
+}
+
+static struct edge *find_edge(struct node *from, struct node *to)
+{
+	struct iv_list_head *lh;
+
+	iv_list_for_each (lh, &from->edges) {
+		struct edge *edge;
+
+		edge = iv_container_of(lh, struct edge, list);
+		if (edge->to == to)
+			return edge;
+	}
+
+	return NULL;
+}
+
+static int map_edge_type(int forward, int reverse)
+{
+	if (forward == EDGE_TYPE_IPEER && reverse == EDGE_TYPE_IPEER)
+		return EDGE_TYPE_IPEER;
+
+	if ((forward == EDGE_TYPE_CUSTOMER || forward == EDGE_TYPE_IPEER) &&
+	    (reverse == EDGE_TYPE_TRANSIT || reverse == EDGE_TYPE_IPEER))
+		return EDGE_TYPE_CUSTOMER;
+
+	if ((forward == EDGE_TYPE_TRANSIT || forward == EDGE_TYPE_IPEER) &&
+	    (reverse == EDGE_TYPE_CUSTOMER || reverse == EDGE_TYPE_IPEER))
+		return EDGE_TYPE_TRANSIT;
+
+	return EDGE_TYPE_EPEER;
+}
+
+static void prep_cspf(struct spf_context *spf)
+{
+	struct iv_list_head *lh;
+
+	spf_init(spf);
+
+	iv_list_for_each (lh, &nodes) {
+		struct node *n;
+		struct iv_list_head *lh2;
+
+		n = iv_container_of(lh, struct node, list);
+
+		n->node.cookie = n;
+		cspf_node_add(spf, &n->node);
+
+		iv_list_for_each (lh2, &n->edges) {
+			struct edge *e;
+			struct edge *rev;
+
+			e = iv_container_of(lh2, struct edge, list);
+
+			rev = find_edge(e->to, n);
+			if (rev != NULL) {
+				enum cspf_edge_type type;
+
+				type = map_edge_type(e->type, rev->type);
+				cspf_edge_add(spf, &e->edge, &n->node,
+					      &e->to->node, type, 1);
+			}
+		}
+	}
+}
+
+static void print_graphviz(FILE *fp)
+{
+	struct iv_list_head *lh;
+
+	fprintf(fp, "digraph g {\n");
+	fprintf(fp, "\trankdir = LR;\n");
+
+	iv_list_for_each (lh, &nodes) {
+		struct node *n;
+		struct node *p;
+
+		n = iv_list_entry(lh, struct node, list);
+
+		fprintf(fp, "\t\"");
+		printhex(fp, n->id, 20);
+		fprintf(fp, "\" [ label = \"");
+		printhex(fp, n->id, 20);
+		fprintf(fp, "\\ncost: %d\", shape = \"record\" ];\n",
+			cspf_node_cost(&n->node));
+
+		p = cspf_node_parent(&n->node);
+		if (p == NULL)
+			continue;
+
+		fprintf(fp, "\t\"");
+		printhex(fp, p->id, 20);
+		fprintf(fp, "\" -> \"");
+		printhex(fp, n->id, 20);
+		fprintf(fp, "\" [ label = \"%s, %d\" ];\n",
+			cspf_edge_type_name(find_edge(p, n)->type),
+			cspf_node_cost(&n->node) - cspf_node_cost(&p->node));
+	}
+
+	fprintf(fp, "}\n");
 }
 
 int main(int argc, char *argv[])
@@ -227,6 +320,7 @@ int main(int argc, char *argv[])
 	struct conf *conf;
 	gnutls_x509_privkey_t key;
 	uint8_t id[20];
+	struct spf_context spf;
 
 	while (1) {
 		int c;
@@ -269,6 +363,10 @@ int main(int argc, char *argv[])
 
 	scan(id);
 	print_nodes(stderr);
+
+	prep_cspf(&spf);
+	cspf_run(&spf, &find_node(id)->node);
+	print_graphviz(stdout);
 
 	return 0;
 }
