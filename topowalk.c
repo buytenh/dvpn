@@ -95,7 +95,7 @@ static void query_node(int fd, struct node *n)
 
 	if (memcmp(n->id, buf, 20)) {
 		fprintf(stderr, "ID mismatch\n");
-		abort();
+		return;
 	}
 
 	printf("node ");
