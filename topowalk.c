@@ -187,6 +187,36 @@ static void scan(uint8_t *initial_id)
 	close(fd);
 }
 
+static void map_node_names(void)
+{
+	FILE *fp;
+
+	fp = fopen("ids", "r");
+	if (fp == NULL)
+		return;
+
+	while (!feof(fp)) {
+		char id[128];
+		char name[128];
+		struct iv_list_head *lh;
+
+		if (fscanf(fp, "%s %s", id, name) != 2)
+			break;
+
+		iv_list_for_each (lh, &nodes) {
+			struct node *n;
+
+			n = iv_container_of(lh, struct node, list);
+			if (!strcmp(n->name, id)) {
+				strcpy(n->name, name);
+				break;
+			}
+		}
+	}
+
+	fclose(fp);
+}
+
 static void print_nodes(FILE *fp)
 {
 	struct iv_list_head *lh;
@@ -359,6 +389,7 @@ int main(int argc, char *argv[])
 	free_config(conf);
 
 	scan(id);
+	map_node_names();
 	print_nodes(stderr);
 
 	prep_cspf(&spf);
