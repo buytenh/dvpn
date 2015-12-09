@@ -337,6 +337,72 @@ static void print_graphviz(FILE *fp, const char *name)
 	fprintf(fp, "}\n");
 }
 
+static void print_graphviz_hidden(FILE *fp, const char *name)
+{
+	struct iv_list_head *lh;
+
+	fprintf(fp, "digraph %s {\n", name);
+	fprintf(fp, "\trankdir = LR;\n");
+
+	iv_list_for_each (lh, &nodes) {
+		struct node *n;
+		struct spf_node *p;
+
+		n = iv_list_entry(lh, struct node, list);
+
+		if (n->node.a.cost != -1) {
+			fprintf(fp, "\t\"%s.a\" [ label = \"%s.a\\n"
+				    "cost: %d\", shape = \"record\" ];\n",
+				n->name, n->name, n->node.a.cost);
+		}
+
+		p = n->node.a.parent;
+		if (p != NULL) {
+			struct node *pp = p->cookie;
+			int isa;
+
+			if (p == &pp->node.a)
+				isa = 1;
+			else
+				isa = 0;
+
+			fprintf(fp, "\t\"%s.%c\" -> \"%s.a\" "
+				    "[ label = \"%s, %d\" ];\n",
+				pp->name, isa ? 'a' : 'b', n->name,
+				cspf_edge_type_name(find_edge(pp, n)->type),
+				n->node.a.cost -
+				   (isa ? pp->node.a.cost : pp->node.b.cost));
+		}
+
+		if (n->node.b.cost != -1) {
+			fprintf(fp, "\t\"%s.b\" [ label = \"%s.b\\n"
+				    "cost: %d\", shape = \"record\" ];\n",
+				n->name, n->name, n->node.b.cost);
+		}
+
+		p = n->node.b.parent;
+		if (p != NULL) {
+			struct node *pp = p->cookie;
+			int isa;
+
+			if (p == &pp->node.a)
+				isa = 1;
+			else
+				isa = 0;
+
+			fprintf(fp, "\t\"%s.%c\" -> \"%s.b\" "
+				    "[ label = \"%s, %d\" ];\n",
+				pp->name, isa ? 'a' : 'b', n->name,
+				(pp == n) ? "ident" :
+				   cspf_edge_type_name(find_edge(pp, n)->type),
+				n->node.b.cost -
+				   (isa ? pp->node.a.cost : pp->node.b.cost));
+		}
+	}
+
+	fprintf(fp, "}\n");
+}
+
 static void do_cspfs(void)
 {
 	struct spf_context spf;
@@ -359,6 +425,15 @@ static void do_cspfs(void)
 		if (fp != NULL) {
 			fprintf(stderr, "writing %s\n", name);
 			print_graphviz(fp, n->name);
+			fclose(fp);
+		}
+
+		snprintf(name, sizeof(name), "cspf_hidden_%s.dot", n->name);
+
+		fp = fopen(name, "w");
+		if (fp != NULL) {
+			fprintf(stderr, "writing %s\n", name);
+			print_graphviz_hidden(fp, n->name);
 			fclose(fp);
 		}
 	}
