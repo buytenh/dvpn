@@ -95,13 +95,22 @@ add_edge(struct node *from, struct node *to, enum cspf_edge_type type)
 	edge->type = type;
 }
 
+static int usecs(struct timeval *t1, struct timeval *t2)
+{
+	return 1000000LL * (t2->tv_sec - t1->tv_sec) +
+		(t2->tv_usec - t1->tv_usec);
+}
+
 static void query_node(int fd, struct node *n)
 {
 	struct sockaddr_in6 addr;
 	uint8_t buf[2048];
 	int ret;
+	struct timeval t1;
 	socklen_t addrlen;
+	struct timeval t2;
 	int off;
+	int usec;
 
 	fprintf(stderr, "- %s...", n->name);
 
@@ -117,6 +126,8 @@ static void query_node(int fd, struct node *n)
 	memcpy(&addr.sin6_addr, buf, 16);
 	addr.sin6_scope_id = 0;
 
+	gettimeofday(&t1, NULL);
+
 	ret = sendto(fd, buf, 0, 0, (struct sockaddr *)&addr, sizeof(addr));
 	if (ret < 0) {
 		perror(" sendto");
@@ -131,6 +142,8 @@ static void query_node(int fd, struct node *n)
 		perror(" recvfrom");
 		abort();
 	}
+
+	gettimeofday(&t2, NULL);
 
 	if (memcmp(n->id, buf, 20)) {
 		fprintf(stderr, " node ID mismatch\n");
@@ -156,7 +169,9 @@ static void query_node(int fd, struct node *n)
 			add_edge(n, to, EDGE_TYPE_IPEER);
 	}
 
-	fprintf(stderr, " done\n");
+	usec = usecs(&t1, &t2);
+
+	fprintf(stderr, " %d ms\n", usec / 1000);
 }
 
 static void scan(uint8_t *initial_id)
