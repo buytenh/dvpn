@@ -51,7 +51,6 @@ struct edge
 };
 
 static struct iv_list_head nodes;
-static struct iv_list_head edges;
 
 static struct node *find_node(uint8_t *id)
 {
@@ -181,7 +180,6 @@ static void scan(uint8_t *initial_id)
 	struct iv_list_head *lh;
 
 	INIT_IV_LIST_HEAD(&nodes);
-	INIT_IV_LIST_HEAD(&edges);
 
 	find_node(initial_id);
 
