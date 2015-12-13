@@ -45,7 +45,7 @@ struct edge
 {
 	struct iv_list_head	list;
 	struct node		*to;
-	enum cspf_edge_type	type;
+	enum peer_type		to_type;
 
 	struct cspf_edge	edge;
 };
@@ -83,7 +83,7 @@ static struct node *find_node(uint8_t *id)
 }
 
 static void
-add_edge(struct node *from, struct node *to, enum cspf_edge_type type)
+add_edge(struct node *from, struct node *to, enum peer_type to_type)
 {
 	struct edge *edge;
 
@@ -93,7 +93,7 @@ add_edge(struct node *from, struct node *to, enum cspf_edge_type type)
 
 	iv_list_add_tail(&edge->list, &from->edges);
 	edge->to = to;
-	edge->type = type;
+	edge->to_type = to_type;
 }
 
 static int usecs(struct timeval *t1, struct timeval *t2)
@@ -161,13 +161,13 @@ static void query_node(int fd, struct node *n)
 		off += 22;
 
 		if (type == 0)
-			add_edge(n, to, EDGE_TYPE_EPEER);
+			add_edge(n, to, PEER_TYPE_EPEER);
 		else if (type == 1)
-			add_edge(n, to, EDGE_TYPE_CUSTOMER);
+			add_edge(n, to, PEER_TYPE_CUSTOMER);
 		else if (type == 2)
-			add_edge(n, to, EDGE_TYPE_TRANSIT);
+			add_edge(n, to, PEER_TYPE_TRANSIT);
 		else if (type == 3)
-			add_edge(n, to, EDGE_TYPE_IPEER);
+			add_edge(n, to, PEER_TYPE_IPEER);
 	}
 
 	usec = usecs(&t1, &t2);
@@ -250,9 +250,8 @@ static void print_nodes(FILE *fp)
 
 			edge = iv_container_of(lh2, struct edge, list);
 
-			fprintf(fp, "  => %s (%s)\n",
-				edge->to->name,
-				cspf_edge_type_name(edge->type));
+			fprintf(fp, "  => %s (%s)\n", edge->to->name,
+				peer_type_name(edge->to_type));
 		}
 
 		fprintf(fp, "\n");
@@ -274,20 +273,20 @@ static struct edge *find_edge(struct node *from, struct node *to)
 	return NULL;
 }
 
-static int map_edge_type(int forward, int reverse)
+static int map_peer_type(enum peer_type forward, enum peer_type reverse)
 {
-	if (forward == EDGE_TYPE_IPEER && reverse == EDGE_TYPE_IPEER)
-		return EDGE_TYPE_IPEER;
+	if (forward == PEER_TYPE_IPEER && reverse == PEER_TYPE_IPEER)
+		return PEER_TYPE_IPEER;
 
-	if ((forward == EDGE_TYPE_CUSTOMER || forward == EDGE_TYPE_IPEER) &&
-	    (reverse == EDGE_TYPE_TRANSIT || reverse == EDGE_TYPE_IPEER))
-		return EDGE_TYPE_CUSTOMER;
+	if ((forward == PEER_TYPE_CUSTOMER || forward == PEER_TYPE_IPEER) &&
+	    (reverse == PEER_TYPE_TRANSIT || reverse == PEER_TYPE_IPEER))
+		return PEER_TYPE_CUSTOMER;
 
-	if ((forward == EDGE_TYPE_TRANSIT || forward == EDGE_TYPE_IPEER) &&
-	    (reverse == EDGE_TYPE_CUSTOMER || reverse == EDGE_TYPE_IPEER))
-		return EDGE_TYPE_TRANSIT;
+	if ((forward == PEER_TYPE_TRANSIT || forward == PEER_TYPE_IPEER) &&
+	    (reverse == PEER_TYPE_CUSTOMER || reverse == PEER_TYPE_IPEER))
+		return PEER_TYPE_TRANSIT;
 
-	return EDGE_TYPE_EPEER;
+	return PEER_TYPE_EPEER;
 }
 
 static void prep_cspf(struct spf_context *spf)
@@ -313,9 +312,9 @@ static void prep_cspf(struct spf_context *spf)
 
 			rev = find_edge(e->to, n);
 			if (rev != NULL) {
-				enum cspf_edge_type type;
+				enum peer_type type;
 
-				type = map_edge_type(e->type, rev->type);
+				type = map_peer_type(e->to_type, rev->to_type);
 				cspf_edge_add(spf, &e->edge, &n->node,
 					      &e->to->node, type, 1);
 			}
@@ -346,7 +345,7 @@ static void print_graphviz(FILE *fp, const char *name)
 
 		fprintf(fp, "\t\"%s\" -> \"%s\" [ label = \"%s, %d\" ];\n",
 			p->name, n->name,
-			cspf_edge_type_name(find_edge(p, n)->type),
+			peer_type_name(find_edge(p, n)->to_type),
 			cspf_node_cost(&n->node) - cspf_node_cost(&p->node));
 	}
 
@@ -385,7 +384,7 @@ static void print_graphviz_hidden(FILE *fp, const char *name)
 			fprintf(fp, "\t\"%s.%c\" -> \"%s.a\" "
 				    "[ label = \"%s, %d\" ];\n",
 				pp->name, isa ? 'a' : 'b', n->name,
-				cspf_edge_type_name(find_edge(pp, n)->type),
+				peer_type_name(find_edge(pp, n)->to_type),
 				n->node.a.cost -
 				   (isa ? pp->node.a.cost : pp->node.b.cost));
 		}
@@ -410,7 +409,7 @@ static void print_graphviz_hidden(FILE *fp, const char *name)
 				    "[ label = \"%s, %d\" ];\n",
 				pp->name, isa ? 'a' : 'b', n->name,
 				(pp == n) ? "ident" :
-				   cspf_edge_type_name(find_edge(pp, n)->type),
+				   peer_type_name(find_edge(pp, n)->to_type),
 				n->node.b.cost -
 				   (isa ? pp->node.a.cost : pp->node.b.cost));
 		}

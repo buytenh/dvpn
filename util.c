@@ -21,6 +21,22 @@
 #include <stdlib.h>
 #include "util.h"
 
+const char *peer_type_name(enum peer_type type)
+{
+	switch (type) {
+	case PEER_TYPE_EPEER:
+		return "epeer";
+	case PEER_TYPE_CUSTOMER:
+		return "customer";
+	case PEER_TYPE_TRANSIT:
+		return "transit";
+	case PEER_TYPE_IPEER:
+		return "ipeer";
+	default:
+		return "<unknown>";
+	}
+}
+
 void print_address(FILE *fp, const struct sockaddr *addr)
 {
 	char dst[128];

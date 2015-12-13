@@ -21,6 +21,7 @@
 #define __CSPF_H
 
 #include "spf.h"
+#include "util.h"
 
 struct cspf_node
 {
@@ -37,18 +38,10 @@ struct cspf_edge
 	struct spf_edge		e1;
 };
 
-enum cspf_edge_type {
-	EDGE_TYPE_EPEER = 0,
-	EDGE_TYPE_CUSTOMER = 1,
-	EDGE_TYPE_TRANSIT = 2,
-	EDGE_TYPE_IPEER = 3,
-};
-
 void cspf_node_add(struct spf_context *ctx, struct cspf_node *node);
 void cspf_edge_add(struct spf_context *ctx, struct cspf_edge *edge,
 		   struct cspf_node *from, struct cspf_node *to,
-		   enum cspf_edge_type type, int cost);
-const char *cspf_edge_type_name(enum cspf_edge_type type);
+		   enum peer_type to_type, int cost);
 void cspf_run(struct spf_context *ctx, struct cspf_node *source);
 void *cspf_node_parent(struct cspf_node *node);
 int cspf_node_cost(struct cspf_node *node);

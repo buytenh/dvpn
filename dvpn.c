@@ -33,11 +33,6 @@
 #include "util.h"
 #include "x509.h"
 
-#define TYPE_EPEER	0
-#define TYPE_CUSTOMER	1
-#define TYPE_TRANSIT	2
-#define TYPE_IPEER	3
-
 static gnutls_x509_privkey_t key;
 static struct iv_avl_tree peers;
 static struct iv_fd topo_fd;
@@ -85,7 +80,14 @@ static void got_topo_request(void *_dummy)
 		memcpy(buf + off, p->id, 20);
 		off += 20;
 
-		type = htons(p->type);
+		if (p->peer_type == PEER_TYPE_EPEER)
+			type = htons(0);
+		else if (p->peer_type == PEER_TYPE_CUSTOMER)
+			type = htons(1);
+		else if (p->peer_type == PEER_TYPE_TRANSIT)
+			type = htons(2);
+		else
+			type = htons(3);
 		memcpy(buf + off, &type, 2);
 		off += 2;
 	}
@@ -169,7 +171,8 @@ static int start_conf_connect_entry(struct conf_connect_entry *cce)
 	cce->registered = 1;
 
 	memcpy(cce->peer.id, cce->fingerprint, 20);
-	cce->peer.type = cce->is_peer ? TYPE_EPEER : TYPE_TRANSIT;
+	cce->peer.peer_type =
+		cce->is_peer ? PEER_TYPE_EPEER : PEER_TYPE_TRANSIT;
 	cce->peer.up = 0;
 	iv_avl_tree_insert(&peers, &cce->peer.an);
 
@@ -199,7 +202,8 @@ static int start_conf_listen_entry(struct conf_listening_socket *cls,
 	cle->registered = 1;
 
 	memcpy(cle->peer.id, cle->fingerprint, 20);
-	cle->peer.type = cle->is_peer ? TYPE_EPEER : TYPE_CUSTOMER;
+	cle->peer.peer_type =
+		cle->is_peer ? PEER_TYPE_EPEER : PEER_TYPE_CUSTOMER;
 	cle->peer.up = 0;
 	iv_avl_tree_insert(&peers, &cle->peer.an);
 

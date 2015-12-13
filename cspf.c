@@ -36,28 +36,28 @@ void cspf_node_add(struct spf_context *ctx, struct cspf_node *node)
 
 void cspf_edge_add(struct spf_context *ctx, struct cspf_edge *edge,
 		   struct cspf_node *from, struct cspf_node *to,
-		   enum cspf_edge_type type, int cost)
+		   enum peer_type to_type, int cost)
 {
-	switch (type) {
-	case EDGE_TYPE_EPEER:
+	switch (to_type) {
+	case PEER_TYPE_EPEER:
 		edge->e0.to = &to->b;
 		edge->e0.cost = cost;
 		spf_edge_add(&from->a, &edge->e0);
 		break;
 
-	case EDGE_TYPE_CUSTOMER:
+	case PEER_TYPE_CUSTOMER:
 		edge->e0.to = &to->b;
 		edge->e0.cost = cost;
 		spf_edge_add(&from->b, &edge->e0);
 		break;
 
-	case EDGE_TYPE_TRANSIT:
+	case PEER_TYPE_TRANSIT:
 		edge->e0.to = &to->a;
 		edge->e0.cost = cost;
 		spf_edge_add(&from->a, &edge->e0);
 		break;
 
-	case EDGE_TYPE_IPEER:
+	case PEER_TYPE_IPEER:
 		edge->e0.to = &to->a;
 		edge->e0.cost = cost;
 		spf_edge_add(&from->a, &edge->e0);
@@ -67,24 +67,9 @@ void cspf_edge_add(struct spf_context *ctx, struct cspf_edge *edge,
 		break;
 
 	default:
-		fprintf(stderr, "cspf_edge_add: invalid edge type %d\n", type);
+		fprintf(stderr, "cspf_edge_add: invalid peer type %d\n",
+			to_type);
 		break;
-	}
-}
-
-const char *cspf_edge_type_name(enum cspf_edge_type type)
-{
-	switch (type) {
-	case EDGE_TYPE_EPEER:
-		return "epeer";
-	case EDGE_TYPE_CUSTOMER:
-		return "customer";
-	case EDGE_TYPE_TRANSIT:
-		return "transit";
-	case EDGE_TYPE_IPEER:
-		return "ipeer";
-	default:
-		return "<unknown>";
 	}
 }
 

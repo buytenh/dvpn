@@ -22,12 +22,13 @@
 
 #include <iv_avl.h>
 #include <stdint.h>
+#include "util.h"
 
 struct peer
 {
 	struct iv_avl_node	an;
 	uint8_t			id[20];
-	int			type;
+	enum peer_type		peer_type;
 	int			up;
 };
 

@@ -23,6 +23,15 @@
 #include <arpa/inet.h>
 #include <stdint.h>
 
+enum peer_type {
+	PEER_TYPE_INVALID = 0,
+	PEER_TYPE_EPEER = 1,
+	PEER_TYPE_CUSTOMER = 2,
+	PEER_TYPE_TRANSIT = 3,
+	PEER_TYPE_IPEER = 4,
+};
+
+const char *peer_type_name(enum peer_type type);
 void print_address(FILE *fp, const struct sockaddr *addr);
 void printhex(FILE *fp, const uint8_t *a, int len);
 
