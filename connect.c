@@ -558,6 +558,8 @@ int server_peer_register(struct server_peer *sp)
 	if (tun_interface_register(&sp->tun) < 0)
 		return 1;
 
+	itf_set_state(tun_interface_get_name(&sp->tun), 0);
+
 	IV_TIMER_INIT(&sp->rx_timeout);
 	iv_validate_now();
 	sp->rx_timeout.expires = iv_now;
