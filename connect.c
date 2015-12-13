@@ -148,6 +148,9 @@ static void handshake_done(void *_sp)
 	sp->keepalive_timer.handler = send_keepalive;
 	iv_timer_register(&sp->keepalive_timer);
 
+	itf_set_state(tun_interface_get_name(&sp->tun), 1);
+	sp->set_state(sp->cookie, 1);
+
 	x509_get_key_id(id, sizeof(id), sp->key);
 
 	id[0] = 0xfe;
@@ -166,9 +169,6 @@ static void handshake_done(void *_sp)
 	} else {
 		itf_add_addr_v6(tun_interface_get_name(&sp->tun), id, 32);
 	}
-
-	itf_set_state(tun_interface_get_name(&sp->tun), 1);
-	sp->set_state(sp->cookie, 1);
 }
 
 static void record_received(void *_sp, const uint8_t *rec, int len)
