@@ -355,10 +355,49 @@ static void got_sigusr1(void *_dummy)
 			"=======================================\n");
 }
 
+static void usage(const char *me)
+{
+	fprintf(stderr, "syntax: %s [-c <config.ini>]\n", me);
+	fprintf(stderr, "        %s [--show-key-id <key.pem>]\n", me);
+}
+
+static int show_key_id(const char *file)
+{
+	gnutls_x509_privkey_t key;
+	uint8_t id[20];
+	ssize_t len;
+
+	gnutls_global_init();
+
+	if (x509_read_privkey(&key, file) < 0)
+		goto err;
+
+	len = x509_get_key_id(id, sizeof(id), key);
+	if (len != 20)
+		goto err_deinit_priv;
+
+	printhex(stdout, id, 20);
+
+	gnutls_x509_privkey_deinit(key);
+
+	gnutls_global_deinit();
+
+	return 0;
+
+err_deinit_priv:
+	gnutls_x509_privkey_deinit(key);
+
+err:
+	gnutls_global_deinit();
+
+	return 1;
+}
+
 int main(int argc, char *argv[])
 {
 	static struct option long_options[] = {
 		{ "config-file", required_argument, 0, 'c' },
+		{ "show-key-id", required_argument, 0, 'k' },
 		{ 0, 0, 0, 0, },
 	};
 
@@ -374,9 +413,11 @@ int main(int argc, char *argv[])
 			config = optarg;
 			break;
 
+		case 'k':
+			return show_key_id(optarg);
+
 		case '?':
-			fprintf(stderr, "syntax: %s [-c <config.ini>]\n",
-				argv[0]);
+			usage(argv[0]);
 			return 1;
 
 		default:
