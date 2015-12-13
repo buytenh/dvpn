@@ -1,17 +1,13 @@
-all:		conftest dvpn topowalk
+all:		dvpn topowalk
 
 clean:
 		rm -f *.dot
 		rm -f client.ini
 		rm -f client.key
-		rm -f conftest
 		rm -f dvpn
 		rm -f server.ini
 		rm -f server.key
 		rm -f topowalk
-
-conftest:	conftest.c conf.c conf.h util.c util.h
-		gcc -Wall -g -o conftest conftest.c conf.c util.c -lini_config
 
 dvpn:		dvpn.c conf.c conf.h confdiff.c confdiff.h connect.c connect.h itf.c itf.h iv_getaddrinfo.c iv_getaddrinfo.h listen.c listen.h pconn.c pconn.h tun.c tun.h util.c util.h x509.c x509.h
 		gcc -Wall -g -o dvpn dvpn.c conf.c confdiff.c connect.c itf.c iv_getaddrinfo.c listen.c pconn.c tun.c util.c x509.c -lgnutls -lini_config -livykis
