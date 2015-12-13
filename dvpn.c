@@ -156,6 +156,106 @@ static void listen_set_state(void *_cle, int up)
 	cle->peer.up = up;
 }
 
+static int start_conf_connect_entry(struct conf_connect_entry *cce)
+{
+	cce->sp.tunitf = cce->tunitf;
+	cce->sp.name = cce->name;
+	cce->sp.hostname = cce->hostname;
+	cce->sp.port = cce->port;
+	cce->sp.key = key;
+	memcpy(cce->sp.fingerprint, cce->fingerprint, 20);
+	cce->sp.is_peer = cce->is_peer;
+	cce->sp.cookie = cce;
+	cce->sp.set_state = connect_set_state;
+	if (server_peer_register(&cce->sp))
+		return 1;
+
+	cce->registered = 1;
+
+	memcpy(cce->peer.id, cce->fingerprint, 20);
+	cce->peer.type = cce->is_peer ? TYPE_EPEER : TYPE_TRANSIT;
+	cce->peer.up = 0;
+	iv_avl_tree_insert(&peers, &cce->peer.an);
+
+	return 0;
+}
+
+static void stop_conf_connect_entry(struct conf_connect_entry *cce)
+{
+	cce->registered = 0;
+	server_peer_unregister(&cce->sp);
+	iv_avl_tree_delete(&peers, &cce->peer.an);
+}
+
+static int start_conf_listen_entry(struct conf_listening_socket *cls,
+				   struct conf_listen_entry *cle)
+{
+	cle->le.ls = &cls->ls;
+	cle->le.tunitf = cle->tunitf;
+	cle->le.name = cle->name;
+	memcpy(cle->le.fingerprint, cle->fingerprint, 20);
+	cle->le.is_peer = cle->is_peer;
+	cle->le.cookie = cle;
+	cle->le.set_state = listen_set_state;
+	if (listen_entry_register(&cle->le))
+		return 1;
+
+	cle->registered = 1;
+
+	memcpy(cle->peer.id, cle->fingerprint, 20);
+	cle->peer.type = cle->is_peer ? TYPE_EPEER : TYPE_CUSTOMER;
+	cle->peer.up = 0;
+	iv_avl_tree_insert(&peers, &cle->peer.an);
+
+	return 0;
+}
+
+static void stop_conf_listen_entry(struct conf_listen_entry *cle)
+{
+	cle->registered = 0;
+	listen_entry_unregister(&cle->le);
+	iv_avl_tree_delete(&peers, &cle->peer.an);
+}
+
+static int start_conf_listening_socket(struct conf_listening_socket *cls)
+{
+	struct iv_list_head *lh;
+
+	cls->ls.listen_address = cls->listen_address;
+	cls->ls.key = key;
+	if (listening_socket_register(&cls->ls))
+		return 1;
+
+	cls->registered = 1;
+
+	iv_list_for_each (lh, &cls->listen_entries) {
+		struct conf_listen_entry *cle;
+
+		cle = iv_list_entry(lh, struct conf_listen_entry, list);
+		if (start_conf_listen_entry(cls, cle))
+			return 1;
+	}
+
+	return 0;
+}
+
+static void stop_conf_listening_socket(struct conf_listening_socket *cls)
+{
+	struct iv_list_head *lh;
+
+	cls->registered = 0;
+
+	iv_list_for_each (lh, &cls->listen_entries) {
+		struct conf_listen_entry *cle;
+
+		cle = iv_list_entry(lh, struct conf_listen_entry, list);
+		if (cle->registered)
+			stop_conf_listen_entry(cle);
+	}
+
+	listening_socket_unregister(&cls->ls);
+}
+
 static void stop_config(struct conf *conf)
 {
 	struct iv_list_head *lh;
@@ -164,37 +264,16 @@ static void stop_config(struct conf *conf)
 		struct conf_connect_entry *cce;
 
 		cce = iv_list_entry(lh, struct conf_connect_entry, list);
-		if (!cce->registered)
-			continue;
-
-		cce->registered = 0;
-		server_peer_unregister(&cce->sp);
-		iv_avl_tree_delete(&peers, &cce->peer.an);
+		if (cce->registered)
+			stop_conf_connect_entry(cce);
 	}
 
 	iv_list_for_each (lh, &conf->listening_sockets) {
 		struct conf_listening_socket *cls;
-		struct iv_list_head *lh2;
 
 		cls = iv_list_entry(lh, struct conf_listening_socket, list);
-		if (!cls->registered)
-			continue;
-
-		cls->registered = 0;
-
-		iv_list_for_each (lh2, &cls->listen_entries) {
-			struct conf_listen_entry *cle;
-
-			cle = iv_list_entry(lh2, struct conf_listen_entry,
-					    list);
-			if (!cle->registered)
-				continue;
-
-			listen_entry_unregister(&cle->le);
-			iv_avl_tree_delete(&peers, &cle->peer.an);
-		}
-
-		listening_socket_unregister(&cls->ls);
+		if (cls->registered)
+			stop_conf_listening_socket(cls);
 	}
 }
 
@@ -206,73 +285,24 @@ static int start_config(struct conf *conf)
 		struct conf_connect_entry *cce;
 
 		cce = iv_list_entry(lh, struct conf_connect_entry, list);
-
-		cce->sp.tunitf = cce->tunitf;
-		cce->sp.name = cce->name;
-		cce->sp.hostname = cce->hostname;
-		cce->sp.port = cce->port;
-		cce->sp.key = key;
-		memcpy(cce->sp.fingerprint, cce->fingerprint, 20);
-		cce->sp.is_peer = cce->is_peer;
-		cce->sp.cookie = cce;
-		cce->sp.set_state = connect_set_state;
-		if (server_peer_register(&cce->sp)) {
-			stop_config(conf);
-			return 1;
-		}
-
-		cce->registered = 1;
-
-		memcpy(cce->peer.id, cce->fingerprint, 20);
-		cce->peer.type = cce->is_peer ? TYPE_EPEER : TYPE_TRANSIT;
-		cce->peer.up = 0;
-		iv_avl_tree_insert(&peers, &cce->peer.an);
+		if (start_conf_connect_entry(cce))
+			goto err;
 	}
 
 	iv_list_for_each (lh, &conf->listening_sockets) {
 		struct conf_listening_socket *cls;
-		struct iv_list_head *lh2;
 
 		cls = iv_list_entry(lh, struct conf_listening_socket, list);
-
-		cls->ls.listen_address = cls->listen_address;
-		cls->ls.key = key;
-		if (listening_socket_register(&cls->ls)) {
-			stop_config(conf);
-			return 1;
-		}
-
-		cls->registered = 1;
-
-		iv_list_for_each (lh2, &cls->listen_entries) {
-			struct conf_listen_entry *cle;
-
-			cle = iv_list_entry(lh2, struct conf_listen_entry,
-					    list);
-
-			cle->le.ls = &cls->ls;
-			cle->le.tunitf = cle->tunitf;
-			cle->le.name = cle->name;
-			memcpy(cle->le.fingerprint, cle->fingerprint, 20);
-			cle->le.is_peer = cle->is_peer;
-			cle->le.cookie = cle;
-			cle->le.set_state = listen_set_state;
-			if (listen_entry_register(&cle->le)) {
-				stop_config(conf);
-				return 1;
-			}
-
-			cle->registered = 1;
-
-			memcpy(cle->peer.id, cle->fingerprint, 20);
-			cle->peer.type = cle->is_peer ? TYPE_EPEER :
-							TYPE_CUSTOMER;
-			cle->peer.up = 0;
-			iv_avl_tree_insert(&peers, &cle->peer.an);
-		}
+		if (start_conf_listening_socket(cls))
+			goto err;
 	}
 
 	return 0;
+
+err:
+	stop_config(conf);
+
+	return 1;
 }
 
 static const char *config = "/etc/dvpn.ini";
