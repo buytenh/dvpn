@@ -392,15 +392,13 @@ void listening_socket_unregister(struct listening_socket *ls)
 
 int listen_entry_register(struct listen_entry *le)
 {
-	iv_list_add_tail(&le->list, &le->ls->listen_entries);
-
 	le->tun.itfname = le->tunitf;
 	le->tun.cookie = le;
 	le->tun.got_packet = got_packet;
-	if (tun_interface_register(&le->tun) < 0) {
-		free(le);
+	if (tun_interface_register(&le->tun) < 0)
 		return 1;
-	}
+
+	iv_list_add_tail(&le->list, &le->ls->listen_entries);
 
 	itf_set_state(tun_interface_get_name(&le->tun), 0);
 
