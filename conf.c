@@ -89,8 +89,7 @@ static int parse_config_default(struct local_conf *lc, struct ini_cfgobj *co)
 
 		lc->conf->private_key = key;
 	} else {
-		fprintf(stderr, "mandatory PrivateKey option missing\n");
-		return -1;
+		lc->conf->private_key = strdup("/etc/pki/tls/dvpn/dvpn.key");
 	}
 
 	ret = ini_get_config_valueobj("default", "DefaultPort", co,
