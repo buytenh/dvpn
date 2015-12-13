@@ -389,7 +389,7 @@ add_listen_peer(struct local_conf *lc, const char *peer, const char *listen,
 		if (peer_type == PEER_TYPE_INVALID)
 			return -1;
 	} else {
-		peer_type = PEER_TYPE_TRANSIT;
+		peer_type = PEER_TYPE_CUSTOMER;
 	}
 
 	cle = calloc(1, sizeof(*cle));
