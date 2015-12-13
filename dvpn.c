@@ -17,11 +17,6 @@
  * Boston, MA 02110-1301, USA.
  */
 
-/*
- * TODO:
- * - make SIGHUP handling smarter
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
@@ -31,6 +26,7 @@
 #include <iv_signal.h>
 #include <string.h>
 #include "conf.h"
+#include "confdiff.h"
 #include "connect.h"
 #include "dvpn.h"
 #include "listen.h"
@@ -311,45 +307,62 @@ static struct iv_signal sighup;
 static struct iv_signal sigint;
 static struct iv_signal sigusr1;
 
+static int new_connect_entry(struct conf_connect_entry *cce)
+{
+	return start_conf_connect_entry(cce);
+}
+
+static void removed_connect_entry(struct conf_connect_entry *cce)
+{
+	stop_conf_connect_entry(cce);
+}
+
+static int new_listening_socket(struct conf_listening_socket *cls)
+{
+	return start_conf_listening_socket(cls);
+}
+
+static void removed_listening_socket(struct conf_listening_socket *cls)
+{
+	stop_conf_listening_socket(cls);
+}
+
+static int new_listen_entry(struct conf_listening_socket *cls,
+			    struct conf_listen_entry *cle)
+{
+	return start_conf_listen_entry(cls, cle);
+}
+
+static void removed_listen_entry(struct conf_listening_socket *cls,
+				 struct conf_listen_entry *cle)
+{
+	stop_conf_listen_entry(cle);
+}
+
 static void got_sighup(void *_dummy)
 {
 	struct conf *newconf;
+	struct confdiff_request req;
 
 	fprintf(stderr, "SIGHUP received, re-reading configuration\n");
 
 	newconf = parse_config(config);
 	if (newconf == NULL) {
-		fprintf(stderr, "=> error parsing new configuration, "
-				"not applying any changes\n");
+		fprintf(stderr, "error parsing new configuration\n");
 		return;
 	}
 
-	stop_config(conf);
-
-	if (start_config(newconf) == 0) {
-		fprintf(stderr, "=> successfully applied new configuration\n");
-		free_config(conf);
-		conf = newconf;
-		return;
-	}
+	req.conf = conf;
+	req.newconf = newconf;
+	req.new_connect_entry = new_connect_entry;
+	req.removed_connect_entry = removed_connect_entry;
+	req.new_listening_socket = new_listening_socket;
+	req.removed_listening_socket = removed_listening_socket;
+	req.new_listen_entry = new_listen_entry;
+	req.removed_listen_entry = removed_listen_entry;
+	diff_configs(&req);
 
 	free_config(newconf);
-	fprintf(stderr, "=> error applying new configuration, trying to "
-			"revert to old configuration\n");
-
-	if (start_config(conf) == 0) {
-		fprintf(stderr, "=> successfully reverted to old "
-				"configuration\n");
-		return;
-	}
-
-	fprintf(stderr, "=> error reverting to old configuration, "
-			"shutting down\n");
-
-	iv_fd_unregister(&topo_fd);
-	iv_signal_unregister(&sighup);
-	iv_signal_unregister(&sigint);
-	iv_signal_unregister(&sigusr1);
 }
 
 static void got_sigint(void *_dummy)
