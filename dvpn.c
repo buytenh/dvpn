@@ -361,36 +361,36 @@ static void usage(const char *me)
 	fprintf(stderr, "        %s [--show-key-id <key.pem>]\n", me);
 }
 
+static int print_privkey_id(FILE *fp, gnutls_x509_privkey_t key)
+{
+	uint8_t id[128];
+	ssize_t len;
+
+	len = x509_get_key_id(id, sizeof(id), key);
+	if (len < 0)
+		return -1;
+
+	printhex(fp, id, len);
+
+	return 0;
+}
+
 static int show_key_id(const char *file)
 {
 	gnutls_x509_privkey_t key;
-	uint8_t id[20];
-	ssize_t len;
+	int ret;
 
 	gnutls_global_init();
 
-	if (x509_read_privkey(&key, file) < 0)
-		goto err;
-
-	len = x509_get_key_id(id, sizeof(id), key);
-	if (len != 20)
-		goto err_deinit_priv;
-
-	printhex(stdout, id, 20);
+	ret = x509_read_privkey(&key, file);
+	if (ret == 0)
+		ret = print_privkey_id(stdout, key);
 
 	gnutls_x509_privkey_deinit(key);
 
 	gnutls_global_deinit();
 
-	return 0;
-
-err_deinit_priv:
-	gnutls_x509_privkey_deinit(key);
-
-err:
-	gnutls_global_deinit();
-
-	return 1;
+	return !!ret;
 }
 
 int main(int argc, char *argv[])
@@ -433,6 +433,10 @@ int main(int argc, char *argv[])
 
 	if (x509_read_privkey(&key, conf->private_key) < 0)
 		return 1;
+
+	fprintf(stderr, "dvpn: using key ID ");
+	print_privkey_id(stderr, key);
+	fprintf(stderr, "\n");
 
 	iv_init();
 
