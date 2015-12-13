@@ -23,6 +23,7 @@
 #include <gnutls/x509.h>
 #include <iv.h>
 #include <iv_list.h>
+#include <limits.h>
 #include <stdint.h>
 #include <string.h>
 #include "conf.h"
@@ -365,7 +366,7 @@ static void print_graphviz_hidden(FILE *fp, const char *name)
 
 		n = iv_list_entry(lh, struct node, list);
 
-		if (n->node.a.cost != -1) {
+		if (n->node.a.cost != INT_MAX) {
 			fprintf(fp, "\t\"%s.a\" [ label = \"%s.a\\n"
 				    "cost: %d\", shape = \"record\" ];\n",
 				n->name, n->name, n->node.a.cost);
@@ -389,7 +390,7 @@ static void print_graphviz_hidden(FILE *fp, const char *name)
 				   (isa ? pp->node.a.cost : pp->node.b.cost));
 		}
 
-		if (n->node.b.cost != -1) {
+		if (n->node.b.cost != INT_MAX) {
 			fprintf(fp, "\t\"%s.b\" [ label = \"%s.b\\n"
 				    "cost: %d\", shape = \"record\" ];\n",
 				n->name, n->name, n->node.b.cost);

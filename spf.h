@@ -25,7 +25,7 @@
 struct spf_context
 {
 	struct iv_list_head	nodes;
-	struct iv_list_head	edges;
+	int			num_nodes;
 };
 
 struct spf_node
@@ -33,8 +33,10 @@ struct spf_node
 	void			*cookie;
 
 	struct iv_list_head	list;
+	struct iv_list_head	edges;
 	struct spf_node		*parent;
 	int			cost;
+	int			heapidx;
 };
 
 struct spf_edge
