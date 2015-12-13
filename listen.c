@@ -179,10 +179,14 @@ static void handshake_done(void *_cc)
 	id[1] = 0x01;
 	id[2] = 0x00;
 	id[3] = 0x2f;
-	itf_add_addr_v6(tun_interface_get_name(&le->tun), id, 128);
+	if (le->peer_type != PEER_TYPE_TRANSIT) {
+		itf_add_addr_v6(tun_interface_get_name(&le->tun), id, 128);
 
-	memcpy(id + 4, le->fingerprint + 4, 12);
-	itf_add_route_v6(tun_interface_get_name(&le->tun), id, 128);
+		memcpy(id + 4, le->fingerprint + 4, 12);
+		itf_add_route_v6(tun_interface_get_name(&le->tun), id, 128);
+	} else {
+		itf_add_addr_v6(tun_interface_get_name(&le->tun), id, 32);
+	}
 }
 
 static void record_received(void *_cc, const uint8_t *rec, int len)
