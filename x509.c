@@ -31,7 +31,7 @@
 int x509_read_privkey(gnutls_x509_privkey_t *key, const char *file)
 {
 	int fd;
-	uint8_t buf[8192];
+	uint8_t buf[65536];
 	int size;
 	int ret;
 	gnutls_datum_t datum;
