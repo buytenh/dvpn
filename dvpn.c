@@ -46,10 +46,10 @@ static gnutls_x509_privkey_t key;
 static struct iv_avl_tree peers;
 static struct iv_fd topo_fd;
 
-static int compare_peers(const void *_a, const void *_b)
+static int compare_peers(struct iv_avl_node *_a, struct iv_avl_node *_b)
 {
-	const struct peer *a = _a;
-	const struct peer *b = _b;
+	struct peer *a = iv_container_of(_a, struct peer, an);
+	struct peer *b = iv_container_of(_b, struct peer, an);
 
 	return memcmp(a->id, b->id, 20);
 }
