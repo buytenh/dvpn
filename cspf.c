@@ -29,10 +29,9 @@ void cspf_node_add(struct spf_context *ctx, struct cspf_node *node)
 	node->b.cookie = node->cookie;
 	spf_node_add(ctx, &node->b);
 
-	node->ab.from = &node->a;
 	node->ab.to = &node->b;
 	node->ab.cost = 0;
-	spf_edge_add(ctx, &node->ab);
+	spf_edge_add(&node->a, &node->ab);
 }
 
 void cspf_edge_add(struct spf_context *ctx, struct cspf_edge *edge,
@@ -41,35 +40,30 @@ void cspf_edge_add(struct spf_context *ctx, struct cspf_edge *edge,
 {
 	switch (type) {
 	case EDGE_TYPE_EPEER:
-		edge->e0.from = &from->a;
 		edge->e0.to = &to->b;
 		edge->e0.cost = cost;
-		spf_edge_add(ctx, &edge->e0);
+		spf_edge_add(&from->a, &edge->e0);
 		break;
 
 	case EDGE_TYPE_CUSTOMER:
-		edge->e0.from = &from->b;
 		edge->e0.to = &to->b;
 		edge->e0.cost = cost;
-		spf_edge_add(ctx, &edge->e0);
+		spf_edge_add(&from->b, &edge->e0);
 		break;
 
 	case EDGE_TYPE_TRANSIT:
-		edge->e0.from = &from->a;
 		edge->e0.to = &to->a;
 		edge->e0.cost = cost;
-		spf_edge_add(ctx, &edge->e0);
+		spf_edge_add(&from->a, &edge->e0);
 		break;
 
 	case EDGE_TYPE_IPEER:
-		edge->e0.from = &from->a;
 		edge->e0.to = &to->a;
 		edge->e0.cost = cost;
-		spf_edge_add(ctx, &edge->e0);
-		edge->e1.from = &from->b;
+		spf_edge_add(&from->a, &edge->e0);
 		edge->e1.to = &to->b;
 		edge->e1.cost = cost;
-		spf_edge_add(ctx, &edge->e1);
+		spf_edge_add(&from->b, &edge->e1);
 		break;
 
 	default:
