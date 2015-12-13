@@ -162,7 +162,7 @@ static int start_conf_connect_entry(struct conf_connect_entry *cce)
 	cce->sp.port = cce->port;
 	cce->sp.key = key;
 	memcpy(cce->sp.fingerprint, cce->fingerprint, 20);
-	cce->sp.is_peer = cce->is_peer;
+	cce->sp.peer_type = cce->peer_type;
 	cce->sp.cookie = cce;
 	cce->sp.set_state = connect_set_state;
 	if (server_peer_register(&cce->sp))
@@ -171,8 +171,7 @@ static int start_conf_connect_entry(struct conf_connect_entry *cce)
 	cce->registered = 1;
 
 	memcpy(cce->peer.id, cce->fingerprint, 20);
-	cce->peer.peer_type =
-		cce->is_peer ? PEER_TYPE_EPEER : PEER_TYPE_TRANSIT;
+	cce->peer.peer_type = cce->peer_type;
 	cce->peer.up = 0;
 	iv_avl_tree_insert(&peers, &cce->peer.an);
 
@@ -193,7 +192,7 @@ static int start_conf_listen_entry(struct conf_listening_socket *cls,
 	cle->le.tunitf = cle->tunitf;
 	cle->le.name = cle->name;
 	memcpy(cle->le.fingerprint, cle->fingerprint, 20);
-	cle->le.is_peer = cle->is_peer;
+	cle->le.peer_type = cle->peer_type;
 	cle->le.cookie = cle;
 	cle->le.set_state = listen_set_state;
 	if (listen_entry_register(&cle->le))
@@ -202,8 +201,7 @@ static int start_conf_listen_entry(struct conf_listening_socket *cls,
 	cle->registered = 1;
 
 	memcpy(cle->peer.id, cle->fingerprint, 20);
-	cle->peer.peer_type =
-		cle->is_peer ? PEER_TYPE_EPEER : PEER_TYPE_CUSTOMER;
+	cle->peer.peer_type = cle->peer_type;
 	cle->peer.up = 0;
 	iv_avl_tree_insert(&peers, &cle->peer.an);
 

@@ -41,7 +41,7 @@ struct listen_entry
 	char			*tunitf;
 	char			*name;
 	uint8_t			fingerprint[20];
-	int			is_peer;
+	enum peer_type		peer_type;
 	void			*cookie;
 	void			(*set_state)(void *cookie, int up);
 

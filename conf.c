@@ -128,6 +128,42 @@ get_const_value(struct ini_cfgobj *co, const char *section, const char *name)
 	return value;
 }
 
+static enum peer_type parse_peer_type(const char *pt)
+{
+	if (!strcasecmp(pt, "epeer") || !strcasecmp(pt, "peer"))
+		return PEER_TYPE_EPEER;
+
+	if (!strcasecmp(pt, "customer") || !strcasecmp(pt, "downstream"))
+		return PEER_TYPE_CUSTOMER;
+
+	if (!strcasecmp(pt, "transit") || !strcasecmp(pt, "upstream"))
+		return PEER_TYPE_TRANSIT;
+
+	if (!strcasecmp(pt, "ipeer"))
+		return PEER_TYPE_IPEER;
+
+	fprintf(stderr, "error parsing peer type '%s'\n", pt);
+
+	return PEER_TYPE_INVALID;
+}
+
+static const char *default_tap_name(enum peer_type peer_type)
+{
+	if (peer_type == PEER_TYPE_EPEER)
+		return "tunp%d";
+
+	if (peer_type == PEER_TYPE_CUSTOMER)
+		return "tunc%d";
+
+	if (peer_type == PEER_TYPE_TRANSIT)
+		return "tunu%d";
+
+	if (peer_type == PEER_TYPE_IPEER)
+		return "tuni%d";
+
+	abort();
+}
+
 static int
 add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 		 const uint8_t *fp, const char *peertype, const char *itf)
@@ -135,6 +171,7 @@ add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 	struct conf_connect_entry *cce;
 	char *delim;
 	int port;
+	enum peer_type peer_type;
 
 	delim = strstr(connect, "]:");
 	if (delim != NULL) {
@@ -153,6 +190,14 @@ add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 		}
 	} else {
 		port = lc->default_port;
+	}
+
+	if (peertype != NULL) {
+		peer_type = parse_peer_type(peertype);
+		if (peer_type == PEER_TYPE_INVALID)
+			return -1;
+	} else {
+		peer_type = PEER_TYPE_TRANSIT;
 	}
 
 	cce = calloc(1, sizeof(*cce));
@@ -174,8 +219,8 @@ add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 	}
 	asprintf(&cce->port, "%d", port);
 	memcpy(cce->fingerprint, fp, 20);
-	cce->is_peer = !!(peertype != NULL && !strcasecmp(peertype, "peer"));
-	cce->tunitf = strdup(itf ? : cce->is_peer ? "tunp%d" : "tunu%d");
+	cce->peer_type = peer_type;
+	cce->tunitf = strdup(itf ? : default_tap_name(peer_type));
 
 	iv_list_add_tail(&cce->list, &lc->conf->connect_entries);
 
@@ -333,10 +378,19 @@ add_listen_peer(struct local_conf *lc, const char *peer, const char *listen,
 {
 	struct conf_listening_socket *cls;
 	struct conf_listen_entry *cle;
+	enum peer_type peer_type;
 
 	cls = get_listening_socket(lc, listen);
 	if (cls == NULL)
 		return -1;
+
+	if (peertype != NULL) {
+		peer_type = parse_peer_type(peertype);
+		if (peer_type == PEER_TYPE_INVALID)
+			return -1;
+	} else {
+		peer_type = PEER_TYPE_TRANSIT;
+	}
 
 	cle = calloc(1, sizeof(*cle));
 	if (cle == NULL) {
@@ -347,8 +401,8 @@ add_listen_peer(struct local_conf *lc, const char *peer, const char *listen,
 	iv_list_add_tail(&cle->list, &cls->listen_entries);
 	cle->name = strdup(peer);
 	memcpy(cle->fingerprint, fp, 20);
-	cle->is_peer = !!(peertype != NULL && !strcasecmp(peertype, "peer"));
-	cle->tunitf = strdup(itf ? : cle->is_peer ? "tunp%d" : "tunc%d");
+	cle->peer_type = peer_type;
+	cle->tunitf = strdup(itf ? : default_tap_name(peer_type));
 
 	return 0;
 }

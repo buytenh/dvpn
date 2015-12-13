@@ -41,7 +41,7 @@ find_connect_entry(struct conf *conf, struct conf_connect_entry *_cce)
 			continue;
 		if (memcmp(cce->fingerprint, _cce->fingerprint, 20))
 			continue;
-		if (cce->is_peer != _cce->is_peer)
+		if (cce->peer_type != _cce->peer_type)
 			continue;
 		if (strcmp(cce->tunitf, _cce->tunitf))
 			continue;
@@ -146,7 +146,7 @@ find_listen_entry(struct conf_listening_socket *cls,
 			continue;
 		if (memcmp(cle->fingerprint, _cle->fingerprint, 20))
 			continue;
-		if (cle->is_peer != _cle->is_peer)
+		if (cle->peer_type != _cle->peer_type)
 			continue;
 		if (strcmp(cle->tunitf, _cle->tunitf))
 			continue;

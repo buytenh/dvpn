@@ -26,6 +26,7 @@
 #include "iv_getaddrinfo.h"
 #include "pconn.h"
 #include "tun.h"
+#include "util.h"
 
 struct server_peer
 {
@@ -35,7 +36,7 @@ struct server_peer
 	char			*port;
 	gnutls_x509_privkey_t	key;
 	uint8_t			fingerprint[20];
-	int			is_peer;
+	enum peer_type		peer_type;
 	void			*cookie;
 	void			(*set_state)(void *cookie, int up);
 

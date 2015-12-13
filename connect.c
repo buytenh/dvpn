@@ -158,7 +158,7 @@ static void handshake_done(void *_sp)
 	id[1] = 0x01;
 	id[2] = 0x00;
 	id[3] = 0x2f;
-	if (sp->is_peer) {
+	if (sp->peer_type != PEER_TYPE_TRANSIT) {
 		itf_add_addr_v6(tun_interface_get_name(&sp->tun), id, 128);
 
 		memcpy(id + 4, sp->fingerprint + 4, 12);

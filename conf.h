@@ -26,6 +26,7 @@
 #include "connect.h"
 #include "dvpn.h"
 #include "listen.h"
+#include "util.h"
 
 struct conf
 {
@@ -43,7 +44,7 @@ struct conf_connect_entry
 	char			*hostname;
 	char			*port;
 	uint8_t			fingerprint[20];
-	int			is_peer;
+	enum peer_type		peer_type;
 	char			*tunitf;
 
 	int			registered;
@@ -68,7 +69,7 @@ struct conf_listen_entry
 
 	char			*name;
 	uint8_t			fingerprint[20];
-	int			is_peer;
+	enum peer_type		peer_type;
 	char			*tunitf;
 
 	int			registered;
