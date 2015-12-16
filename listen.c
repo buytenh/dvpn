@@ -54,8 +54,8 @@ static void client_conn_kill(struct client_conn *cc)
 {
 	if (cc->le != NULL) {
 		if (cc->state == STATE_CONNECTED) {
-			itf_set_state(tun_interface_get_name(&cc->le->tun), 0);
 			cc->le->set_state(cc->le->cookie, 0);
+			itf_set_state(tun_interface_get_name(&cc->le->tun), 0);
 		}
 		cc->le->current = NULL;
 	}
@@ -167,7 +167,6 @@ static void handshake_done(void *_cc)
 	iv_timer_register(&cc->keepalive_timer);
 
 	itf_set_state(tun_interface_get_name(&le->tun), 1);
-	cc->le->set_state(cc->le->cookie, 1);
 
 	x509_get_key_id(id, sizeof(id), cc->ls->key);
 
@@ -187,6 +186,8 @@ static void handshake_done(void *_cc)
 	} else {
 		itf_add_addr_v6(tun_interface_get_name(&le->tun), id, 32);
 	}
+
+	cc->le->set_state(cc->le->cookie, 1);
 }
 
 static void record_received(void *_cc, const uint8_t *rec, int len)

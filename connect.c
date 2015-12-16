@@ -80,8 +80,8 @@ static void send_keepalive(void *_sp)
 				"and retrying in %d seconds\n",
 			sp->name, SHORT_RETRY_WAIT_TIME);
 
-		itf_set_state(tun_interface_get_name(&sp->tun), 0);
 		sp->set_state(sp->cookie, 0);
+		itf_set_state(tun_interface_get_name(&sp->tun), 0);
 
 		pconn_destroy(&sp->pconn);
 		close(sp->pconn.fd);
@@ -149,7 +149,6 @@ static void handshake_done(void *_sp)
 	iv_timer_register(&sp->keepalive_timer);
 
 	itf_set_state(tun_interface_get_name(&sp->tun), 1);
-	sp->set_state(sp->cookie, 1);
 
 	x509_get_key_id(id, sizeof(id), sp->key);
 
@@ -169,6 +168,8 @@ static void handshake_done(void *_sp)
 	} else {
 		itf_add_addr_v6(tun_interface_get_name(&sp->tun), id, 32);
 	}
+
+	sp->set_state(sp->cookie, 1);
 }
 
 static void record_received(void *_sp, const uint8_t *rec, int len)
@@ -232,8 +233,8 @@ static void connection_lost(void *_sp)
 		sp->name, waittime);
 
 	if (sp->state == STATE_CONNECTED) {
-		itf_set_state(tun_interface_get_name(&sp->tun), 0);
 		sp->set_state(sp->cookie, 0);
+		itf_set_state(tun_interface_get_name(&sp->tun), 0);
 	}
 
 	pconn_destroy(&sp->pconn);
@@ -462,8 +463,8 @@ static void got_packet(void *_sp, uint8_t *buf, int len)
 				"and retrying in %d seconds\n",
 			sp->name, SHORT_RETRY_WAIT_TIME);
 
-		itf_set_state(tun_interface_get_name(&sp->tun), 0);
 		sp->set_state(sp->cookie, 0);
+		itf_set_state(tun_interface_get_name(&sp->tun), 0);
 
 		pconn_destroy(&sp->pconn);
 		close(sp->pconn.fd);
@@ -525,8 +526,8 @@ static void rx_timeout_expired(void *_sp)
 			waittime = LONG_RETRY_WAIT_TIME;
 		} else if (sp->state == STATE_CONNECTED) {
 			fprintf(stderr, "receive timeout");
-			itf_set_state(tun_interface_get_name(&sp->tun), 0);
 			sp->set_state(sp->cookie, 0);
+			itf_set_state(tun_interface_get_name(&sp->tun), 0);
 			pconn_destroy(&sp->pconn);
 			close(sp->pconn.fd);
 			iv_timer_unregister(&sp->keepalive_timer);
