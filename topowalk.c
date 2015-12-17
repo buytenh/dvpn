@@ -131,7 +131,7 @@ static void query_node(int fd, struct node *n)
 	ret = sendto(fd, buf, 0, 0, (struct sockaddr *)&addr, sizeof(addr));
 	if (ret < 0) {
 		perror(" sendto");
-		abort();
+		return;
 	}
 
 	addrlen = sizeof(addr);
