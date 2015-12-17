@@ -324,7 +324,7 @@ static void print_graphviz(FILE *fp, const char *name)
 {
 	struct iv_list_head *lh;
 
-	fprintf(fp, "digraph %s {\n", name);
+	fprintf(fp, "digraph g {\n");
 	fprintf(fp, "\trankdir = LR;\n");
 
 	iv_list_for_each (lh, &nodes) {
@@ -354,7 +354,7 @@ static void print_graphviz_hidden(FILE *fp, const char *name)
 {
 	struct iv_list_head *lh;
 
-	fprintf(fp, "digraph %s {\n", name);
+	fprintf(fp, "digraph g {\n");
 	fprintf(fp, "\trankdir = LR;\n");
 
 	iv_list_for_each (lh, &nodes) {
