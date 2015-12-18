@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <string.h>
 #include <stdint.h>
 #include <sys/wait.h>
@@ -123,5 +124,22 @@ int itf_set_state(const char *itf, int up)
 	args[4] = up ? "up" : "down";
 	args[5] = NULL;
 
-	return spawnvp("ip", args);
+	if (spawnvp("ip", args))
+		return -1;
+
+	if (up) {
+		char path[256];
+		int fd;
+
+		snprintf(path, sizeof(path),
+			 "/proc/sys/net/ipv6/conf/%s/disable_ipv6", itf);
+
+		fd = open(path, O_WRONLY);
+		if (fd >= 0) {
+			write(fd, "0\n", 2);
+			close(fd);
+		}
+	}
+
+	return 0;
 }
