@@ -122,11 +122,12 @@ void spf_run(struct spf_context *ctx, struct spf_node *source)
 		struct spf_node *from;
 
 		from = heap[0];
-
 		from->heapidx = -1;
+
 		if (--heapsize) {
 			heap[0] = heap[heapsize];
-			push_down(heap, heapsize);
+			heap[0]->heapidx = 0;
+			push_down(heap, 0);
 		}
 
 		iv_list_for_each (lh, &from->edges) {
@@ -137,20 +138,19 @@ void spf_run(struct spf_context *ctx, struct spf_node *source)
 			edge = iv_container_of(lh, struct spf_edge, list);
 
 			to = edge->to;
+
 			cost = from->cost + edge->cost;
+			if (cost < to->cost) {
+				if (to->cost == INT_MAX) {
+					to->heapidx = heapsize;
+					heap[heapsize] = to;
+					heapsize++;
+				}
 
-			if (cost >= to->cost)
-				continue;
-
-			if (to->cost == INT_MAX) {
-				to->heapidx = heapsize;
-				heap[heapsize] = to;
-				heapsize++;
+				to->parent = from;
+				to->cost = cost;
+				pull_up(heap, to->heapidx);
 			}
-
-			to->parent = from;
-			to->cost = cost;
-			pull_up(heap, to->heapidx);
 		}
 	}
 }
