@@ -428,10 +428,11 @@ static int show_key_id(const char *file)
 	gnutls_global_init();
 
 	ret = x509_read_privkey(&key, file);
-	if (ret == 0)
+	if (ret == 0) {
 		ret = print_privkey_id(stdout, key);
-
-	gnutls_x509_privkey_deinit(key);
+		fprintf(stdout, "\n");
+		gnutls_x509_privkey_deinit(key);
+	}
 
 	gnutls_global_deinit();
 
