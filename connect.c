@@ -102,14 +102,14 @@ static void send_keepalive(void *_sp)
 	iv_timer_register(&sp->keepalive_timer);
 }
 
-static void handshake_done(void *_sp)
+static void handshake_done(void *_sp, char *desc)
 {
 	struct server_peer *sp = _sp;
 	uint8_t id[64];
 	int i;
 	socklen_t len;
 
-	fprintf(stderr, "%s: handshake done\n", sp->name);
+	fprintf(stderr, "%s: handshake done, using %s\n", sp->name, desc);
 
 	i = 1;
 	if (setsockopt(sp->pconn.fd, SOL_TCP, TCP_NODELAY, &i, sizeof(i)) < 0) {

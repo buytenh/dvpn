@@ -114,7 +114,7 @@ static int verify_key_id(void *_cc, const uint8_t *id, int len)
 	return 1;
 }
 
-static void handshake_done(void *_cc)
+static void handshake_done(void *_cc, char *desc)
 {
 	struct client_conn *cc = _cc;
 	struct listen_entry *le = cc->le;
@@ -123,11 +123,12 @@ static void handshake_done(void *_cc)
 	socklen_t len;
 
 	if (le->current != NULL) {
-		fprintf(stderr, "%s: handshake done, disconnecting "
-				"previous client\n", le->name);
+		fprintf(stderr, "%s: handshake done, using %s, disconnecting "
+				"previous client\n", le->name, desc);
 		client_conn_kill(le->current);
 	} else {
-		fprintf(stderr, "%s: handshake done\n", le->name);
+		fprintf(stderr, "%s: handshake done, using %s\n",
+			le->name, desc);
 	}
 
 	le->current = cc;

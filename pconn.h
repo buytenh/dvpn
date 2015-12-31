@@ -31,7 +31,7 @@ struct pconn {
 	void			*cookie;
 	int			(*verify_key_id)(void *cookie,
 						 const uint8_t *id, int len);
-	void			(*handshake_done)(void *cookie);
+	void			(*handshake_done)(void *cookie, char *desc);
 	void			(*record_received)(void *cookie,
 						   const uint8_t *rec, int len);
 	void			(*connection_lost)(void *cookie);

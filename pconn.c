@@ -426,6 +426,7 @@ static void pconn_connection_abort(struct pconn *pc, int notify_err)
 
 static int pconn_do_handshake(struct pconn *pc, int notify_err)
 {
+	char *desc;
 	int ret;
 
 	ret = gnutls_handshake(pc->sess);
@@ -452,7 +453,9 @@ static int pconn_do_handshake(struct pconn *pc, int notify_err)
 
 	verify_state(pc);
 
-	pc->handshake_done(pc->cookie);
+	desc = gnutls_session_get_desc(pc->sess);
+	pc->handshake_done(pc->cookie, desc);
+	gnutls_free(desc);
 
 	return 0;
 }
