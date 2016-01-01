@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <iv_list.h>
 #include <limits.h>
+#include <string.h>
 #include "spf.h"
 
 void spf_init(struct spf_context *ctx)
@@ -97,6 +98,20 @@ static void pull_up(struct spf_node **heap, int index)
 	}
 }
 
+static int nl(struct spf_node *a, struct spf_node *b)
+{
+	int ret;
+
+	ret = memcmp(a->id, b->id, SPF_ID_LEN);
+	if (ret == 0)
+		abort();
+
+	if (ret < 0)
+		return 1;
+
+	return 0;
+}
+
 void spf_run(struct spf_context *ctx, struct spf_node *source)
 {
 	struct iv_list_head *lh;
@@ -150,6 +165,8 @@ void spf_run(struct spf_context *ctx, struct spf_node *source)
 				to->parent = from;
 				to->cost = cost;
 				pull_up(heap, to->heapidx);
+			} else if (cost == to->cost && nl(from, to->parent)) {
+				to->parent = from;
 			}
 		}
 	}

@@ -25,6 +25,7 @@
 
 struct cspf_node
 {
+	uint8_t			*id;
 	void			*cookie;
 
 	struct spf_node		a;

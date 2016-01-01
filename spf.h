@@ -22,6 +22,8 @@
 
 #include <iv_list.h>
 
+#define SPF_ID_LEN	20
+
 struct spf_context
 {
 	struct iv_list_head	nodes;
@@ -30,6 +32,7 @@ struct spf_context
 
 struct spf_node
 {
+	uint8_t			*id;
 	void			*cookie;
 
 	struct iv_list_head	list;

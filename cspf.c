@@ -23,9 +23,11 @@
 
 void cspf_node_add(struct spf_context *ctx, struct cspf_node *node)
 {
+	node->a.id = node->id;
 	node->a.cookie = node->cookie;
 	spf_node_add(ctx, &node->a);
 
+	node->b.id = node->id;
 	node->b.cookie = node->cookie;
 	spf_node_add(ctx, &node->b);
 

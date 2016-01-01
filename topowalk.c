@@ -299,6 +299,7 @@ static void prep_cspf(struct spf_context *spf)
 
 		n = iv_container_of(lh, struct node, list);
 
+		n->node.id = n->id;
 		n->node.cookie = n;
 		cspf_node_add(spf, &n->node);
 
