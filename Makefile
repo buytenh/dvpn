@@ -9,6 +9,10 @@ clean:
 		rm -f server.key
 		rm -f topowalk
 
+install:	dvpn
+		install -m 0755 dvpn /usr/bin
+		install -m 0644 dvpn.service /usr/lib/systemd/system
+
 dvpn:		dvpn.c conf.c conf.h confdiff.c confdiff.h connect.c connect.h itf.c itf.h iv_getaddrinfo.c iv_getaddrinfo.h listen.c listen.h pconn.c pconn.h tun.c tun.h util.c util.h x509.c x509.h
 		gcc -Wall -g -o dvpn dvpn.c conf.c confdiff.c connect.c itf.c iv_getaddrinfo.c listen.c pconn.c tun.c util.c x509.c -lgnutls -lini_config -livykis
 

@@ -1,0 +1,12 @@
+[Unit]
+Description=Mesh network daemon.
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/dvpn
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
