@@ -30,12 +30,15 @@
 #include "connect.h"
 #include "dvpn.h"
 #include "listen.h"
+#include "lsa.h"
+#include "lsa_type.h"
 #include "util.h"
 #include "x509.h"
 
 static gnutls_x509_privkey_t key;
 static uint8_t keyid[32];
 static struct iv_avl_tree peers;
+static struct lsa *me;
 static struct iv_fd topo_fd;
 
 static int compare_peers(struct iv_avl_node *_a, struct iv_avl_node *_b)
@@ -137,11 +140,42 @@ static int start_topo_listener(void)
 	return 0;
 }
 
+static enum lsa_peer_type peer_type_to_lsa_peer_type(enum peer_type type)
+{
+	switch (type) {
+	case PEER_TYPE_EPEER:
+		return LSA_PEER_TYPE_EPEER;
+	case PEER_TYPE_CUSTOMER:
+		return LSA_PEER_TYPE_CUSTOMER;
+	case PEER_TYPE_TRANSIT:
+		return LSA_PEER_TYPE_TRANSIT;
+	case PEER_TYPE_IPEER:
+		return LSA_PEER_TYPE_IPEER;
+	default:
+		fprintf(stderr, "peer_type_to_lsa_peer_type: invalid "
+				"type %d\n", type);
+		return LSA_PEER_TYPE_EPEER;
+	}
+}
+
 static void connect_set_state(void *_cce, int up)
 {
 	struct conf_connect_entry *cce = _cce;
 
 	cce->peer.up = up;
+
+	if (up) {
+		struct lsa_attr_peer data;
+
+		data.metric = htons(1);
+		data.peer_type = peer_type_to_lsa_peer_type(cce->peer_type);
+
+		lsa_attr_add(me, LSA_ATTR_TYPE_PEER, cce->fingerprint,
+			     sizeof(cce->fingerprint), &data, sizeof(data));
+	} else {
+		lsa_attr_del_key(me, LSA_ATTR_TYPE_PEER,
+				 cce->fingerprint, sizeof(cce->fingerprint));
+	}
 }
 
 static void listen_set_state(void *_cle, int up)
@@ -149,6 +183,19 @@ static void listen_set_state(void *_cle, int up)
 	struct conf_listen_entry *cle = _cle;
 
 	cle->peer.up = up;
+
+	if (up) {
+		struct lsa_attr_peer data;
+
+		data.metric = htons(1);
+		data.peer_type = peer_type_to_lsa_peer_type(cle->peer_type);
+
+		lsa_attr_add(me, LSA_ATTR_TYPE_PEER, cle->fingerprint,
+			     sizeof(cle->fingerprint), &data, sizeof(data));
+	} else {
+		lsa_attr_del_key(me, LSA_ATTR_TYPE_PEER,
+				 cle->fingerprint, sizeof(cle->fingerprint));
+	}
 }
 
 static int start_conf_connect_entry(struct conf_connect_entry *cce)
@@ -180,6 +227,11 @@ static void stop_conf_connect_entry(struct conf_connect_entry *cce)
 	cce->registered = 0;
 	server_peer_unregister(&cce->sp);
 	iv_avl_tree_delete(&peers, &cce->peer.an);
+
+	if (cce->peer.up) {
+		lsa_attr_del_key(me, LSA_ATTR_TYPE_PEER,
+				 cce->fingerprint, sizeof(cce->fingerprint));
+	}
 }
 
 static int start_conf_listen_entry(struct conf_listening_socket *cls,
@@ -210,6 +262,11 @@ static void stop_conf_listen_entry(struct conf_listen_entry *cle)
 	cle->registered = 0;
 	listen_entry_unregister(&cle->le);
 	iv_avl_tree_delete(&peers, &cle->peer.an);
+
+	if (cle->peer.up) {
+		lsa_attr_del_key(me, LSA_ATTR_TYPE_PEER,
+				 cle->fingerprint, sizeof(cle->fingerprint));
+	}
 }
 
 static int start_conf_listening_socket(struct conf_listening_socket *cls)
@@ -475,6 +532,9 @@ int main(int argc, char *argv[])
 
 	iv_init();
 
+	me = lsa_alloc(keyid);
+	lsa_attr_add(me, LSA_ATTR_TYPE_ADV_PATH, NULL, 0, NULL, 0);
+
 	INIT_IV_AVL_TREE(&peers, compare_peers);
 
 	if (start_topo_listener())
@@ -509,6 +569,8 @@ int main(int argc, char *argv[])
 	iv_deinit();
 
 	close(topo_fd.fd);
+
+	lsa_put(me);
 
 	gnutls_x509_privkey_deinit(key);
 
