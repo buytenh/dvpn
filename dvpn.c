@@ -34,6 +34,7 @@
 #include "x509.h"
 
 static gnutls_x509_privkey_t key;
+static uint8_t keyid[32];
 static struct iv_avl_tree peers;
 static struct iv_fd topo_fd;
 
@@ -63,7 +64,7 @@ static void got_topo_request(void *_dummy)
 		return;
 	}
 
-	x509_get_key_id(buf, 32, key);
+	memcpy(buf, keyid, 32);
 
 	off = 32;
 	iv_avl_tree_for_each (an, &peers) {
@@ -99,7 +100,6 @@ static int start_topo_listener(void)
 {
 	int fd;
 	int yes;
-	uint8_t id[32];
 	uint8_t a[16];
 	struct sockaddr_in6 addr;
 
@@ -116,8 +116,7 @@ static int start_topo_listener(void)
 		return 1;
 	}
 
-	x509_get_key_id(id, 32, key);
-	v6_global_addr_from_key_id(a, id, sizeof(id));
+	v6_global_addr_from_key_id(a, keyid, sizeof(keyid));
 
 	addr.sin6_family = AF_INET6;
 	addr.sin6_port = htons(19275);
@@ -404,20 +403,6 @@ static void usage(const char *me)
 	fprintf(stderr, "        %s [--show-key-id <key.pem>]\n", me);
 }
 
-static int print_privkey_id(FILE *fp, gnutls_x509_privkey_t key)
-{
-	uint8_t id[128];
-	ssize_t len;
-
-	len = x509_get_key_id(id, sizeof(id), key);
-	if (len < 0)
-		return -1;
-
-	printhex(fp, id, len);
-
-	return 0;
-}
-
 static int show_key_id(const char *file)
 {
 	gnutls_x509_privkey_t key;
@@ -427,8 +412,11 @@ static int show_key_id(const char *file)
 
 	ret = x509_read_privkey(&key, file);
 	if (ret == 0) {
-		ret = print_privkey_id(stdout, key);
-		fprintf(stdout, "\n");
+		ret = x509_get_key_id(keyid, sizeof(keyid), key);
+		if (ret >= 0) {
+			printhex(stdout, keyid, ret);
+			printf("\n");
+		}
 		gnutls_x509_privkey_deinit(key);
 	}
 
@@ -478,8 +466,11 @@ int main(int argc, char *argv[])
 	if (x509_read_privkey(&key, conf->private_key) < 0)
 		return 1;
 
+	if (x509_get_key_id(keyid, sizeof(keyid), key) < 0)
+		return 1;
+
 	fprintf(stderr, "dvpn: using key ID ");
-	print_privkey_id(stderr, key);
+	printhex(stderr, keyid, sizeof(keyid));
 	fprintf(stderr, "\n");
 
 	iv_init();
