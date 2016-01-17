@@ -32,6 +32,7 @@
 #include "listen.h"
 #include "lsa.h"
 #include "lsa_dump.h"
+#include "lsa_serialise.h"
 #include "lsa_type.h"
 #include "util.h"
 #include "x509.h"
@@ -52,12 +53,11 @@ static int compare_peers(struct iv_avl_node *_a, struct iv_avl_node *_b)
 
 static void got_topo_request(void *_dummy)
 {
-	uint8_t buf[2048];
+	uint8_t buf[65536];
 	struct sockaddr_in6 addr;
 	socklen_t addrlen;
 	int ret;
-	int off;
-	struct iv_avl_node *an;
+	int len;
 
 	addrlen = sizeof(addr);
 	ret = recvfrom(topo_fd.fd, buf, sizeof(buf), 0,
@@ -68,36 +68,11 @@ static void got_topo_request(void *_dummy)
 		return;
 	}
 
-	memcpy(buf, keyid, 32);
+	len = lsa_serialise(buf, sizeof(buf), me);
+	if (len > sizeof(buf))
+		abort();
 
-	off = 32;
-	iv_avl_tree_for_each (an, &peers) {
-		struct peer *p;
-		uint16_t type;
-
-		p = iv_container_of(an, struct peer, an);
-		if (!p->up)
-			continue;
-
-		if (sizeof(buf) - off < 128)
-			break;
-
-		memcpy(buf + off, p->id, 32);
-		off += 32;
-
-		if (p->peer_type == PEER_TYPE_EPEER)
-			type = htons(0);
-		else if (p->peer_type == PEER_TYPE_CUSTOMER)
-			type = htons(1);
-		else if (p->peer_type == PEER_TYPE_TRANSIT)
-			type = htons(2);
-		else
-			type = htons(3);
-		memcpy(buf + off, &type, 2);
-		off += 2;
-	}
-
-	sendto(topo_fd.fd, buf, off, 0, (struct sockaddr *)&addr, sizeof(addr));
+	sendto(topo_fd.fd, buf, len, 0, (struct sockaddr *)&addr, addrlen);
 }
 
 static int start_topo_listener(void)
