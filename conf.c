@@ -218,7 +218,7 @@ add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 			cce->hostname[delim - connect] = 0;
 	}
 	asprintf(&cce->port, "%d", port);
-	memcpy(cce->fingerprint, fp, 20);
+	memcpy(cce->fingerprint, fp, 32);
 	cce->peer_type = peer_type;
 	cce->tunitf = strdup(itf ? : default_tap_name(peer_type));
 
@@ -400,7 +400,7 @@ add_listen_peer(struct local_conf *lc, const char *peer, const char *listen,
 
 	iv_list_add_tail(&cle->list, &cls->listen_entries);
 	cle->name = strdup(peer);
-	memcpy(cle->fingerprint, fp, 20);
+	memcpy(cle->fingerprint, fp, 32);
 	cle->peer_type = peer_type;
 	cle->tunitf = strdup(itf ? : default_tap_name(peer_type));
 
@@ -415,7 +415,7 @@ static int parse_config_peer(struct local_conf *lc,
 	const char *fp;
 	const char *peertype;
 	const char *itf;
-	uint8_t f[20];
+	uint8_t f[32];
 
 	connect = get_const_value(co, peer, "Connect");
 	listen = get_const_value(co, peer, "Listen");
@@ -432,12 +432,18 @@ static int parse_config_peer(struct local_conf *lc,
 		return -1;
 	}
 
-	if (sscanf(fp, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:"
-		       "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
-		   &f[0], &f[1], &f[2], &f[3], &f[4],
-		   &f[5], &f[6], &f[7], &f[8], &f[9],
-		   &f[10], &f[11], &f[12], &f[13], &f[14],
-		   &f[15], &f[16], &f[17], &f[18], &f[19]) != 20) {
+	if (sscanf(fp, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:"
+		       "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:"
+		       "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:"
+		       "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+		   &f[0], &f[1], &f[2], &f[3],
+		   &f[4], &f[5], &f[6], &f[7],
+		   &f[8], &f[9], &f[10], &f[11],
+		   &f[12], &f[13], &f[14], &f[15],
+		   &f[16], &f[17], &f[18], &f[19],
+		   &f[20], &f[21], &f[22], &f[23],
+		   &f[24], &f[25], &f[26], &f[27],
+		   &f[28], &f[29], &f[30], &f[31]) != 32) {
 		fprintf(stderr, "peer object for '%s' has an unparseable "
 				"PeerFingerprint '%s'\n", peer, fp);
 		return -1;

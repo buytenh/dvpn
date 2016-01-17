@@ -34,7 +34,7 @@
 struct node
 {
 	struct iv_list_head	list;
-	uint8_t			id[20];
+	uint8_t			id[32];
 	char			name[128];
 	struct iv_list_head	edges;
 
@@ -59,7 +59,7 @@ static struct node *find_node(uint8_t *id)
 
 	iv_list_for_each (lh, &nodes) {
 		n = iv_container_of(lh, struct node, list);
-		if (!memcmp(n->id, id, 20))
+		if (!memcmp(n->id, id, 32))
 			return n;
 	}
 
@@ -68,14 +68,20 @@ static struct node *find_node(uint8_t *id)
 		return NULL;
 
 	iv_list_add_tail(&n->list, &nodes);
-	memcpy(n->id, id, 20);
+	memcpy(n->id, id, 32);
 	snprintf(n->name, sizeof(n->name),
-		 "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:"
-		 "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x",
-		 id[0],  id[1],  id[2],  id[3],  id[4],
-		 id[5],  id[6],  id[7],  id[8],  id[9],
-		 id[10], id[11], id[12], id[13], id[14],
-		 id[15], id[16], id[17], id[18], id[19]);
+		 "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:"
+		 "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:"
+		 "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:"
+		 "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x",
+		 id[0],  id[1],  id[2],  id[3],
+		 id[4],  id[5],  id[6],  id[7],
+		 id[8],  id[9],  id[10], id[11],
+		 id[12], id[13], id[14], id[15],
+		 id[16], id[17], id[18], id[19],
+		 id[20], id[21], id[22], id[23],
+		 id[24], id[25], id[26], id[27],
+		 id[28], id[29], id[30], id[31]);
 	INIT_IV_LIST_HEAD(&n->edges);
 
 	return n;
@@ -114,11 +120,7 @@ static void query_node(int fd, struct node *n)
 
 	fprintf(stderr, "- %s...", n->name);
 
-	buf[0] = 0x20;
-	buf[1] = 0x01;
-	buf[2] = 0x00;
-	buf[3] = 0x2f;
-	memcpy(buf + 4, n->id + 4, 12);
+	v6_global_addr_from_key_id(buf, n->id, sizeof(n->id));
 
 	addr.sin6_family = AF_INET6;
 	addr.sin6_port = htons(19275);
@@ -145,19 +147,19 @@ static void query_node(int fd, struct node *n)
 
 	gettimeofday(&t2, NULL);
 
-	if (memcmp(n->id, buf, 20)) {
+	if (memcmp(n->id, buf, 32)) {
 		fprintf(stderr, " node ID mismatch\n");
 		return;
 	}
 
-	off = 20;
-	while (off + 22 <= ret) {
+	off = 32;
+	while (off + 34 <= ret) {
 		struct node *to;
 		int type;
 
 		to = find_node(buf + off);
-		type = ntohs(*((uint16_t *)(buf + off + 20)));
-		off += 22;
+		type = ntohs(*((uint16_t *)(buf + off + 32)));
+		off += 34;
 
 		if (type == 0)
 			add_edge(n, to, PEER_TYPE_EPEER);
@@ -462,7 +464,7 @@ int main(int argc, char *argv[])
 	const char *config = "/etc/dvpn.ini";
 	struct conf *conf;
 	gnutls_x509_privkey_t key;
-	uint8_t id[20];
+	uint8_t id[32];
 
 	while (1) {
 		int c;

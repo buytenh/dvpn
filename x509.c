@@ -97,7 +97,8 @@ ssize_t x509_get_key_id(uint8_t *id, size_t idlen, gnutls_x509_privkey_t key)
 		goto err_free_pub;
 
 	len = idlen;
-	ret = gnutls_pubkey_get_key_id(pubkey, 0, id, &len);
+	ret = gnutls_pubkey_get_key_id(pubkey, GNUTLS_KEYID_USE_SHA256,
+				       id, &len);
 	if (ret < 0)
 		goto err_free_pub;
 

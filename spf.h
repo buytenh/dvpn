@@ -22,7 +22,7 @@
 
 #include <iv_list.h>
 
-#define SPF_ID_LEN	20
+#define SPF_ID_LEN	32
 
 struct spf_context
 {

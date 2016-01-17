@@ -39,7 +39,7 @@ find_connect_entry(struct conf *conf, struct conf_connect_entry *_cce)
 			continue;
 		if (strcmp(cce->port, _cce->port))
 			continue;
-		if (memcmp(cce->fingerprint, _cce->fingerprint, 20))
+		if (memcmp(cce->fingerprint, _cce->fingerprint, 32))
 			continue;
 		if (cce->peer_type != _cce->peer_type)
 			continue;
@@ -144,7 +144,7 @@ find_listen_entry(struct conf_listening_socket *cls,
 
 		if (strcmp(cle->name, _cle->name))
 			continue;
-		if (memcmp(cle->fingerprint, _cle->fingerprint, 20))
+		if (memcmp(cle->fingerprint, _cle->fingerprint, 32))
 			continue;
 		if (cle->peer_type != _cle->peer_type)
 			continue;

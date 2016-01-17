@@ -57,7 +57,7 @@ static int verify_key_id(void *_sp, const uint8_t *id, int len)
 	fprintf(stderr, "%s: peer key ID ", sp->name);
 	printhex(stderr, id, len);
 
-	if (memcmp(sp->fingerprint, id, 20)) {
+	if (memcmp(sp->fingerprint, id, 32)) {
 		fprintf(stderr, " - mismatch\n");
 		return 1;
 	}
@@ -105,9 +105,10 @@ static void send_keepalive(void *_sp)
 static void handshake_done(void *_sp, char *desc)
 {
 	struct server_peer *sp = _sp;
-	uint8_t id[64];
 	int i;
 	socklen_t len;
+	uint8_t id[32];
+	uint8_t addr[16];
 
 	fprintf(stderr, "%s: handshake done, using %s\n", sp->name, desc);
 
@@ -152,21 +153,18 @@ static void handshake_done(void *_sp, char *desc)
 
 	x509_get_key_id(id, sizeof(id), sp->key);
 
-	id[0] = 0xfe;
-	id[1] = 0x80;
-	itf_add_addr_v6(tun_interface_get_name(&sp->tun), id, 10);
+	v6_linklocal_addr_from_key_id(addr, id, sizeof(id));
+	itf_add_addr_v6(tun_interface_get_name(&sp->tun), addr, 10);
 
-	id[0] = 0x20;
-	id[1] = 0x01;
-	id[2] = 0x00;
-	id[3] = 0x2f;
+	v6_global_addr_from_key_id(addr, id, sizeof(id));
 	if (sp->peer_type != PEER_TYPE_TRANSIT) {
-		itf_add_addr_v6(tun_interface_get_name(&sp->tun), id, 128);
+		itf_add_addr_v6(tun_interface_get_name(&sp->tun), addr, 128);
 
-		memcpy(id + 4, sp->fingerprint + 4, 12);
-		itf_add_route_v6(tun_interface_get_name(&sp->tun), id, 128);
+		v6_global_addr_from_key_id(addr, sp->fingerprint,
+					   sizeof(sp->fingerprint));
+		itf_add_route_v6(tun_interface_get_name(&sp->tun), addr, 128);
 	} else {
-		itf_add_addr_v6(tun_interface_get_name(&sp->tun), id, 32);
+		itf_add_addr_v6(tun_interface_get_name(&sp->tun), addr, 32);
 	}
 
 	sp->set_state(sp->cookie, 1);

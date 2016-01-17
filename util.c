@@ -19,6 +19,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "util.h"
 
 const char *peer_type_name(enum peer_type type)
@@ -69,4 +70,26 @@ void printhex(FILE *fp, const uint8_t *a, int len)
 		if (i < len - 1)
 			fprintf(fp, ":");
 	}
+}
+
+void v6_global_addr_from_key_id(uint8_t *addr, uint8_t *id, int keylen)
+{
+	if (keylen < 12)
+		abort();
+
+	addr[0] = 0x20;
+	addr[1] = 0x01;
+	addr[2] = 0x00;
+	addr[3] = 0x2f;
+	memcpy(addr + 4, id + ((keylen - 12) / 2), 12);
+}
+
+void v6_linklocal_addr_from_key_id(uint8_t *addr, uint8_t *id, int keylen)
+{
+	if (keylen < 14)
+		abort();
+
+	addr[0] = 0xfe;
+	addr[1] = 0x80;
+	memcpy(addr + 2, id + ((keylen - 14) / 2), 14);
 }

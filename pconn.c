@@ -616,7 +616,8 @@ static int pconn_verify_cert(gnutls_session_t sess)
 	}
 
 	len = sizeof(buf);
-	ret = gnutls_pubkey_get_key_id(peerkey, 0, buf, &len);
+	ret = gnutls_pubkey_get_key_id(peerkey, GNUTLS_KEYID_USE_SHA256,
+				       buf, &len);
 	if (ret) {
 		gtls_perror("gnutls_pubkey_get_key_id", ret);
 		goto err_free_key;

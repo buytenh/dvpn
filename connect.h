@@ -35,7 +35,7 @@ struct server_peer
 	char			*hostname;
 	char			*port;
 	gnutls_x509_privkey_t	key;
-	uint8_t			fingerprint[20];
+	uint8_t			fingerprint[32];
 	enum peer_type		peer_type;
 	void			*cookie;
 	void			(*set_state)(void *cookie, int up);

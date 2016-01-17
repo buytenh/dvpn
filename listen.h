@@ -40,7 +40,7 @@ struct listen_entry
 	struct listening_socket	*ls;
 	char			*tunitf;
 	char			*name;
-	uint8_t			fingerprint[20];
+	uint8_t			fingerprint[32];
 	enum peer_type		peer_type;
 	void			*cookie;
 	void			(*set_state)(void *cookie, int up);

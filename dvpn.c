@@ -42,7 +42,7 @@ static int compare_peers(struct iv_avl_node *_a, struct iv_avl_node *_b)
 	struct peer *a = iv_container_of(_a, struct peer, an);
 	struct peer *b = iv_container_of(_b, struct peer, an);
 
-	return memcmp(a->id, b->id, 20);
+	return memcmp(a->id, b->id, 32);
 }
 
 static void got_topo_request(void *_dummy)
@@ -63,9 +63,9 @@ static void got_topo_request(void *_dummy)
 		return;
 	}
 
-	x509_get_key_id(buf, 20, key);
+	x509_get_key_id(buf, 32, key);
 
-	off = 20;
+	off = 32;
 	iv_avl_tree_for_each (an, &peers) {
 		struct peer *p;
 		uint16_t type;
@@ -77,8 +77,8 @@ static void got_topo_request(void *_dummy)
 		if (sizeof(buf) - off < 128)
 			break;
 
-		memcpy(buf + off, p->id, 20);
-		off += 20;
+		memcpy(buf + off, p->id, 32);
+		off += 32;
 
 		if (p->peer_type == PEER_TYPE_EPEER)
 			type = htons(0);
@@ -99,7 +99,8 @@ static int start_topo_listener(void)
 {
 	int fd;
 	int yes;
-	uint8_t id[20];
+	uint8_t id[32];
+	uint8_t a[16];
 	struct sockaddr_in6 addr;
 
 	fd = socket(AF_INET6, SOCK_DGRAM, 0);
@@ -115,16 +116,13 @@ static int start_topo_listener(void)
 		return 1;
 	}
 
-	x509_get_key_id(id, 20, key);
-	id[0] = 0x20;
-	id[1] = 0x01;
-	id[2] = 0x00;
-	id[3] = 0x2f;
+	x509_get_key_id(id, 32, key);
+	v6_global_addr_from_key_id(a, id, sizeof(id));
 
 	addr.sin6_family = AF_INET6;
 	addr.sin6_port = htons(19275);
 	addr.sin6_flowinfo = 0;
-	memcpy(&addr.sin6_addr, id, 16);
+	memcpy(&addr.sin6_addr, a, 16);
 	addr.sin6_scope_id = 0;
 	if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 		perror("start_topo_listener: bind");
@@ -161,7 +159,7 @@ static int start_conf_connect_entry(struct conf_connect_entry *cce)
 	cce->sp.hostname = cce->hostname;
 	cce->sp.port = cce->port;
 	cce->sp.key = key;
-	memcpy(cce->sp.fingerprint, cce->fingerprint, 20);
+	memcpy(cce->sp.fingerprint, cce->fingerprint, 32);
 	cce->sp.peer_type = cce->peer_type;
 	cce->sp.cookie = cce;
 	cce->sp.set_state = connect_set_state;
@@ -170,7 +168,7 @@ static int start_conf_connect_entry(struct conf_connect_entry *cce)
 
 	cce->registered = 1;
 
-	memcpy(cce->peer.id, cce->fingerprint, 20);
+	memcpy(cce->peer.id, cce->fingerprint, 32);
 	cce->peer.peer_type = cce->peer_type;
 	cce->peer.up = 0;
 	iv_avl_tree_insert(&peers, &cce->peer.an);
@@ -191,7 +189,7 @@ static int start_conf_listen_entry(struct conf_listening_socket *cls,
 	cle->le.ls = &cls->ls;
 	cle->le.tunitf = cle->tunitf;
 	cle->le.name = cle->name;
-	memcpy(cle->le.fingerprint, cle->fingerprint, 20);
+	memcpy(cle->le.fingerprint, cle->fingerprint, 32);
 	cle->le.peer_type = cle->peer_type;
 	cle->le.cookie = cle;
 	cle->le.set_state = listen_set_state;
@@ -200,7 +198,7 @@ static int start_conf_listen_entry(struct conf_listening_socket *cls,
 
 	cle->registered = 1;
 
-	memcpy(cle->peer.id, cle->fingerprint, 20);
+	memcpy(cle->peer.id, cle->fingerprint, 32);
 	cle->peer.peer_type = cle->peer_type;
 	cle->peer.up = 0;
 	iv_avl_tree_insert(&peers, &cle->peer.an);
@@ -391,7 +389,7 @@ static void got_sigusr1(void *_dummy)
 
 		p = iv_container_of(an, struct peer, an);
 
-		printhex(stderr, p->id, 20);
+		printhex(stderr, p->id, 32);
 		fprintf(stderr, " - ");
 		fprintf(stderr, "%s\n", p->up ? "up" : "down");
 	}
