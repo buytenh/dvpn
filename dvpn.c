@@ -31,6 +31,7 @@
 #include "dvpn.h"
 #include "listen.h"
 #include "lsa.h"
+#include "lsa_dump.h"
 #include "lsa_type.h"
 #include "util.h"
 #include "x509.h"
@@ -449,6 +450,10 @@ static void got_sigusr1(void *_dummy)
 		fprintf(stderr, " - ");
 		fprintf(stderr, "%s\n", p->up ? "up" : "down");
 	}
+
+	fprintf(stderr, "\n");
+
+	lsa_dump(stderr, me);
 
 	fprintf(stderr, "======================================="
 			"=======================================\n");

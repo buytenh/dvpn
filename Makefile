@@ -13,8 +13,8 @@ install:	dvpn
 		install -m 0755 dvpn /usr/bin
 		install -m 0644 dvpn.service /usr/lib/systemd/system
 
-dvpn:		dvpn.c conf.c conf.h confdiff.c confdiff.h connect.c connect.h itf.c itf.h iv_getaddrinfo.c iv_getaddrinfo.h listen.c listen.h lsa.c lsa.h lsa_type.h pconn.c pconn.h tun.c tun.h util.c util.h x509.c x509.h
-		gcc -Wall -g -o dvpn dvpn.c conf.c confdiff.c connect.c itf.c iv_getaddrinfo.c listen.c lsa.c pconn.c tun.c util.c x509.c -lgnutls -lini_config -livykis
+dvpn:		dvpn.c conf.c conf.h confdiff.c confdiff.h connect.c connect.h itf.c itf.h iv_getaddrinfo.c iv_getaddrinfo.h listen.c listen.h lsa.c lsa.h lsa_dump.c lsa_dump.h lsa_type.h pconn.c pconn.h tun.c tun.h util.c util.h x509.c x509.h
+		gcc -Wall -g -o dvpn dvpn.c conf.c confdiff.c connect.c itf.c iv_getaddrinfo.c listen.c lsa.c lsa_dump.c pconn.c tun.c util.c x509.c -lgnutls -lini_config -livykis
 
 topowalk:	topowalk.c conf.c conf.h cspf.c cspf.h spf.c spf.h util.c util.h x509.c x509.h
 		gcc -Wall -g -o topowalk topowalk.c conf.c cspf.c spf.c util.c x509.c -lgnutls -lini_config
