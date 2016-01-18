@@ -132,6 +132,20 @@ struct rib_listener *debug_listener_new(char *name)
 	return rl;
 }
 
+void debug_listener_set_name(struct rib_listener *rl, uint8_t *name, int len)
+{
+	if (strlen(rl->cookie) != len || memcmp(rl->cookie, name, len)) {
+		free(rl->cookie);
+
+		rl->cookie = malloc(len + 1);
+		if (rl->cookie == NULL)
+			abort();
+
+		memcpy(rl->cookie, name, len);
+		((uint8_t *)rl->cookie)[len] = 0;
+	}
+}
+
 void debug_listener_free(struct rib_listener *rl)
 {
 	free(rl->cookie);

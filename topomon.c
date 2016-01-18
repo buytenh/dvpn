@@ -28,6 +28,7 @@
 #include "conf.h"
 #include "lsa.h"
 #include "lsa_deserialise.h"
+#include "lsa_type.h"
 #include "x509.h"
 
 struct qpeer {
@@ -59,6 +60,7 @@ static void got_response(void *_qpeer)
 	socklen_t addrlen;
 	int ret;
 	struct lsa *lsa;
+	struct iv_avl_node *an;
 
 	addrlen = sizeof(recvaddr);
 
@@ -80,6 +82,16 @@ static void got_response(void *_qpeer)
 		fprintf(stderr, "node ID mismatch\n");
 		lsa_put(lsa);
 		return;
+	}
+
+	iv_avl_tree_for_each (an, &lsa->attrs) {
+		struct lsa_attr *attr;
+
+		attr = iv_container_of(an, struct lsa_attr, an);
+		if (attr->type == LSA_ATTR_TYPE_NODE_NAME) {
+			debug_listener_set_name(qpeer->debug_listener,
+						attr->data, attr->datalen);
+		}
 	}
 
 	adj_rib_add_lsa(qpeer->adj_rib_in, lsa);

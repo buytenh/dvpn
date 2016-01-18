@@ -32,6 +32,7 @@ struct rib_listener {
 };
 
 struct rib_listener *debug_listener_new(char *name);
+void debug_listener_set_name(struct rib_listener *rl, uint8_t *name, int len);
 void debug_listener_free(struct rib_listener *rl);
 
 
