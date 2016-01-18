@@ -23,6 +23,21 @@
 #include "lsa.h"
 #include "lsa_type.h"
 
+int lsa_path_contains(struct lsa_attr *attr, uint8_t *id)
+{
+	int i;
+
+	if (attr->type != LSA_ATTR_TYPE_ADV_PATH)
+		abort();
+
+	for (i = 0; i < attr->datalen; i += 32) {
+		if (!memcmp(attr->data + i, id, 32))
+			return 1;
+	}
+
+	return 0;
+}
+
 void lsa_path_prepend(struct lsa *lsa, uint8_t *id)
 {
 	struct lsa_attr *attr;

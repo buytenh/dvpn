@@ -46,6 +46,13 @@ struct lsa *lsa_alloc(uint8_t *id)
 	return lsa;
 }
 
+struct lsa *lsa_get(struct lsa *lsa)
+{
+	lsa->refcount++;
+
+	return lsa;
+}
+
 static void lsa_attr_free(struct lsa_attr *attr)
 {
 	if (attr->key != NULL)

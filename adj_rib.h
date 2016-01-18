@@ -17,38 +17,27 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#ifndef __LSA_H
-#define __LSA_H
+#ifndef __ADJ_RIB_H
+#define __ADJ_RIB_H
 
 #include <iv_avl.h>
+#include <iv_list.h>
+#include "lsa.h"
+#include "rib_listener.h"
 
-struct lsa {
-	int			refcount;
-	uint8_t			id[32];
-	struct iv_avl_tree	attrs;
+struct adj_rib {
+	uint8_t			myid[32];
+	uint8_t			remoteid[32];
+	struct iv_avl_tree	lsas;
+	struct iv_list_head	listeners;
 };
 
-struct lsa *lsa_alloc(uint8_t *id);
-struct lsa *lsa_get(struct lsa *lsa);
-void lsa_put(struct lsa *lsa);
-struct lsa *lsa_clone(struct lsa *lsa);
-
-struct lsa_attr {
-	struct iv_avl_node	an;
-	int			type;
-	int			keylen;
-	void			*key;
-	int			datalen;
-	void			*data;
-};
-
-int lsa_attr_compare_keys(struct lsa_attr *a, struct lsa_attr *b);
-struct lsa_attr *lsa_attr_find(struct lsa *lsa, int type,
-			       void *key, int keylen);
-void lsa_attr_add(struct lsa *lsa, int type, void *key, int keylen,
-		  void *data, int datalen);
-void lsa_attr_del(struct lsa *lsa, struct lsa_attr *attr);
-void lsa_attr_del_key(struct lsa *lsa, int type, void *key, int keylen);
+struct adj_rib *adj_rib_alloc(uint8_t *myid, uint8_t *remoteid);
+void adj_rib_add_lsa(struct adj_rib *rib, struct lsa *lsa);
+void adj_rib_flush(struct adj_rib *rib);
+void adj_rib_free(struct adj_rib *rib);
+void adj_rib_listener_register(struct adj_rib *rib, struct rib_listener *rl);
+void adj_rib_listener_unregister(struct adj_rib *rib, struct rib_listener *rl);
 
 
 #endif

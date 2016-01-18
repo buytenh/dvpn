@@ -17,38 +17,22 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#ifndef __LSA_H
-#define __LSA_H
+#ifndef __RIB_LISTENER_H
+#define __RIB_LISTENER_H
 
-#include <iv_avl.h>
+#include "lsa.h"
 
-struct lsa {
-	int			refcount;
-	uint8_t			id[32];
-	struct iv_avl_tree	attrs;
+struct rib_listener {
+	void			*cookie;
+	void			(*lsa_add)(void *, struct lsa *);
+	void			(*lsa_mod)(void *, struct lsa *, struct lsa *);
+	void			(*lsa_del)(void *, struct lsa *);
+
+	struct iv_list_head	list;
 };
 
-struct lsa *lsa_alloc(uint8_t *id);
-struct lsa *lsa_get(struct lsa *lsa);
-void lsa_put(struct lsa *lsa);
-struct lsa *lsa_clone(struct lsa *lsa);
-
-struct lsa_attr {
-	struct iv_avl_node	an;
-	int			type;
-	int			keylen;
-	void			*key;
-	int			datalen;
-	void			*data;
-};
-
-int lsa_attr_compare_keys(struct lsa_attr *a, struct lsa_attr *b);
-struct lsa_attr *lsa_attr_find(struct lsa *lsa, int type,
-			       void *key, int keylen);
-void lsa_attr_add(struct lsa *lsa, int type, void *key, int keylen,
-		  void *data, int datalen);
-void lsa_attr_del(struct lsa *lsa, struct lsa_attr *attr);
-void lsa_attr_del_key(struct lsa *lsa, int type, void *key, int keylen);
+struct rib_listener *debug_listener_new(char *name);
+void debug_listener_free(struct rib_listener *rl);
 
 
 #endif

@@ -24,6 +24,19 @@
 #include "lsa.h"
 #include "lsa_diff.h"
 
+static void dummy_attr_add(void *cookie, struct lsa_attr *attr)
+{
+}
+
+static void
+dummy_attr_mod(void *cookie, struct lsa_attr *aattr, struct lsa_attr *battr)
+{
+}
+
+static void dummy_attr_del(void *cookie, struct lsa_attr *attr)
+{
+}
+
 int lsa_diff(struct lsa *a, struct lsa *b, void *cookie,
 	     void (*attr_add)(void *, struct lsa_attr *),
 	     void (*attr_mod)(void *, struct lsa_attr *, struct lsa_attr *),
@@ -32,6 +45,13 @@ int lsa_diff(struct lsa *a, struct lsa *b, void *cookie,
 	struct iv_avl_node *anode;
 	struct iv_avl_node *bnode;
 	int diffs;
+
+	if (attr_add == NULL)
+		attr_add = dummy_attr_add;
+	if (attr_mod == NULL)
+		attr_mod = dummy_attr_mod;
+	if (attr_del == NULL)
+		attr_del = dummy_attr_del;
 
 	if (a != NULL)
 		anode = iv_avl_tree_min(&a->attrs);

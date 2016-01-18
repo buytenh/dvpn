@@ -24,72 +24,18 @@
 #include <iv.h>
 #include <iv_signal.h>
 #include <string.h>
+#include "adj_rib.h"
 #include "conf.h"
 #include "lsa.h"
 #include "lsa_deserialise.h"
-#include "lsa_diff.h"
-#include "lsa_print.h"
 #include "x509.h"
 
 static uint8_t nodeid[32];
 static struct iv_fd topo_query_fd;
 static struct sockaddr_in6 topo_query_addr;
 static struct iv_timer topo_query_timer;
-static struct lsa *lsa;
-
-static void attr_add(void *cookie, struct lsa_attr *attr)
-{
-	char t[128];
-
-	printf("new attr: %s", lsa_attr_type_name(attr->type, t, sizeof(t)));
-
-	if (attr->keylen) {
-		printf("[");
-		printhex(stdout, attr->key, attr->keylen);
-		printf("]");
-	}
-
-	printf(" = [");
-	printhex(stdout, attr->data, attr->datalen);
-	printf("]\n");
-}
-
-static void
-attr_mod(void *cookie, struct lsa_attr *aattr, struct lsa_attr *battr)
-{
-	char t[128];
-
-	printf("mod attr: %s", lsa_attr_type_name(aattr->type, t, sizeof(t)));
-
-	if (aattr->keylen) {
-		printf("[");
-		printhex(stdout, aattr->key, aattr->keylen);
-		printf("]");
-	}
-
-	printf(" = [");
-	printhex(stdout, aattr->data, aattr->datalen);
-	printf("] -> [");
-	printhex(stdout, battr->data, battr->datalen);
-	printf("]\n");
-}
-
-static void attr_del(void *cookie, struct lsa_attr *attr)
-{
-	char t[128];
-
-	printf("del attr: %s", lsa_attr_type_name(attr->type, t, sizeof(t)));
-
-	if (attr->keylen) {
-		printf("[");
-		printhex(stdout, attr->key, attr->keylen);
-		printf("]");
-	}
-
-	printf(" = [");
-	printhex(stdout, attr->data, attr->datalen);
-	printf("]\n");
-}
+static struct adj_rib *rib_in;
+static struct rib_listener *debug_listener;
 
 static void got_response(void *_dummy)
 {
@@ -111,6 +57,7 @@ static void got_response(void *_dummy)
 	newlsa = lsa_deserialise(buf, ret);
 	if (newlsa == NULL) {
 		fprintf(stderr, "error deserialising LSA\n");
+		adj_rib_flush(rib_in);
 		return;
 	}
 
@@ -120,14 +67,9 @@ static void got_response(void *_dummy)
 		return;
 	}
 
-	if (!lsa_diff(lsa, newlsa, NULL, attr_add, attr_mod, attr_del)) {
-		lsa_put(newlsa);
-		return;
-	}
+	adj_rib_add_lsa(rib_in, newlsa);
 
-	if (lsa != NULL)
-		lsa_put(lsa);
-	lsa = newlsa;
+	lsa_put(newlsa);
 }
 
 static void topo_query_timer_expiry(void *_dummy)
@@ -171,6 +113,7 @@ int main(int argc, char *argv[])
 	gnutls_x509_privkey_t key;
 	int fd;
 	uint8_t nodeaddr[16];
+	uint8_t zeroid[32];
 
 	while (1) {
 		int c;
@@ -238,7 +181,12 @@ int main(int argc, char *argv[])
 	topo_query_timer.handler = topo_query_timer_expiry;
 	iv_timer_register(&topo_query_timer);
 
-	lsa = NULL;
+	memset(zeroid, 0, 32);
+
+	rib_in = adj_rib_alloc(zeroid, nodeid);
+
+	debug_listener = debug_listener_new("topomon");
+	adj_rib_listener_register(rib_in, debug_listener);
 
 	IV_SIGNAL_INIT(&sigint);
 	sigint.signum = SIGINT;
@@ -251,8 +199,10 @@ int main(int argc, char *argv[])
 
 	iv_deinit();
 
-	if (lsa != NULL)
-		lsa_put(lsa);
+	adj_rib_listener_unregister(rib_in, debug_listener);
+	debug_listener_free(debug_listener);
+
+	adj_rib_free(rib_in);
 
 	return 0;
 }
