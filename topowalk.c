@@ -19,6 +19,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <getopt.h>
 #include <gnutls/x509.h>
 #include <iv.h>
@@ -127,6 +128,28 @@ static enum peer_type lsa_peer_type_to_peer_type(enum lsa_peer_type type)
 	}
 }
 
+static void set_node_name(struct node *n, uint8_t *data, int datalen)
+{
+	int tocopy;
+	int i;
+
+	tocopy = sizeof(n->name) - 1;
+	if (tocopy > datalen)
+		tocopy = datalen;
+
+	for (i = 0; i < tocopy; i++) {
+		uint8_t c;
+
+		c = data[i];
+		if (isalnum(c))
+			n->name[i] = c;
+		else
+			n->name[i] = 'X';
+	}
+
+	n->name[tocopy] = 0;
+}
+
 static void query_node(int fd, struct node *n)
 {
 	struct sockaddr_in6 addr;
@@ -182,28 +205,30 @@ static void query_node(int fd, struct node *n)
 
 	iv_avl_tree_for_each (an, &lsa->attrs) {
 		struct lsa_attr *attr;
-		struct node *to;
-		struct lsa_attr_peer *data;
-		int metric;
-		enum peer_type peer_type;
 
 		attr = iv_container_of(an, struct lsa_attr, an);
-		if (attr->type != LSA_ATTR_TYPE_PEER)
-			continue;
+		if (attr->type == LSA_ATTR_TYPE_PEER) {
+			struct node *to;
+			struct lsa_attr_peer *data;
+			int metric;
+			enum peer_type peer_type;
 
-		if (attr->keylen != 32)
-			continue;
-		to = find_node(attr->key);
+			if (attr->keylen != 32)
+				continue;
+			to = find_node(attr->key);
 
-		if (attr->datalen < sizeof(*data))
-			continue;
-		data = attr->data;
+			if (attr->datalen < sizeof(*data))
+				continue;
+			data = attr->data;
 
-		metric = ntohs(data->metric);
-		peer_type = lsa_peer_type_to_peer_type(data->peer_type);
+			metric = ntohs(data->metric);
+			peer_type = lsa_peer_type_to_peer_type(data->peer_type);
 
-		if (peer_type != PEER_TYPE_INVALID)
-			add_edge(n, to, metric, peer_type);
+			if (peer_type != PEER_TYPE_INVALID)
+				add_edge(n, to, metric, peer_type);
+		} else if (attr->type == LSA_ATTR_TYPE_NODE_NAME) {
+			set_node_name(n, attr->data, attr->datalen);
+		}
 	}
 
 out:
@@ -235,36 +260,6 @@ static void scan(uint8_t *initial_id)
 	fprintf(stderr, "\n");
 
 	close(fd);
-}
-
-static void map_node_names(void)
-{
-	FILE *fp;
-
-	fp = fopen("ids", "r");
-	if (fp == NULL)
-		return;
-
-	while (!feof(fp)) {
-		char id[128];
-		char name[128];
-		struct iv_list_head *lh;
-
-		if (fscanf(fp, "%s %s", id, name) != 2)
-			break;
-
-		iv_list_for_each (lh, &nodes) {
-			struct node *n;
-
-			n = iv_container_of(lh, struct node, list);
-			if (!strcmp(n->name, id)) {
-				strcpy(n->name, name);
-				break;
-			}
-		}
-	}
-
-	fclose(fp);
 }
 
 static void print_nodes(FILE *fp)
@@ -541,7 +536,6 @@ int main(int argc, char *argv[])
 
 	scan(id);
 
-	map_node_names();
 	print_nodes(stderr);
 
 	do_cspfs();
