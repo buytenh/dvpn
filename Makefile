@@ -27,6 +27,7 @@ test:		client.ini client.key dvpn server.ini server.key
 
 client.ini:	server.key dvpn
 		@echo PrivateKey=client.key > client.ini
+		@echo NodeName=client >> client.ini
 		@echo >> client.ini
 		@echo [local] >> client.ini
 		@echo Connect=localhost:19275 >> client.ini
@@ -39,6 +40,7 @@ client.key:
 
 server.ini:	client.key dvpn
 		@echo PrivateKey=server.key > server.ini
+		@echo NodeName=server >> server.ini
 		@echo >> server.ini
 		@echo [local] >> server.ini
 		@echo Listen=0.0.0.0:19275 >> server.ini
