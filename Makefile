@@ -15,13 +15,13 @@ install:	dvpn
 		install -m 0644 dvpn.service /usr/lib/systemd/system
 
 dvpn:		dvpn.c conf.c conf.h confdiff.c confdiff.h connect.c connect.h itf.c itf.h iv_getaddrinfo.c iv_getaddrinfo.h listen.c listen.h lsa.c lsa.h lsa_path.c lsa_path.h lsa_print.c lsa_print.h lsa_serialise.c lsa_serialise.h lsa_type.h pconn.c pconn.h tun.c tun.h util.c util.h x509.c x509.h
-		gcc -Wall -g -o dvpn dvpn.c conf.c confdiff.c connect.c itf.c iv_getaddrinfo.c listen.c lsa.c lsa_path.c lsa_print.c lsa_serialise.c pconn.c tun.c util.c x509.c -lgnutls -lini_config -livykis
+		gcc -Wall -g -o dvpn dvpn.c conf.c confdiff.c connect.c itf.c iv_getaddrinfo.c listen.c lsa.c lsa_path.c lsa_print.c lsa_serialise.c pconn.c tun.c util.c x509.c -lgnutls -lini_config -livykis -lnettle
 
 topomon:	topomon.c adj_rib.c adj_rib.h conf.c conf.h lsa.c lsa.h lsa_deserialise.c lsa_deserialise.h lsa_diff.c lsa_diff.h lsa_path.c lsa_path.h lsa_print.c lsa_print.h rib_listener_debug.c rib_listener.h util.c util.h x509.c x509.h
-		gcc -Wall -g -o topomon topomon.c adj_rib.c conf.c lsa.c lsa_deserialise.c lsa_diff.c lsa_path.c lsa_print.c rib_listener_debug.c util.c x509.c -lgnutls -lini_config -livykis
+		gcc -Wall -g -o topomon topomon.c adj_rib.c conf.c lsa.c lsa_deserialise.c lsa_diff.c lsa_path.c lsa_print.c rib_listener_debug.c util.c x509.c -lgnutls -lini_config -livykis -lnettle
 
 topowalk:	topowalk.c conf.c conf.h cspf.c cspf.h lsa.c lsa.h lsa_deserialise.c lsa_deserialise.h lsa_type.h spf.c spf.h util.c util.h x509.c x509.h
-		gcc -Wall -g -o topowalk topowalk.c conf.c cspf.c lsa.c lsa_deserialise.c spf.c util.c x509.c -lgnutls -lini_config -livykis
+		gcc -Wall -g -o topowalk topowalk.c conf.c cspf.c lsa.c lsa_deserialise.c spf.c util.c x509.c -lgnutls -lini_config -livykis -lnettle
 
 test:		client.ini client.key dvpn server.ini server.key
 

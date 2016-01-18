@@ -170,7 +170,7 @@ static void handshake_done(void *_cc, char *desc)
 
 	itf_set_state(tun_interface_get_name(&le->tun), 1);
 
-	x509_get_key_id(id, sizeof(id), cc->ls->key);
+	x509_get_key_id(id, cc->ls->key);
 
 	v6_linklocal_addr_from_key_id(addr, id, sizeof(id));
 	itf_add_addr_v6(tun_interface_get_name(&le->tun), id, 10);

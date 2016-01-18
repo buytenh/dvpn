@@ -151,7 +151,7 @@ static void handshake_done(void *_sp, char *desc)
 
 	itf_set_state(tun_interface_get_name(&sp->tun), 1);
 
-	x509_get_key_id(id, sizeof(id), sp->key);
+	x509_get_key_id(id, sp->key);
 
 	v6_linklocal_addr_from_key_id(addr, id, sizeof(id));
 	itf_add_addr_v6(tun_interface_get_name(&sp->tun), addr, 10);

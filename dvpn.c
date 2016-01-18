@@ -459,9 +459,9 @@ static int show_key_id(const char *file)
 
 	ret = x509_read_privkey(&key, file);
 	if (ret == 0) {
-		ret = x509_get_key_id(keyid, sizeof(keyid), key);
-		if (ret >= 0) {
-			printhex(stdout, keyid, ret);
+		ret = x509_get_key_id(keyid, key);
+		if (ret == 0) {
+			printhex(stdout, keyid, 32);
 			printf("\n");
 		}
 		gnutls_x509_privkey_deinit(key);
@@ -513,7 +513,7 @@ int main(int argc, char *argv[])
 	if (x509_read_privkey(&key, conf->private_key) < 0)
 		return 1;
 
-	if (x509_get_key_id(keyid, sizeof(keyid), key) < 0)
+	if (x509_get_key_id(keyid, key) < 0)
 		return 1;
 
 	fprintf(stderr, "dvpn: using key ID ");

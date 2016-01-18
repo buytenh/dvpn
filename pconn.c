@@ -572,8 +572,7 @@ static int pconn_verify_cert(gnutls_session_t sess)
 	gnutls_x509_crt_t peercert;
 	int ret;
 	gnutls_pubkey_t peerkey;
-	uint8_t buf[256];
-	size_t len;
+	uint8_t peerid[32];
 
 	/*
 	 * TBD: @@@
@@ -615,9 +614,7 @@ static int pconn_verify_cert(gnutls_session_t sess)
 		goto err_free_key;
 	}
 
-	len = sizeof(buf);
-	ret = gnutls_pubkey_get_key_id(peerkey, GNUTLS_KEYID_USE_SHA256,
-				       buf, &len);
+	ret = get_sha256_pubkey_id(peerid, peerkey);
 	if (ret) {
 		gtls_perror("gnutls_pubkey_get_key_id", ret);
 		goto err_free_key;
@@ -627,9 +624,9 @@ static int pconn_verify_cert(gnutls_session_t sess)
 		int i;
 
 		fprintf(stderr, "%p: ", pc);
-		for (i = 0; i < len; i++) {
-			fprintf(stderr, "%.2x", buf[i]);
-			if (i < len - 1)
+		for (i = 0; i < sizeof(peerid); i++) {
+			fprintf(stderr, "%.2x", peerid[i]);
+			if (i < sizeof(peerid) - 1)
 				fprintf(stderr, ":");
 		}
 		fprintf(stderr, "\n");
@@ -648,7 +645,7 @@ static int pconn_verify_cert(gnutls_session_t sess)
 	gnutls_pubkey_deinit(peerkey);
 	gnutls_x509_crt_deinit(peercert);
 
-	return pc->verify_key_id(pc->cookie, buf, len);
+	return pc->verify_key_id(pc->cookie, peerid, sizeof(peerid));
 
 err_free_key:
 	gnutls_pubkey_deinit(peerkey);

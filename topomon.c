@@ -168,7 +168,7 @@ static void qpeer_add_config(const char *config)
 
 	free_config(conf);
 
-	x509_get_key_id(id, sizeof(id), key);
+	x509_get_key_id(id, key);
 
 	gnutls_x509_privkey_deinit(key);
 

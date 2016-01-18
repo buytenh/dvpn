@@ -526,7 +526,7 @@ int main(int argc, char *argv[])
 	if (x509_read_privkey(&key, conf->private_key) < 0)
 		return 1;
 
-	x509_get_key_id(id, sizeof(id), key);
+	x509_get_key_id(id, key);
 
 	gnutls_x509_privkey_deinit(key);
 

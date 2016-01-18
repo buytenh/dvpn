@@ -23,6 +23,7 @@
 #include <gnutls/gnutls.h>
 #include <gnutls/abstract.h>
 #include <gnutls/x509.h>
+#include <nettle/sha2.h>
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>
@@ -73,12 +74,31 @@ int x509_read_privkey(gnutls_x509_privkey_t *key, const char *file)
 	return 0;
 }
 
-ssize_t x509_get_key_id(uint8_t *id, size_t idlen, gnutls_x509_privkey_t key)
+int get_sha256_pubkey_id(uint8_t *id, gnutls_pubkey_t pubkey)
+{
+	uint8_t buf[65536];
+	size_t len;
+	int ret;
+	struct sha256_ctx ctx;
+
+	len = sizeof(buf);
+
+	ret = gnutls_pubkey_export(pubkey, GNUTLS_X509_FMT_DER, buf, &len);
+	if (ret < 0)
+		return ret;
+
+	sha256_init(&ctx);
+	sha256_update(&ctx, len, buf);
+	sha256_digest(&ctx, SHA256_DIGEST_SIZE, id);
+
+	return 0;
+}
+
+int x509_get_key_id(uint8_t *id, gnutls_x509_privkey_t key)
 {
 	gnutls_privkey_t privkey;
 	int ret;
 	gnutls_pubkey_t pubkey;
-	size_t len;
 
 	ret = gnutls_privkey_init(&privkey);
 	if (ret < 0)
@@ -96,16 +116,14 @@ ssize_t x509_get_key_id(uint8_t *id, size_t idlen, gnutls_x509_privkey_t key)
 	if (ret < 0)
 		goto err_free_pub;
 
-	len = idlen;
-	ret = gnutls_pubkey_get_key_id(pubkey, GNUTLS_KEYID_USE_SHA256,
-				       id, &len);
+	ret = get_sha256_pubkey_id(id, pubkey);
 	if (ret < 0)
 		goto err_free_pub;
 
 	gnutls_pubkey_deinit(pubkey);
 	gnutls_privkey_deinit(privkey);
 
-	return len;
+	return 0;
 
 err_free_pub:
 	gnutls_pubkey_deinit(pubkey);
