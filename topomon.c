@@ -58,7 +58,7 @@ static void got_response(void *_qpeer)
 	struct sockaddr_storage recvaddr;
 	socklen_t addrlen;
 	int ret;
-	struct lsa *newlsa;
+	struct lsa *lsa;
 
 	addrlen = sizeof(recvaddr);
 
@@ -69,22 +69,22 @@ static void got_response(void *_qpeer)
 		return;
 	}
 
-	newlsa = lsa_deserialise(buf, ret);
-	if (newlsa == NULL) {
+	lsa = lsa_deserialise(buf, ret);
+	if (lsa == NULL) {
 		fprintf(stderr, "error deserialising LSA\n");
 		adj_rib_flush(qpeer->adj_rib_in);
 		return;
 	}
 
-	if (memcmp(qpeer->id, newlsa->id, 32)) {
+	if (memcmp(qpeer->id, lsa->id, 32)) {
 		fprintf(stderr, "node ID mismatch\n");
-		lsa_put(newlsa);
+		lsa_put(lsa);
 		return;
 	}
 
-	adj_rib_add_lsa(qpeer->adj_rib_in, newlsa);
+	adj_rib_add_lsa(qpeer->adj_rib_in, lsa);
 
-	lsa_put(newlsa);
+	lsa_put(lsa);
 }
 
 static void query_timer_expiry(void *_qpeer)
