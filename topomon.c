@@ -37,6 +37,7 @@ struct qpeer {
 	struct iv_fd		query_fd;
 	struct sockaddr_in6	query_addr;
 	struct iv_timer		query_timer;
+	struct iv_timer		query_timeout;
 	struct adj_rib		*adj_rib_in;
 	struct rib_listener	*debug_listener;
 };
@@ -50,6 +51,17 @@ static int qpeer_compare(struct iv_avl_node *_a, struct iv_avl_node *_b)
 	struct qpeer *b = iv_container_of(_b, struct qpeer, an);
 
 	return memcmp(a->id, b->id, 32);
+}
+
+static void ping_query_timeout(struct qpeer *qpeer)
+{
+	if (iv_timer_registered(&qpeer->query_timeout)) {
+		iv_timer_unregister(&qpeer->query_timeout);
+		iv_validate_now();
+		qpeer->query_timeout.expires = iv_now;
+		qpeer->query_timeout.expires.tv_sec += 30;
+		iv_timer_register(&qpeer->query_timeout);
+	}
 }
 
 static void got_response(void *_qpeer)
@@ -70,6 +82,8 @@ static void got_response(void *_qpeer)
 		perror("recvfrom");
 		return;
 	}
+
+	ping_query_timeout(qpeer);
 
 	lsa = lsa_deserialise(buf, ret);
 	if (lsa == NULL) {
@@ -121,12 +135,21 @@ static void qpeer_zap(struct qpeer *qpeer)
 
 	iv_fd_unregister(&qpeer->query_fd);
 	iv_timer_unregister(&qpeer->query_timer);
+	if (iv_timer_registered(&qpeer->query_timeout))
+		iv_timer_unregister(&qpeer->query_timeout);
 	adj_rib_free(qpeer->adj_rib_in);
 	debug_listener_free(qpeer->debug_listener);
 	free(qpeer);
 }
 
-static void qpeer_add(uint8_t *id)
+static void query_timeout_expiry(void *_qpeer)
+{
+	struct qpeer *qpeer = _qpeer;
+
+	qpeer_zap(qpeer);
+}
+
+static void qpeer_add(uint8_t *id, int permanent)
 {
 	int fd;
 	struct qpeer *qpeer;
@@ -171,6 +194,16 @@ static void qpeer_add(uint8_t *id)
 	qpeer->query_timer.handler = query_timer_expiry;
 	iv_timer_register(&qpeer->query_timer);
 
+	IV_TIMER_INIT(&qpeer->query_timeout);
+	if (!permanent) {
+		iv_validate_now();
+		qpeer->query_timeout.expires = iv_now;
+		qpeer->query_timeout.expires.tv_sec += 30;
+		qpeer->query_timeout.cookie = qpeer;
+		qpeer->query_timeout.handler = query_timeout_expiry;
+		iv_timer_register(&qpeer->query_timeout);
+	}
+
 	memset(zeroid, 0, 32);
 	qpeer->adj_rib_in = adj_rib_alloc(zeroid, id);
 
@@ -199,7 +232,7 @@ static void qpeer_add_config(const char *config)
 
 	gnutls_x509_privkey_deinit(key);
 
-	qpeer_add(id);
+	qpeer_add(id, 1);
 }
 
 static void got_sigint(void *_dummy)
