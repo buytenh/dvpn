@@ -92,11 +92,7 @@ static void query_timer_expiry(void *_qpeer)
 	struct qpeer *qpeer = _qpeer;
 	uint8_t buf[1];
 
-	qpeer->query_timer.expires.tv_nsec += 100000000;
-	if (qpeer->query_timer.expires.tv_nsec >= 1000000000) {
-		qpeer->query_timer.expires.tv_sec++;
-		qpeer->query_timer.expires.tv_nsec -= 1000000000;
-	}
+	qpeer->query_timer.expires.tv_sec++;
 	iv_timer_register(&qpeer->query_timer);
 
 	if (sendto(qpeer->query_fd.fd, buf, 0, 0,
