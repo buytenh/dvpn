@@ -103,6 +103,17 @@ static void query_timer_expiry(void *_qpeer)
 	}
 }
 
+static void qpeer_zap(struct qpeer *qpeer)
+{
+	iv_avl_tree_delete(&qpeers, &qpeer->an);
+
+	iv_fd_unregister(&qpeer->query_fd);
+	iv_timer_unregister(&qpeer->query_timer);
+	adj_rib_free(qpeer->adj_rib_in);
+	debug_listener_free(qpeer->debug_listener);
+	free(qpeer);
+}
+
 static void qpeer_add(uint8_t *id)
 {
 	int fd;
@@ -179,30 +190,16 @@ static void qpeer_add_config(const char *config)
 	qpeer_add(id);
 }
 
-static void qpeers_zap(void)
-{
-	while (!iv_avl_tree_empty(&qpeers)) {
-		struct iv_avl_node *an;
-		struct qpeer *qpeer;
-
-		an = iv_avl_tree_min(&qpeers);
-		qpeer = iv_container_of(an, struct qpeer, an);
-
-		iv_avl_tree_delete(&qpeers, &qpeer->an);
-
-		iv_fd_unregister(&qpeer->query_fd);
-		iv_timer_unregister(&qpeer->query_timer);
-		adj_rib_free(qpeer->adj_rib_in);
-		debug_listener_free(qpeer->debug_listener);
-		free(qpeer);
-	}
-}
-
 static void got_sigint(void *_dummy)
 {
 	fprintf(stderr, "SIGINT received, shutting down\n");
 
-	qpeers_zap();
+	while (!iv_avl_tree_empty(&qpeers)) {
+		struct iv_avl_node *an;
+
+		an = iv_avl_tree_min(&qpeers);
+		qpeer_zap(iv_container_of(an, struct qpeer, an));
+	}
 
 	iv_signal_unregister(&sigint);
 }
