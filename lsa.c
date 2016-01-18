@@ -76,6 +76,27 @@ void lsa_put(struct lsa *lsa)
 	}
 }
 
+struct lsa *lsa_clone(struct lsa *lsa)
+{
+	struct lsa *newlsa;
+	struct iv_avl_node *an;
+
+	newlsa = lsa_alloc(lsa->id);
+	if (newlsa == NULL)
+		return NULL;
+
+	iv_avl_tree_for_each (an, &lsa->attrs) {
+		struct lsa_attr *attr;
+
+		attr = iv_container_of(an, struct lsa_attr, an);
+
+		lsa_attr_add(newlsa, attr->type, attr->key, attr->keylen,
+			     attr->data, attr->datalen);
+	}
+
+	return newlsa;
+}
+
 int lsa_attr_compare_keys(struct lsa_attr *a, struct lsa_attr *b)
 {
 	int len;

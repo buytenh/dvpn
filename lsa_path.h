@@ -17,37 +17,10 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#ifndef __LSA_H
-#define __LSA_H
+#ifndef __LSA_PATH_H
+#define __LSA_PATH_H
 
-#include <iv_avl.h>
-
-struct lsa {
-	int			refcount;
-	uint8_t			id[32];
-	struct iv_avl_tree	attrs;
-};
-
-struct lsa *lsa_alloc(uint8_t *id);
-void lsa_put(struct lsa *lsa);
-struct lsa *lsa_clone(struct lsa *lsa);
-
-struct lsa_attr {
-	struct iv_avl_node	an;
-	int			type;
-	int			keylen;
-	void			*key;
-	int			datalen;
-	void			*data;
-};
-
-int lsa_attr_compare_keys(struct lsa_attr *a, struct lsa_attr *b);
-struct lsa_attr *lsa_attr_find(struct lsa *lsa, int type,
-			       void *key, int keylen);
-void lsa_attr_add(struct lsa *lsa, int type, void *key, int keylen,
-		  void *data, int datalen);
-void lsa_attr_del(struct lsa *lsa, struct lsa_attr *attr);
-void lsa_attr_del_key(struct lsa *lsa, int type, void *key, int keylen);
+void lsa_path_prepend(struct lsa *lsa, uint8_t *id);
 
 
 #endif

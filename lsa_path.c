@@ -17,37 +17,34 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#ifndef __LSA_H
-#define __LSA_H
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "lsa.h"
+#include "lsa_type.h"
 
-#include <iv_avl.h>
+void lsa_path_prepend(struct lsa *lsa, uint8_t *id)
+{
+	struct lsa_attr *attr;
 
-struct lsa {
-	int			refcount;
-	uint8_t			id[32];
-	struct iv_avl_tree	attrs;
-};
+	if (lsa->refcount != 1)
+		abort();
 
-struct lsa *lsa_alloc(uint8_t *id);
-void lsa_put(struct lsa *lsa);
-struct lsa *lsa_clone(struct lsa *lsa);
+	attr = lsa_attr_find(lsa, LSA_ATTR_TYPE_ADV_PATH, NULL, 0);
+	if (attr != NULL) {
+		uint8_t *newdata;
 
-struct lsa_attr {
-	struct iv_avl_node	an;
-	int			type;
-	int			keylen;
-	void			*key;
-	int			datalen;
-	void			*data;
-};
+		newdata = malloc(attr->datalen + 32);
+		if (newdata == NULL)
+			abort();
 
-int lsa_attr_compare_keys(struct lsa_attr *a, struct lsa_attr *b);
-struct lsa_attr *lsa_attr_find(struct lsa *lsa, int type,
-			       void *key, int keylen);
-void lsa_attr_add(struct lsa *lsa, int type, void *key, int keylen,
-		  void *data, int datalen);
-void lsa_attr_del(struct lsa *lsa, struct lsa_attr *attr);
-void lsa_attr_del_key(struct lsa *lsa, int type, void *key, int keylen);
+		memcpy(newdata, id, 32);
+		memcpy(newdata + 32, attr->data, attr->datalen);
 
-
-#endif
+		free(attr->data);
+		attr->data = newdata;
+		attr->datalen += 32;
+	} else {
+		lsa_attr_add(lsa, LSA_ATTR_TYPE_ADV_PATH, NULL, 0, id, 32);
+	}
+}

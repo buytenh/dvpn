@@ -31,6 +31,7 @@
 #include "dvpn.h"
 #include "listen.h"
 #include "lsa.h"
+#include "lsa_path.h"
 #include "lsa_print.h"
 #include "lsa_serialise.h"
 #include "lsa_type.h"
@@ -57,6 +58,7 @@ static void got_topo_request(void *_dummy)
 	struct sockaddr_in6 addr;
 	socklen_t addrlen;
 	int ret;
+	struct lsa *newlsa;
 	int len;
 
 	addrlen = sizeof(addr);
@@ -68,9 +70,17 @@ static void got_topo_request(void *_dummy)
 		return;
 	}
 
-	len = lsa_serialise(buf, sizeof(buf), me);
+	newlsa = lsa_clone(me);
+	if (newlsa == NULL)
+		abort();
+
+	lsa_path_prepend(newlsa, keyid);
+
+	len = lsa_serialise(buf, sizeof(buf), newlsa);
 	if (len > sizeof(buf))
 		abort();
+
+	lsa_put(newlsa);
 
 	sendto(topo_fd.fd, buf, len, 0, (struct sockaddr *)&addr, addrlen);
 }
