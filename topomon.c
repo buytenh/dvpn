@@ -29,6 +29,7 @@
 #include "lsa.h"
 #include "lsa_deserialise.h"
 #include "lsa_type.h"
+#include "rib_listener_debug.h"
 #include "x509.h"
 
 struct qpeer {

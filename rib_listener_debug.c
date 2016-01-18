@@ -19,11 +19,11 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <iv_list.h>
 #include <string.h>
 #include "lsa_diff.h"
 #include "lsa_print.h"
 #include "rib_listener.h"
+#include "rib_listener_debug.h"
 #include "util.h"
 
 static void attr_add(void *cookie, struct lsa_attr *attr)

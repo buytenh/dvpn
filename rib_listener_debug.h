@@ -17,20 +17,14 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#ifndef __RIB_LISTENER_H
-#define __RIB_LISTENER_H
+#ifndef __RIB_LISTENER_DEBUG_H
+#define __RIB_LISTENER_DEBUG_H
 
-#include <iv_list.h>
-#include "lsa.h"
+#include "rib_listener.h"
 
-struct rib_listener {
-	void			*cookie;
-	void			(*lsa_add)(void *, struct lsa *);
-	void			(*lsa_mod)(void *, struct lsa *, struct lsa *);
-	void			(*lsa_del)(void *, struct lsa *);
-
-	struct iv_list_head	list;
-};
+struct rib_listener *debug_listener_new(char *name);
+void debug_listener_set_name(struct rib_listener *rl, uint8_t *name, int len);
+void debug_listener_free(struct rib_listener *rl);
 
 
 #endif
