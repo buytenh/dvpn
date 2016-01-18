@@ -30,15 +30,22 @@
 #include "lsa_deserialise.h"
 #include "x509.h"
 
-static uint8_t nodeid[32];
-static struct iv_fd topo_query_fd;
-static struct sockaddr_in6 topo_query_addr;
-static struct iv_timer topo_query_timer;
-static struct adj_rib *rib_in;
-static struct rib_listener *debug_listener;
+struct qpeer {
+	struct iv_list_head	list;
+	uint8_t			id[32];
+	struct iv_fd		query_fd;
+	struct sockaddr_in6	query_addr;
+	struct iv_timer		query_timer;
+	struct adj_rib		*adj_rib_in;
+	struct rib_listener	*debug_listener;
+};
 
-static void got_response(void *_dummy)
+static struct iv_list_head qpeers;
+static struct iv_signal sigint;
+
+static void got_response(void *_qpeer)
 {
+	struct qpeer *qpeer = _qpeer;
 	uint8_t buf[65536];
 	struct sockaddr_storage recvaddr;
 	socklen_t addrlen;
@@ -47,7 +54,7 @@ static void got_response(void *_dummy)
 
 	addrlen = sizeof(recvaddr);
 
-	ret = recvfrom(topo_query_fd.fd, buf, sizeof(buf), 0,
+	ret = recvfrom(qpeer->query_fd.fd, buf, sizeof(buf), 0,
 			(struct sockaddr *)&recvaddr, &addrlen);
 	if (ret < 0) {
 		perror("recvfrom");
@@ -57,48 +64,139 @@ static void got_response(void *_dummy)
 	newlsa = lsa_deserialise(buf, ret);
 	if (newlsa == NULL) {
 		fprintf(stderr, "error deserialising LSA\n");
-		adj_rib_flush(rib_in);
+		adj_rib_flush(qpeer->adj_rib_in);
 		return;
 	}
 
-	if (memcmp(nodeid, newlsa->id, 32)) {
+	if (memcmp(qpeer->id, newlsa->id, 32)) {
 		fprintf(stderr, "node ID mismatch\n");
 		lsa_put(newlsa);
 		return;
 	}
 
-	adj_rib_add_lsa(rib_in, newlsa);
+	adj_rib_add_lsa(qpeer->adj_rib_in, newlsa);
 
 	lsa_put(newlsa);
 }
 
-static void topo_query_timer_expiry(void *_dummy)
+static void query_timer_expiry(void *_qpeer)
 {
+	struct qpeer *qpeer = _qpeer;
 	uint8_t buf[1];
 
-	topo_query_timer.expires.tv_nsec += 100000000;
-	if (topo_query_timer.expires.tv_nsec >= 1000000000) {
-		topo_query_timer.expires.tv_sec++;
-		topo_query_timer.expires.tv_nsec -= 1000000000;
+	qpeer->query_timer.expires.tv_nsec += 100000000;
+	if (qpeer->query_timer.expires.tv_nsec >= 1000000000) {
+		qpeer->query_timer.expires.tv_sec++;
+		qpeer->query_timer.expires.tv_nsec -= 1000000000;
 	}
-	iv_timer_register(&topo_query_timer);
+	iv_timer_register(&qpeer->query_timer);
 
-	if (sendto(topo_query_fd.fd, buf, 0, 0,
-		   (struct sockaddr *)&topo_query_addr,
-		   sizeof(topo_query_addr)) < 0) {
+	if (sendto(qpeer->query_fd.fd, buf, 0, 0,
+		   (struct sockaddr *)&qpeer->query_addr,
+		   sizeof(qpeer->query_addr)) < 0) {
 		perror("sendto");
 		return;
 	}
 }
 
-static struct iv_signal sigint;
+static void qpeer_add(uint8_t *id)
+{
+	int fd;
+	struct qpeer *qpeer;
+	uint8_t addr[16];
+	uint8_t zeroid[32];
+	char name[128];
+
+	fd = socket(AF_INET6, SOCK_DGRAM, 0);
+	if (fd < 0) {
+		perror("socket");
+		return;
+	}
+
+	qpeer = malloc(sizeof(*qpeer));
+	if (qpeer == NULL) {
+		close(fd);
+		return;
+	}
+
+	iv_list_add_tail(&qpeer->list, &qpeers);
+
+	memcpy(qpeer->id, id, 32);
+
+	IV_FD_INIT(&qpeer->query_fd);
+	qpeer->query_fd.fd = fd;
+	qpeer->query_fd.cookie = qpeer;
+	qpeer->query_fd.handler_in = got_response;
+	iv_fd_register(&qpeer->query_fd);
+
+	v6_global_addr_from_key_id(addr, id, 32);
+
+	qpeer->query_addr.sin6_family = AF_INET6;
+	qpeer->query_addr.sin6_port = htons(19275);
+	qpeer->query_addr.sin6_flowinfo = 0;
+	memcpy(&qpeer->query_addr.sin6_addr, addr, 16);
+	qpeer->query_addr.sin6_scope_id = 0;
+
+	IV_TIMER_INIT(&qpeer->query_timer);
+	iv_validate_now();
+	qpeer->query_timer.expires = iv_now;
+	qpeer->query_timer.cookie = qpeer;
+	qpeer->query_timer.handler = query_timer_expiry;
+	iv_timer_register(&qpeer->query_timer);
+
+	memset(zeroid, 0, 32);
+	qpeer->adj_rib_in = adj_rib_alloc(zeroid, id);
+
+	snprintf(name, sizeof(name), "adj-rib-in-%p", qpeer);
+
+	qpeer->debug_listener = debug_listener_new(name);
+	adj_rib_listener_register(qpeer->adj_rib_in, qpeer->debug_listener);
+}
+
+static void qpeer_add_config(const char *config)
+{
+	struct conf *conf;
+	gnutls_x509_privkey_t key;
+	uint8_t id[32];
+
+	conf = parse_config(config);
+	if (conf == NULL)
+		return;
+
+	if (x509_read_privkey(&key, conf->private_key) < 0)
+		return;
+
+	free_config(conf);
+
+	x509_get_key_id(id, sizeof(id), key);
+
+	gnutls_x509_privkey_deinit(key);
+
+	qpeer_add(id);
+}
+
+static void qpeers_zap(void)
+{
+	while (!iv_list_empty(&qpeers)) {
+		struct qpeer *qpeer;
+
+		qpeer = iv_container_of(qpeers.next, struct qpeer, list);
+
+		iv_list_del(&qpeer->list);
+		iv_fd_unregister(&qpeer->query_fd);
+		iv_timer_unregister(&qpeer->query_timer);
+		adj_rib_free(qpeer->adj_rib_in);
+		debug_listener_free(qpeer->debug_listener);
+		free(qpeer);
+	}
+}
 
 static void got_sigint(void *_dummy)
 {
 	fprintf(stderr, "SIGINT received, shutting down\n");
 
-	iv_fd_unregister(&topo_query_fd);
-	iv_timer_unregister(&topo_query_timer);
+	qpeers_zap();
+
 	iv_signal_unregister(&sigint);
 }
 
@@ -108,12 +206,12 @@ int main(int argc, char *argv[])
 		{ "config-file", required_argument, 0, 'c' },
 		{ 0, 0, 0, 0, },
 	};
-	const char *config = "/etc/dvpn.ini";
-	struct conf *conf;
-	gnutls_x509_privkey_t key;
-	int fd;
-	uint8_t nodeaddr[16];
-	uint8_t zeroid[32];
+
+	INIT_IV_LIST_HEAD(&qpeers);
+
+	gnutls_global_init();
+
+	iv_init();
 
 	while (1) {
 		int c;
@@ -124,7 +222,7 @@ int main(int argc, char *argv[])
 
 		switch (c) {
 		case 'c':
-			config = optarg;
+			qpeer_add_config(optarg);
 			break;
 
 		case '?':
@@ -137,56 +235,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	conf = parse_config(config);
-	if (conf == NULL)
-		return 1;
-
-	gnutls_global_init();
-
-	if (x509_read_privkey(&key, conf->private_key) < 0)
-		return 1;
-
-	x509_get_key_id(nodeid, sizeof(nodeid), key);
-
-	gnutls_x509_privkey_deinit(key);
-
 	gnutls_global_deinit();
-
-	free_config(conf);
-
-	iv_init();
-
-	fd = socket(AF_INET6, SOCK_DGRAM, 0);
-	if (fd < 0) {
-		perror("socket");
-		return 1;
-	}
-
-	IV_FD_INIT(&topo_query_fd);
-	topo_query_fd.fd = fd;
-	topo_query_fd.handler_in = got_response;
-	iv_fd_register(&topo_query_fd);
-
-	v6_global_addr_from_key_id(nodeaddr, nodeid, sizeof(nodeid));
-
-	topo_query_addr.sin6_family = AF_INET6;
-	topo_query_addr.sin6_port = htons(19275);
-	topo_query_addr.sin6_flowinfo = 0;
-	memcpy(&topo_query_addr.sin6_addr, nodeaddr, 16);
-	topo_query_addr.sin6_scope_id = 0;
-
-	IV_TIMER_INIT(&topo_query_timer);
-	iv_validate_now();
-	topo_query_timer.expires = iv_now;
-	topo_query_timer.handler = topo_query_timer_expiry;
-	iv_timer_register(&topo_query_timer);
-
-	memset(zeroid, 0, 32);
-
-	rib_in = adj_rib_alloc(zeroid, nodeid);
-
-	debug_listener = debug_listener_new("topomon");
-	adj_rib_listener_register(rib_in, debug_listener);
 
 	IV_SIGNAL_INIT(&sigint);
 	sigint.signum = SIGINT;
@@ -198,11 +247,6 @@ int main(int argc, char *argv[])
 	iv_main();
 
 	iv_deinit();
-
-	adj_rib_listener_unregister(rib_in, debug_listener);
-	debug_listener_free(debug_listener);
-
-	adj_rib_free(rib_in);
 
 	return 0;
 }
