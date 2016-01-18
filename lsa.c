@@ -23,34 +23,12 @@
 #include <string.h>
 #include "lsa.h"
 
-static int compare_attrs(struct iv_avl_node *_a, struct iv_avl_node *_b)
+static int compare_attr_keys(struct iv_avl_node *_a, struct iv_avl_node *_b)
 {
 	struct lsa_attr *a = iv_container_of(_a, struct lsa_attr, an);
 	struct lsa_attr *b = iv_container_of(_b, struct lsa_attr, an);
-	int len;
-	int ret;
 
-	if (a->type < b->type)
-		return -1;
-	if (a->type > b->type)
-		return 1;
-
-	len = a->keylen;
-	if (len > b->keylen)
-		len = b->keylen;
-
-	ret = memcmp(a->key, b->key, len);
-	if (ret < 0)
-		return -1;
-	if (ret > 0)
-		return 1;
-
-	if (a->keylen < b->keylen)
-		return -1;
-	if (a->keylen > b->keylen)
-		return 1;
-
-	return 0;
+	return lsa_attr_compare_keys(a, b);
 }
 
 struct lsa *lsa_alloc(uint8_t *id)
@@ -63,7 +41,7 @@ struct lsa *lsa_alloc(uint8_t *id)
 
 	lsa->refcount = 1;
 	memcpy(lsa->id, id, 32);
-	INIT_IV_AVL_TREE(&lsa->attrs, compare_attrs);
+	INIT_IV_AVL_TREE(&lsa->attrs, compare_attr_keys);
 
 	return lsa;
 }
@@ -98,23 +76,54 @@ void lsa_put(struct lsa *lsa)
 	}
 }
 
+int lsa_attr_compare_keys(struct lsa_attr *a, struct lsa_attr *b)
+{
+	int len;
+	int ret;
+
+	if (a->type < b->type)
+		return -1;
+	if (a->type > b->type)
+		return 1;
+
+	len = a->keylen;
+	if (len > b->keylen)
+		len = b->keylen;
+
+	ret = memcmp(a->key, b->key, len);
+	if (ret < 0)
+		return -1;
+	if (ret > 0)
+		return 1;
+
+	if (a->keylen < b->keylen)
+		return -1;
+	if (a->keylen > b->keylen)
+		return 1;
+
+	return 0;
+}
+
 struct lsa_attr *lsa_attr_find(struct lsa *lsa, int type,
 			       void *key, int keylen)
 {
-	struct lsa_attr attr;
+	struct lsa_attr skey;
 	struct iv_avl_node *an;
 
-	attr.type = type;
-	attr.key = key;
-	attr.keylen = keylen;
+	skey.type = type;
+	skey.key = key;
+	skey.keylen = keylen;
 
 	an = lsa->attrs.root;
 	while (an != NULL) {
+		struct lsa_attr *attr;
 		int ret;
 
-		ret = compare_attrs(&attr.an, an);
+		attr = iv_container_of(an, struct lsa_attr, an);
+
+		ret = lsa_attr_compare_keys(&skey, attr);
 		if (ret == 0)
-			return iv_container_of(an, struct lsa_attr, an);
+			return attr;
 
 		if (ret < 0)
 			an = an->left;

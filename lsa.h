@@ -39,6 +39,7 @@ struct lsa_attr {
 
 struct lsa *lsa_alloc(uint8_t *id);
 void lsa_put(struct lsa *lsa);
+int lsa_attr_compare_keys(struct lsa_attr *a, struct lsa_attr *b);
 struct lsa_attr *lsa_attr_find(struct lsa *lsa, int type,
 			       void *key, int keylen);
 void lsa_attr_add(struct lsa *lsa, int type, void *key, int keylen,
