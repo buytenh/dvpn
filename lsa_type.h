@@ -23,6 +23,7 @@
 enum lsa_attr_type {
 	LSA_ATTR_TYPE_ADV_PATH = 1,
 	LSA_ATTR_TYPE_PEER = 2,
+	LSA_ATTR_TYPE_NODE_NAME = 3,
 };
 
 struct lsa_attr_adv_path {

@@ -31,6 +31,8 @@ char *lsa_attr_type_name(int type, char *buf, int bufsize)
 		return "ADV_PATH";
 	case LSA_ATTR_TYPE_PEER:
 		return "PEER";
+	case LSA_ATTR_TYPE_NODE_NAME:
+		return "NODE_NAME";
 	default:
 		snprintf(buf, bufsize, "type-%d", type);
 		return buf;

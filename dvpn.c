@@ -524,6 +524,10 @@ int main(int argc, char *argv[])
 
 	me = lsa_alloc(keyid);
 	lsa_attr_add(me, LSA_ATTR_TYPE_ADV_PATH, NULL, 0, NULL, 0);
+	if (conf->node_name != NULL) {
+		lsa_attr_add(me, LSA_ATTR_TYPE_NODE_NAME, NULL, 0,
+			     conf->node_name, strlen(conf->node_name));
+	}
 
 	INIT_IV_AVL_TREE(&peers, compare_peers);
 
