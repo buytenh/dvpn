@@ -213,12 +213,7 @@ int main(int argc, char *argv[])
 		{ "config-file", required_argument, 0, 'c' },
 		{ 0, 0, 0, 0, },
 	};
-
-	INIT_IV_AVL_TREE(&qpeers, qpeer_compare);
-
-	gnutls_global_init();
-
-	iv_init();
+	const char *config = "/etc/dvpn.ini";
 
 	while (1) {
 		int c;
@@ -229,7 +224,7 @@ int main(int argc, char *argv[])
 
 		switch (c) {
 		case 'c':
-			qpeer_add_config(optarg);
+			config = optarg;
 			break;
 
 		case '?':
@@ -241,6 +236,14 @@ int main(int argc, char *argv[])
 			abort();
 		}
 	}
+
+	gnutls_global_init();
+
+	iv_init();
+
+	INIT_IV_AVL_TREE(&qpeers, qpeer_compare);
+
+	qpeer_add_config(config);
 
 	gnutls_global_deinit();
 
