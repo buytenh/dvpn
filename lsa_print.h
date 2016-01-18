@@ -22,6 +22,7 @@
 
 #include "lsa.h"
 
+char *lsa_attr_type_name(int type, char *buf, int bufsize);
 void lsa_print(FILE *fp, struct lsa *lsa);
 
 

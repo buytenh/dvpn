@@ -24,7 +24,7 @@
 #include "lsa_type.h"
 #include "util.h"
 
-static char *attr_type_name(int type, char *buf, int bufsize)
+char *lsa_attr_type_name(int type, char *buf, int bufsize)
 {
 	switch (type) {
 	case LSA_ATTR_TYPE_ADV_PATH:
@@ -53,12 +53,15 @@ void lsa_print(FILE *fp, struct lsa *lsa)
 
 		attr = iv_container_of(an, struct lsa_attr, an);
 
-		fprintf(fp, "* %s", attr_type_name(attr->type, t, sizeof(t)));
+		fprintf(fp, "* %s",
+			lsa_attr_type_name(attr->type, t, sizeof(t)));
+
 		if (attr->keylen) {
 			fprintf(fp, "[");
 			printhex(fp, attr->key, attr->keylen);
 			fprintf(fp, "]");
 		}
+
 		fprintf(fp, " = [");
 		printhex(fp, attr->data, attr->datalen);
 		fprintf(fp, "]\n");
