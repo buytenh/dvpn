@@ -43,20 +43,10 @@ static int compare_refs(struct iv_avl_node *_a, struct iv_avl_node *_b)
 	return memcmp(a->lsa->id, b->lsa->id, sizeof(a->lsa->id));
 }
 
-struct adj_rib *adj_rib_alloc(uint8_t *myid, uint8_t *remoteid)
+void adj_rib_init(struct adj_rib *rib)
 {
-	struct adj_rib *rib;
-
-	rib = malloc(sizeof(*rib));
-	if (rib == NULL)
-		return NULL;
-
-	memcpy(rib->myid, myid, 32);
-	memcpy(rib->remoteid, remoteid, 32);
 	INIT_IV_AVL_TREE(&rib->lsas, compare_refs);
 	INIT_IV_LIST_HEAD(&rib->listeners);
-
-	return rib;
 }
 
 static struct adj_rib_lsa_ref *
@@ -179,12 +169,6 @@ void adj_rib_flush(struct adj_rib *rib)
 		lsa_put(ref->lsa);
 		free(ref);
 	}
-}
-
-void adj_rib_free(struct adj_rib *rib)
-{
-	adj_rib_flush(rib);
-	free(rib);
 }
 
 void adj_rib_listener_register(struct adj_rib *rib, struct rib_listener *rl)

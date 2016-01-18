@@ -41,7 +41,7 @@ struct qpeer {
 	struct sockaddr_in6	query_addr;
 	struct iv_timer		query_timer;
 	struct iv_timer		query_timeout;
-	struct adj_rib		*adj_rib_in;
+	struct adj_rib		adj_rib_in;
 	struct rib_listener	*to_loc_listener;
 };
 
@@ -95,7 +95,7 @@ static void got_response(void *_qpeer)
 	lsa = lsa_deserialise(buf, ret);
 	if (lsa == NULL) {
 		fprintf(stderr, "error deserialising LSA\n");
-		adj_rib_flush(qpeer->adj_rib_in);
+		adj_rib_flush(&qpeer->adj_rib_in);
 		return;
 	}
 
@@ -115,7 +115,7 @@ static void got_response(void *_qpeer)
 		}
 	}
 
-	adj_rib_add_lsa(qpeer->adj_rib_in, lsa);
+	adj_rib_add_lsa(&qpeer->adj_rib_in, lsa);
 
 	lsa_put(lsa);
 }
@@ -144,7 +144,7 @@ static void qpeer_zap(struct qpeer *qpeer)
 	iv_timer_unregister(&qpeer->query_timer);
 	if (iv_timer_registered(&qpeer->query_timeout))
 		iv_timer_unregister(&qpeer->query_timeout);
-	adj_rib_free(qpeer->adj_rib_in);
+	adj_rib_flush(&qpeer->adj_rib_in);
 	to_loc_listener_free(qpeer->to_loc_listener);
 	free(qpeer);
 }
@@ -161,7 +161,6 @@ static void qpeer_add(uint8_t *id, int permanent)
 	int fd;
 	struct qpeer *qpeer;
 	uint8_t addr[16];
-	uint8_t zeroid[32];
 	char name[128];
 
 	fd = socket(AF_INET6, SOCK_DGRAM, 0);
@@ -211,13 +210,14 @@ static void qpeer_add(uint8_t *id, int permanent)
 		iv_timer_register(&qpeer->query_timeout);
 	}
 
-	memset(zeroid, 0, 32);
-	qpeer->adj_rib_in = adj_rib_alloc(zeroid, id);
+	memset(&qpeer->adj_rib_in.myid, 0, 32);
+	memcpy(&qpeer->adj_rib_in.remoteid, id, 32);
+	adj_rib_init(&qpeer->adj_rib_in);
 
 	snprintf(name, sizeof(name), "adj-rib-in-%p", qpeer);
 
 	qpeer->to_loc_listener = to_loc_listener_new(loc_rib);
-	adj_rib_listener_register(qpeer->adj_rib_in, qpeer->to_loc_listener);
+	adj_rib_listener_register(&qpeer->adj_rib_in, qpeer->to_loc_listener);
 }
 
 static struct qpeer *qpeer_find(uint8_t *id)

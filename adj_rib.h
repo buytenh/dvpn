@@ -28,14 +28,15 @@
 struct adj_rib {
 	uint8_t			myid[32];
 	uint8_t			remoteid[32];
+
 	struct iv_avl_tree	lsas;
 	struct iv_list_head	listeners;
 };
 
-struct adj_rib *adj_rib_alloc(uint8_t *myid, uint8_t *remoteid);
+void adj_rib_init(struct adj_rib *rib);
 void adj_rib_add_lsa(struct adj_rib *rib, struct lsa *lsa);
 void adj_rib_flush(struct adj_rib *rib);
-void adj_rib_free(struct adj_rib *rib);
+
 void adj_rib_listener_register(struct adj_rib *rib, struct rib_listener *rl);
 void adj_rib_listener_unregister(struct adj_rib *rib, struct rib_listener *rl);
 
