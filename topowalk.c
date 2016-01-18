@@ -1,6 +1,6 @@
 /*
  * dvpn, a multipoint vpn implementation
- * Copyright (C) 2015 Lennert Buytenhek
+ * Copyright (C) 2015, 2016 Lennert Buytenhek
  *
  * This library is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License version
@@ -29,6 +29,8 @@
 #include "conf.h"
 #include "cspf.h"
 #include "spf.h"
+#include "lsa_deserialise.h"
+#include "lsa_type.h"
 #include "x509.h"
 
 struct node
@@ -45,6 +47,7 @@ struct edge
 {
 	struct iv_list_head	list;
 	struct node		*to;
+	int			metric;
 	enum peer_type		to_type;
 
 	struct cspf_edge	edge;
@@ -87,8 +90,8 @@ static struct node *find_node(uint8_t *id)
 	return n;
 }
 
-static void
-add_edge(struct node *from, struct node *to, enum peer_type to_type)
+static void add_edge(struct node *from, struct node *to,
+		     int metric, enum peer_type to_type)
 {
 	struct edge *edge;
 
@@ -98,6 +101,7 @@ add_edge(struct node *from, struct node *to, enum peer_type to_type)
 
 	iv_list_add_tail(&edge->list, &from->edges);
 	edge->to = to;
+	edge->metric = metric;
 	edge->to_type = to_type;
 }
 
@@ -105,6 +109,22 @@ static int usecs(struct timeval *t1, struct timeval *t2)
 {
 	return 1000000LL * (t2->tv_sec - t1->tv_sec) +
 		(t2->tv_usec - t1->tv_usec);
+}
+
+static enum peer_type lsa_peer_type_to_peer_type(enum lsa_peer_type type)
+{
+	switch (type) {
+	case LSA_PEER_TYPE_EPEER:
+		return PEER_TYPE_EPEER;
+	case LSA_PEER_TYPE_CUSTOMER:
+		return PEER_TYPE_CUSTOMER;
+	case LSA_PEER_TYPE_TRANSIT:
+		return PEER_TYPE_TRANSIT;
+	case LSA_PEER_TYPE_IPEER:
+		return PEER_TYPE_IPEER;
+	default:
+		return PEER_TYPE_INVALID;
+	}
 }
 
 static void query_node(int fd, struct node *n)
@@ -115,8 +135,8 @@ static void query_node(int fd, struct node *n)
 	struct timeval t1;
 	socklen_t addrlen;
 	struct timeval t2;
-	int off;
-	int usec;
+	struct lsa *lsa;
+	struct iv_avl_node *an;
 
 	fprintf(stderr, "- %s...", n->name);
 
@@ -147,33 +167,47 @@ static void query_node(int fd, struct node *n)
 
 	gettimeofday(&t2, NULL);
 
-	if (memcmp(n->id, buf, 32)) {
-		fprintf(stderr, " node ID mismatch\n");
+	lsa = lsa_deserialise(buf, ret);
+	if (lsa == NULL) {
+		fprintf(stderr, " error deserialising LSA\n");
 		return;
 	}
 
-	off = 32;
-	while (off + 34 <= ret) {
-		struct node *to;
-		int type;
-
-		to = find_node(buf + off);
-		type = ntohs(*((uint16_t *)(buf + off + 32)));
-		off += 34;
-
-		if (type == 0)
-			add_edge(n, to, PEER_TYPE_EPEER);
-		else if (type == 1)
-			add_edge(n, to, PEER_TYPE_CUSTOMER);
-		else if (type == 2)
-			add_edge(n, to, PEER_TYPE_TRANSIT);
-		else if (type == 3)
-			add_edge(n, to, PEER_TYPE_IPEER);
+	if (memcmp(n->id, lsa->id, 32)) {
+		fprintf(stderr, " node ID mismatch\n");
+		goto out;
 	}
 
-	usec = usecs(&t1, &t2);
+	fprintf(stderr, " %d ms\n", usecs(&t1, &t2) / 1000);
 
-	fprintf(stderr, " %d ms\n", usec / 1000);
+	iv_avl_tree_for_each (an, &lsa->attrs) {
+		struct lsa_attr *attr;
+		struct node *to;
+		struct lsa_attr_peer *data;
+		int metric;
+		enum peer_type peer_type;
+
+		attr = iv_container_of(an, struct lsa_attr, an);
+		if (attr->type != LSA_ATTR_TYPE_PEER)
+			continue;
+
+		if (attr->keylen != 32)
+			continue;
+		to = find_node(attr->key);
+
+		if (attr->datalen < sizeof(*data))
+			continue;
+		data = attr->data;
+
+		metric = ntohs(data->metric);
+		peer_type = lsa_peer_type_to_peer_type(data->peer_type);
+
+		if (peer_type != PEER_TYPE_INVALID)
+			add_edge(n, to, metric, peer_type);
+	}
+
+out:
+	lsa_put(lsa);
 }
 
 static void scan(uint8_t *initial_id)
@@ -317,7 +351,7 @@ static void prep_cspf(struct spf_context *spf)
 
 				type = map_peer_type(e->to_type, rev->to_type);
 				cspf_edge_add(spf, &e->edge, &n->node,
-					      &e->to->node, type, 1);
+					      &e->to->node, type, e->metric);
 			}
 		}
 	}
