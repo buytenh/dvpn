@@ -25,6 +25,7 @@
 #include <ini_configobj.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/utsname.h>
 #include "conf.h"
 
 struct local_conf
@@ -90,6 +91,34 @@ static int parse_config_default(struct local_conf *lc, struct ini_cfgobj *co)
 		lc->conf->private_key = key;
 	} else {
 		lc->conf->private_key = strdup("/etc/pki/tls/dvpn/dvpn.key");
+	}
+
+	ret = ini_get_config_valueobj("default", "NodeName", co,
+				      INI_GET_FIRST_VALUE, &vo);
+	if (ret == 0 && vo != NULL) {
+		char *key;
+
+		key = ini_get_string_config_value(vo, &ret);
+		if (ret) {
+			fprintf(stderr, "error retrieving NodeName value\n");
+			return -1;
+		}
+
+		lc->conf->node_name = key;
+	} else {
+		struct utsname buf;
+
+		if (uname(&buf) < 0) {
+			lc->conf->node_name = NULL;
+		} else {
+			char *c;
+
+			c = strchr(buf.nodename, '.');
+			if (c != NULL)
+				*c = 0;
+
+			lc->conf->node_name = strdup(buf.nodename);
+		}
 	}
 
 	ret = ini_get_config_valueobj("default", "DefaultPort", co,
@@ -476,6 +505,7 @@ struct conf *parse_config(const char *file)
 	}
 
 	conf->private_key = NULL;
+	conf->node_name = NULL;
 	INIT_IV_LIST_HEAD(&conf->connect_entries);
 	INIT_IV_LIST_HEAD(&conf->listening_sockets);
 
@@ -524,6 +554,8 @@ void free_config(struct conf *conf)
 	struct iv_list_head *lh2;
 
 	free(conf->private_key);
+
+	free(conf->node_name);
 
 	iv_list_for_each_safe (lh, lh2, &conf->connect_entries) {
 		struct conf_connect_entry *cce;

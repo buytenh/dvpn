@@ -31,6 +31,7 @@
 struct conf
 {
 	char			*private_key;
+	char			*node_name;
 
 	struct iv_list_head	connect_entries;
 	struct iv_list_head	listening_sockets;
