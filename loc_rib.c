@@ -38,18 +38,36 @@ static int compare_ids(struct iv_avl_node *_a, struct iv_avl_node *_b)
 	return memcmp(a->id, b->id, sizeof(a->id));
 }
 
-struct loc_rib *loc_rib_alloc(void)
+void loc_rib_init(struct loc_rib *rib)
 {
-	struct loc_rib *rib;
-
-	rib = malloc(sizeof(*rib));
-	if (rib == NULL)
-		return NULL;
-
 	INIT_IV_AVL_TREE(&rib->ids, compare_ids);
 	INIT_IV_LIST_HEAD(&rib->listeners);
+}
 
-	return rib;
+void loc_rib_deinit(struct loc_rib *rib)
+{
+	struct iv_avl_node *an;
+
+	while (!iv_avl_tree_empty(&rib->ids)) {
+		struct loc_rib_id *rid;
+
+                an = iv_avl_tree_min(&rib->ids);
+		rid = iv_container_of(an, struct loc_rib_id, an);
+
+		while (!iv_avl_tree_empty(&rid->lsas)) {
+			struct loc_rib_lsa_ref *ref;
+
+			an = iv_avl_tree_min(&rid->lsas);
+			ref = iv_container_of(an, struct loc_rib_lsa_ref, an);
+
+			iv_avl_tree_delete(&rid->lsas, &ref->an);
+			lsa_put(ref->lsa);
+			free(ref);
+		}
+
+		iv_avl_tree_delete(&rib->ids, &rid->an);
+		free(rid);
+	}
 }
 
 static struct loc_rib_id *find_id(struct loc_rib *rib, uint8_t *id)
@@ -199,8 +217,8 @@ find_lsa_ref(struct loc_rib_id *rid, struct lsa *lsa)
 	return NULL;
 }
 
-void recompute_best_lsa(struct loc_rib *rib, struct loc_rib_id *rid,
-			struct lsa *old)
+static void recompute_best_lsa(struct loc_rib *rib, struct loc_rib_id *rid,
+			       struct lsa *old)
 {
 	struct loc_rib_lsa_ref *best;
 	struct iv_avl_node *an;
@@ -270,34 +288,6 @@ void loc_rib_del_lsa(struct loc_rib *rib, struct lsa *lsa)
 		iv_avl_tree_delete(&rib->ids, &rid->an);
 		free(rid);
 	}
-}
-
-void loc_rib_free(struct loc_rib *rib)
-{
-	struct iv_avl_node *an;
-
-	while (!iv_avl_tree_empty(&rib->ids)) {
-		struct loc_rib_id *rid;
-
-                an = iv_avl_tree_min(&rib->ids);
-		rid = iv_container_of(an, struct loc_rib_id, an);
-
-		while (!iv_avl_tree_empty(&rid->lsas)) {
-			struct loc_rib_lsa_ref *ref;
-
-			an = iv_avl_tree_min(&rid->lsas);
-			ref = iv_container_of(an, struct loc_rib_lsa_ref, an);
-
-			iv_avl_tree_delete(&rid->lsas, &ref->an);
-			lsa_put(ref->lsa);
-			free(ref);
-		}
-
-		iv_avl_tree_delete(&rib->ids, &rid->an);
-		free(rid);
-	}
-
-	free(rib);
 }
 
 void loc_rib_listener_register(struct loc_rib *rib, struct rib_listener *rl)

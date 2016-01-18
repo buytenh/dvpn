@@ -42,11 +42,12 @@ struct loc_rib_lsa_ref {
 	struct lsa		*lsa;
 };
 
-struct loc_rib *loc_rib_alloc(void);
+void loc_rib_init(struct loc_rib *rib);
+void loc_rib_deinit(struct loc_rib *rib);
 void loc_rib_add_lsa(struct loc_rib *rib, struct lsa *lsa);
 void loc_rib_mod_lsa(struct loc_rib *rib, struct lsa *lsa, struct lsa *newlsa);
 void loc_rib_del_lsa(struct loc_rib *rib, struct lsa *lsa);
-void loc_rib_free(struct loc_rib *rib);
+
 void loc_rib_listener_register(struct loc_rib *rib, struct rib_listener *rl);
 void loc_rib_listener_unregister(struct loc_rib *rib, struct rib_listener *rl);
 
