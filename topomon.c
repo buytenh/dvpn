@@ -31,7 +31,7 @@
 #include "x509.h"
 
 struct qpeer {
-	struct iv_list_head	list;
+	struct iv_avl_node	an;
 	uint8_t			id[32];
 	struct iv_fd		query_fd;
 	struct sockaddr_in6	query_addr;
@@ -40,8 +40,16 @@ struct qpeer {
 	struct rib_listener	*debug_listener;
 };
 
-static struct iv_list_head qpeers;
+static struct iv_avl_tree qpeers;
 static struct iv_signal sigint;
+
+static int qpeer_compare(struct iv_avl_node *_a, struct iv_avl_node *_b)
+{
+	struct qpeer *a = iv_container_of(_a, struct qpeer, an);
+	struct qpeer *b = iv_container_of(_b, struct qpeer, an);
+
+	return memcmp(a->id, b->id, 32);
+}
 
 static void got_response(void *_qpeer)
 {
@@ -119,9 +127,9 @@ static void qpeer_add(uint8_t *id)
 		return;
 	}
 
-	iv_list_add_tail(&qpeer->list, &qpeers);
-
 	memcpy(qpeer->id, id, 32);
+
+	iv_avl_tree_insert(&qpeers, &qpeer->an);
 
 	IV_FD_INIT(&qpeer->query_fd);
 	qpeer->query_fd.fd = fd;
@@ -177,12 +185,15 @@ static void qpeer_add_config(const char *config)
 
 static void qpeers_zap(void)
 {
-	while (!iv_list_empty(&qpeers)) {
+	while (!iv_avl_tree_empty(&qpeers)) {
+		struct iv_avl_node *an;
 		struct qpeer *qpeer;
 
-		qpeer = iv_container_of(qpeers.next, struct qpeer, list);
+		an = iv_avl_tree_min(&qpeers);
+		qpeer = iv_container_of(an, struct qpeer, an);
 
-		iv_list_del(&qpeer->list);
+		iv_avl_tree_delete(&qpeers, &qpeer->an);
+
 		iv_fd_unregister(&qpeer->query_fd);
 		iv_timer_unregister(&qpeer->query_timer);
 		adj_rib_free(qpeer->adj_rib_in);
@@ -207,7 +218,7 @@ int main(int argc, char *argv[])
 		{ 0, 0, 0, 0, },
 	};
 
-	INIT_IV_LIST_HEAD(&qpeers);
+	INIT_IV_AVL_TREE(&qpeers, qpeer_compare);
 
 	gnutls_global_init();
 
