@@ -21,7 +21,6 @@
 #define __LSA_PATH_H
 
 int lsa_path_contains(struct lsa_attr *attr, uint8_t *id);
-void lsa_path_prepend(struct lsa *lsa, uint8_t *id);
 
 
 #endif

@@ -22,7 +22,7 @@
 
 #include "lsa.h"
 
-int lsa_serialise(uint8_t *buf, int buflen, struct lsa *lsa);
+int lsa_serialise(uint8_t *buf, int buflen, struct lsa *lsa, uint8_t *preid);
 
 
 #endif

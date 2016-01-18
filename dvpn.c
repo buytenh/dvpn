@@ -58,8 +58,6 @@ static void got_topo_request(void *_dummy)
 	struct sockaddr_in6 addr;
 	socklen_t addrlen;
 	int ret;
-	struct lsa *newlsa;
-	int len;
 
 	addrlen = sizeof(addr);
 	ret = recvfrom(topo_fd.fd, buf, sizeof(buf), 0,
@@ -70,19 +68,11 @@ static void got_topo_request(void *_dummy)
 		return;
 	}
 
-	newlsa = lsa_clone(me);
-	if (newlsa == NULL)
+	ret = lsa_serialise(buf, sizeof(buf), me, keyid);
+	if (ret > sizeof(buf))
 		abort();
 
-	lsa_path_prepend(newlsa, keyid);
-
-	len = lsa_serialise(buf, sizeof(buf), newlsa);
-	if (len > sizeof(buf))
-		abort();
-
-	lsa_put(newlsa);
-
-	sendto(topo_fd.fd, buf, len, 0, (struct sockaddr *)&addr, addrlen);
+	sendto(topo_fd.fd, buf, ret, 0, (struct sockaddr *)&addr, addrlen);
 }
 
 static int start_topo_listener(void)

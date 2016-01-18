@@ -22,6 +22,7 @@
 #include <iv_list.h>
 #include <string.h>
 #include "lsa_serialise.h"
+#include "lsa_type.h"
 
 struct dst
 {
@@ -61,7 +62,7 @@ static void dst_append_u16(struct dst *dst, int value)
 	dst_append(dst, val, 2);
 }
 
-int lsa_serialise(uint8_t *buf, int buflen, struct lsa *lsa)
+int lsa_serialise(uint8_t *buf, int buflen, struct lsa *lsa, uint8_t *preid)
 {
 	struct dst dst;
 	struct iv_avl_node *an;
@@ -80,11 +81,18 @@ int lsa_serialise(uint8_t *buf, int buflen, struct lsa *lsa)
 		attr = iv_container_of(an, struct lsa_attr, an);
 
 		dst_append_u8(&dst, attr->type);
+
 		if (attr->keylen) {
 			dst_append_u16(&dst, 0x8000 | attr->keylen);
 			dst_append(&dst, attr->key, attr->keylen);
 		}
-		dst_append_u16(&dst, attr->datalen);
+
+		if (attr->type == LSA_ATTR_TYPE_ADV_PATH && preid != NULL) {
+			dst_append_u16(&dst, attr->datalen + 32);
+			dst_append(&dst, preid, 32);
+		} else {
+			dst_append_u16(&dst, attr->datalen);
+		}
 		dst_append(&dst, attr->data, attr->datalen);
 	}
 

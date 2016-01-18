@@ -37,29 +37,3 @@ int lsa_path_contains(struct lsa_attr *attr, uint8_t *id)
 
 	return 0;
 }
-
-void lsa_path_prepend(struct lsa *lsa, uint8_t *id)
-{
-	struct lsa_attr *attr;
-
-	if (lsa->refcount != 1)
-		abort();
-
-	attr = lsa_attr_find(lsa, LSA_ATTR_TYPE_ADV_PATH, NULL, 0);
-	if (attr != NULL) {
-		uint8_t *newdata;
-
-		newdata = malloc(attr->datalen + 32);
-		if (newdata == NULL)
-			abort();
-
-		memcpy(newdata, id, 32);
-		memcpy(newdata + 32, attr->data, attr->datalen);
-
-		free(attr->data);
-		attr->data = newdata;
-		attr->datalen += 32;
-	} else {
-		lsa_attr_add(lsa, LSA_ATTR_TYPE_ADV_PATH, NULL, 0, id, 32);
-	}
-}
