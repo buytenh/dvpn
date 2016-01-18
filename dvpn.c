@@ -31,7 +31,7 @@
 #include "dvpn.h"
 #include "listen.h"
 #include "lsa.h"
-#include "lsa_dump.h"
+#include "lsa_print.h"
 #include "lsa_serialise.h"
 #include "lsa_type.h"
 #include "util.h"
@@ -428,7 +428,7 @@ static void got_sigusr1(void *_dummy)
 
 	fprintf(stderr, "\n");
 
-	lsa_dump(stderr, me);
+	lsa_print(stderr, me);
 
 	fprintf(stderr, "======================================="
 			"=======================================\n");

@@ -17,12 +17,12 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#ifndef __LSA_DUMP_H
-#define __LSA_DUMP_H
+#ifndef __LSA_PRINT_H
+#define __LSA_PRINT_H
 
 #include "lsa.h"
 
-void lsa_dump(FILE *fp, struct lsa *lsa);
+void lsa_print(FILE *fp, struct lsa *lsa);
 
 
 #endif

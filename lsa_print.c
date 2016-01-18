@@ -20,7 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <iv_list.h>
-#include "lsa_dump.h"
+#include "lsa_print.h"
 #include "lsa_type.h"
 #include "util.h"
 
@@ -37,7 +37,7 @@ static char *attr_type_name(int type, char *buf, int bufsize)
 	}
 }
 
-void lsa_dump(FILE *fp, struct lsa *lsa)
+void lsa_print(FILE *fp, struct lsa *lsa)
 {
 	struct iv_avl_node *an;
 
