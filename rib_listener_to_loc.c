@@ -17,13 +17,50 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#ifndef __RIB_LISTENER_DEBUG_H
-#define __RIB_LISTENER_DEBUG_H
-
+#include <stdio.h>
+#include <stdlib.h>
+#include "loc_rib.h"
 #include "rib_listener.h"
+#include "util.h"
 
-struct rib_listener *debug_listener_new(char *name);
-void debug_listener_free(struct rib_listener *rl);
+static void lsa_add(void *cookie, struct lsa *a)
+{
+	struct loc_rib *dest = cookie;
 
+	loc_rib_add_lsa(dest, a);
+}
 
-#endif
+static void lsa_mod(void *cookie, struct lsa *a, struct lsa *b)
+{
+	struct loc_rib *dest = cookie;
+
+	loc_rib_mod_lsa(dest, a, b);
+}
+
+static void lsa_del(void *cookie, struct lsa *a)
+{
+	struct loc_rib *dest = cookie;
+
+	loc_rib_del_lsa(dest, a);
+}
+
+struct rib_listener *to_loc_listener_new(struct loc_rib *dest)
+{
+	struct rib_listener *rl;
+
+	rl = malloc(sizeof(*rl));
+	if (rl == NULL)
+		return NULL;
+
+	rl->cookie = (void *)dest;
+	rl->lsa_add = lsa_add;
+	rl->lsa_mod = lsa_mod;
+	rl->lsa_del = lsa_del;
+
+	return rl;
+}
+
+void to_loc_listener_free(struct rib_listener *rl)
+{
+	free(rl);
+}

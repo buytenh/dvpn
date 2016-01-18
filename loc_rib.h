@@ -17,13 +17,38 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#ifndef __RIB_LISTENER_DEBUG_H
-#define __RIB_LISTENER_DEBUG_H
+#ifndef __LOC_RIB_H
+#define __LOC_RIB_H
 
+#include <iv_avl.h>
+#include <iv_list.h>
+#include "lsa.h"
 #include "rib_listener.h"
 
-struct rib_listener *debug_listener_new(char *name);
-void debug_listener_free(struct rib_listener *rl);
+struct loc_rib {
+	struct iv_avl_tree	ids;
+	struct iv_list_head	listeners;
+};
+
+struct loc_rib_id {
+	struct iv_avl_node	an;
+	uint8_t			id[32];
+	struct iv_avl_tree	lsas;
+	struct loc_rib_lsa_ref	*best;
+};
+
+struct loc_rib_lsa_ref {
+	struct iv_avl_node	an;
+	struct lsa		*lsa;
+};
+
+struct loc_rib *loc_rib_alloc(void);
+void loc_rib_add_lsa(struct loc_rib *rib, struct lsa *lsa);
+void loc_rib_mod_lsa(struct loc_rib *rib, struct lsa *lsa, struct lsa *newlsa);
+void loc_rib_del_lsa(struct loc_rib *rib, struct lsa *lsa);
+void loc_rib_free(struct loc_rib *rib);
+void loc_rib_listener_register(struct loc_rib *rib, struct rib_listener *rl);
+void loc_rib_listener_unregister(struct loc_rib *rib, struct rib_listener *rl);
 
 
 #endif

@@ -17,13 +17,13 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#ifndef __RIB_LISTENER_DEBUG_H
-#define __RIB_LISTENER_DEBUG_H
+#ifndef __RIB_LISTENER_TO_LOC_H
+#define __RIB_LISTENER_TO_LOC_H
 
 #include "rib_listener.h"
 
-struct rib_listener *debug_listener_new(char *name);
-void debug_listener_free(struct rib_listener *rl);
+struct rib_listener *to_loc_listener_new(struct loc_rib *dest);
+void to_loc_listener_free(struct rib_listener *rl);
 
 
 #endif

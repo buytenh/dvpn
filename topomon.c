@@ -26,10 +26,12 @@
 #include <string.h>
 #include "adj_rib.h"
 #include "conf.h"
+#include "loc_rib.h"
 #include "lsa.h"
 #include "lsa_deserialise.h"
 #include "lsa_type.h"
 #include "rib_listener_debug.h"
+#include "rib_listener_to_loc.h"
 #include "x509.h"
 
 struct qpeer {
@@ -40,12 +42,14 @@ struct qpeer {
 	struct iv_timer		query_timer;
 	struct iv_timer		query_timeout;
 	struct adj_rib		*adj_rib_in;
-	struct rib_listener	*debug_listener;
+	struct rib_listener	*to_loc_listener;
 };
 
 static void qpeer_find_or_add(uint8_t *id);
 
 static struct iv_avl_tree qpeers;
+static struct loc_rib *loc_rib;
+static struct rib_listener *debug_listener;
 static struct iv_signal sigint;
 
 static int qpeer_compare(struct iv_avl_node *_a, struct iv_avl_node *_b)
@@ -108,9 +112,6 @@ static void got_response(void *_qpeer)
 		if (attr->type == LSA_ATTR_TYPE_PEER) {
 			if (attr->keylen == 32)
 				qpeer_find_or_add(attr->key);
-		} else if (attr->type == LSA_ATTR_TYPE_NODE_NAME) {
-			debug_listener_set_name(qpeer->debug_listener,
-						attr->data, attr->datalen);
 		}
 	}
 
@@ -144,7 +145,7 @@ static void qpeer_zap(struct qpeer *qpeer)
 	if (iv_timer_registered(&qpeer->query_timeout))
 		iv_timer_unregister(&qpeer->query_timeout);
 	adj_rib_free(qpeer->adj_rib_in);
-	debug_listener_free(qpeer->debug_listener);
+	to_loc_listener_free(qpeer->to_loc_listener);
 	free(qpeer);
 }
 
@@ -215,8 +216,8 @@ static void qpeer_add(uint8_t *id, int permanent)
 
 	snprintf(name, sizeof(name), "adj-rib-in-%p", qpeer);
 
-	qpeer->debug_listener = debug_listener_new(name);
-	adj_rib_listener_register(qpeer->adj_rib_in, qpeer->debug_listener);
+	qpeer->to_loc_listener = to_loc_listener_new(loc_rib);
+	adj_rib_listener_register(qpeer->adj_rib_in, qpeer->to_loc_listener);
 }
 
 static struct qpeer *qpeer_find(uint8_t *id)
@@ -322,14 +323,17 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	gnutls_global_init();
-
 	iv_init();
 
 	INIT_IV_AVL_TREE(&qpeers, qpeer_compare);
 
-	qpeer_add_config(config);
+	loc_rib = loc_rib_alloc();
 
+	debug_listener = debug_listener_new("loc-rib");
+	loc_rib_listener_register(loc_rib, debug_listener);
+
+	gnutls_global_init();
+	qpeer_add_config(config);
 	gnutls_global_deinit();
 
 	IV_SIGNAL_INIT(&sigint);
@@ -340,6 +344,9 @@ int main(int argc, char *argv[])
 	iv_signal_register(&sigint);
 
 	iv_main();
+
+	loc_rib_free(loc_rib);
+	debug_listener_free(debug_listener);
 
 	iv_deinit();
 
