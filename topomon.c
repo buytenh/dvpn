@@ -42,6 +42,8 @@ struct qpeer {
 	struct rib_listener	*debug_listener;
 };
 
+static void qpeer_find_or_add(uint8_t *id);
+
 static struct iv_avl_tree qpeers;
 static struct iv_signal sigint;
 
@@ -102,7 +104,10 @@ static void got_response(void *_qpeer)
 		struct lsa_attr *attr;
 
 		attr = iv_container_of(an, struct lsa_attr, an);
-		if (attr->type == LSA_ATTR_TYPE_NODE_NAME) {
+		if (attr->type == LSA_ATTR_TYPE_PEER) {
+			if (attr->keylen == 32)
+				qpeer_find_or_add(attr->key);
+		} else if (attr->type == LSA_ATTR_TYPE_NODE_NAME) {
 			debug_listener_set_name(qpeer->debug_listener,
 						attr->data, attr->datalen);
 		}
@@ -211,6 +216,43 @@ static void qpeer_add(uint8_t *id, int permanent)
 
 	qpeer->debug_listener = debug_listener_new(name);
 	adj_rib_listener_register(qpeer->adj_rib_in, qpeer->debug_listener);
+}
+
+static struct qpeer *qpeer_find(uint8_t *id)
+{
+	struct iv_avl_node *an;
+
+	an = qpeers.root;
+	while (an != NULL) {
+		struct qpeer *qpeer;
+		int ret;
+
+		qpeer = iv_container_of(an, struct qpeer, an);
+
+		ret = memcmp(id, qpeer->id, 32);
+		if (ret == 0)
+			return qpeer;
+
+		if (ret < 0)
+			an = an->left;
+		else
+			an = an->right;
+	}
+
+	return NULL;
+}
+
+static void qpeer_find_or_add(uint8_t *id)
+{
+	struct qpeer *qpeer;
+
+	qpeer = qpeer_find(id);
+	if (qpeer != NULL) {
+		ping_query_timeout(qpeer);
+		return;
+	}
+
+	qpeer_add(id, 0);
 }
 
 static void qpeer_add_config(const char *config)
