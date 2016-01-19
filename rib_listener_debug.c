@@ -35,12 +35,12 @@ static void attr_add(void *cookie, struct lsa_attr *attr)
 
 	if (attr->keylen) {
 		printf("[");
-		printhex(stdout, attr->key, attr->keylen);
+		printhex(stdout, lsa_attr_key(attr), attr->keylen);
 		printf("]");
 	}
 
 	printf(" = [");
-	printhex(stdout, attr->data, attr->datalen);
+	printhex(stdout, lsa_attr_data(attr), attr->datalen);
 	printf("]\n");
 }
 
@@ -54,14 +54,14 @@ attr_mod(void *cookie, struct lsa_attr *aattr, struct lsa_attr *battr)
 
 	if (aattr->keylen) {
 		printf("[");
-		printhex(stdout, aattr->key, aattr->keylen);
+		printhex(stdout, lsa_attr_key(aattr), aattr->keylen);
 		printf("]");
 	}
 
 	printf(" = [");
-	printhex(stdout, aattr->data, aattr->datalen);
+	printhex(stdout, lsa_attr_data(aattr), aattr->datalen);
 	printf("] -> [");
-	printhex(stdout, battr->data, battr->datalen);
+	printhex(stdout, lsa_attr_data(battr), battr->datalen);
 	printf("]\n");
 }
 
@@ -74,12 +74,12 @@ static void attr_del(void *cookie, struct lsa_attr *attr)
 
 	if (attr->keylen) {
 		printf("[");
-		printhex(stdout, attr->key, attr->keylen);
+		printhex(stdout, lsa_attr_key(attr), attr->keylen);
 		printf("]");
 	}
 
 	printf(" = [");
-	printhex(stdout, attr->data, attr->datalen);
+	printhex(stdout, lsa_attr_data(attr), attr->datalen);
 	printf("]\n");
 }
 

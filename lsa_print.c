@@ -60,12 +60,12 @@ void lsa_print(FILE *fp, struct lsa *lsa)
 
 		if (attr->keylen) {
 			fprintf(fp, "[");
-			printhex(fp, attr->key, attr->keylen);
+			printhex(fp, lsa_attr_key(attr), attr->keylen);
 			fprintf(fp, "]");
 		}
 
 		fprintf(fp, " = [");
-		printhex(fp, attr->data, attr->datalen);
+		printhex(fp, lsa_attr_data(attr), attr->datalen);
 		fprintf(fp, "]\n");
 	}
 

@@ -53,17 +53,6 @@ struct lsa *lsa_get(struct lsa *lsa)
 	return lsa;
 }
 
-static void lsa_attr_free(struct lsa_attr *attr)
-{
-	if (attr->key != NULL)
-		free(attr->key);
-
-	if (attr->data != NULL)
-		free(attr->data);
-
-	free(attr);
-}
-
 static void attr_tree_free(struct iv_avl_node *root)
 {
 	if (root->left != NULL)
@@ -72,7 +61,7 @@ static void attr_tree_free(struct iv_avl_node *root)
 	if (root->right != NULL)
 		attr_tree_free(root->right);
 
-	lsa_attr_free(iv_container_of(root, struct lsa_attr, an));
+	free(iv_container_of(root, struct lsa_attr, an));
 }
 
 void lsa_put(struct lsa *lsa)
@@ -97,11 +86,31 @@ struct lsa *lsa_clone(struct lsa *lsa)
 
 		attr = iv_container_of(an, struct lsa_attr, an);
 
-		lsa_attr_add(newlsa, attr->type, attr->key, attr->keylen,
-			     attr->data, attr->datalen);
+		lsa_attr_add(newlsa, attr->type,
+			     lsa_attr_key(attr), attr->keylen,
+			     lsa_attr_data(attr), attr->datalen);
 	}
 
 	return newlsa;
+}
+
+
+#define ROUND_UP(size)	(((size) + 7) & ~7)
+
+void *lsa_attr_key(struct lsa_attr *attr)
+{
+	if (attr->keylen)
+		return attr->buf;
+
+	return NULL;
+}
+
+void *lsa_attr_data(struct lsa_attr *attr)
+{
+	if (attr->datalen)
+		return attr->buf + ROUND_UP(attr->keylen);
+
+	return NULL;
 }
 
 int lsa_attr_compare_keys(struct lsa_attr *a, struct lsa_attr *b)
@@ -118,7 +127,7 @@ int lsa_attr_compare_keys(struct lsa_attr *a, struct lsa_attr *b)
 	if (len > b->keylen)
 		len = b->keylen;
 
-	ret = memcmp(a->key, b->key, len);
+	ret = memcmp(lsa_attr_key(a), lsa_attr_key(b), len);
 	if (ret < 0)
 		return -1;
 	if (ret > 0)
@@ -135,12 +144,15 @@ int lsa_attr_compare_keys(struct lsa_attr *a, struct lsa_attr *b)
 struct lsa_attr *lsa_attr_find(struct lsa *lsa, int type,
 			       void *key, int keylen)
 {
-	struct lsa_attr skey;
+	struct {
+		struct lsa_attr		skey;
+		uint8_t			kkey[keylen];
+	} s;
 	struct iv_avl_node *an;
 
-	skey.type = type;
-	skey.key = key;
-	skey.keylen = keylen;
+	s.skey.type = type;
+	s.skey.keylen = keylen;
+	memcpy(lsa_attr_key(&s.skey), key, keylen);
 
 	an = lsa->attrs.root;
 	while (an != NULL) {
@@ -149,7 +161,7 @@ struct lsa_attr *lsa_attr_find(struct lsa *lsa, int type,
 
 		attr = iv_container_of(an, struct lsa_attr, an);
 
-		ret = lsa_attr_compare_keys(&skey, attr);
+		ret = lsa_attr_compare_keys(&s.skey, attr);
 		if (ret == 0)
 			return attr;
 
@@ -171,33 +183,17 @@ void lsa_attr_add(struct lsa *lsa, int type, void *key, int keylen,
 	if (attr != NULL)
 		abort();
 
-	attr = malloc(sizeof(*attr));
+	attr = malloc(sizeof(*attr) + ROUND_UP(keylen) + datalen);
 	if (attr == NULL)
 		abort();
 
 	attr->type = type;
-
-	if (keylen) {
-		attr->keylen = keylen;
-		attr->key = malloc(keylen);
-		if (attr->key == NULL)
-			abort();
-		memcpy(attr->key, key, keylen);
-	} else {
-		attr->keylen = 0;
-		attr->key = NULL;
-	}
-
-	if (datalen) {
-		attr->datalen = datalen;
-		attr->data = malloc(datalen);
-		if (attr->data == NULL)
-			abort();
-		memcpy(attr->data, data, datalen);
-	} else {
-		attr->datalen = 0;
-		attr->data = NULL;
-	}
+	attr->keylen = keylen;
+	if (keylen)
+		memcpy(lsa_attr_key(attr), key, keylen);
+	attr->datalen = datalen;
+	if (datalen)
+		memcpy(lsa_attr_data(attr), data, datalen);
 
 	iv_avl_tree_insert(&lsa->attrs, &attr->an);
 }
@@ -205,7 +201,7 @@ void lsa_attr_add(struct lsa *lsa, int type, void *key, int keylen,
 void lsa_attr_del(struct lsa *lsa, struct lsa_attr *attr)
 {
 	iv_avl_tree_delete(&lsa->attrs, &attr->an);
-	lsa_attr_free(attr);
+	free(attr);
 }
 
 void lsa_attr_del_key(struct lsa *lsa, int type, void *key, int keylen)

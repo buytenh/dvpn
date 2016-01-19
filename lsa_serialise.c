@@ -84,7 +84,7 @@ int lsa_serialise(uint8_t *buf, int buflen, struct lsa *lsa, uint8_t *preid)
 
 		if (attr->keylen) {
 			dst_append_u16(&dst, 0x8000 | attr->keylen);
-			dst_append(&dst, attr->key, attr->keylen);
+			dst_append(&dst, lsa_attr_key(attr), attr->keylen);
 		}
 
 		if (attr->type == LSA_ATTR_TYPE_ADV_PATH && preid != NULL) {
@@ -93,7 +93,7 @@ int lsa_serialise(uint8_t *buf, int buflen, struct lsa *lsa, uint8_t *preid)
 		} else {
 			dst_append_u16(&dst, attr->datalen);
 		}
-		dst_append(&dst, attr->data, attr->datalen);
+		dst_append(&dst, lsa_attr_data(attr), attr->datalen);
 	}
 
 	len = dst.off;

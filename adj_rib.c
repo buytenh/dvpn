@@ -85,7 +85,8 @@ static struct lsa *map(struct adj_rib *rib, struct lsa *lsa)
 	if (attr == NULL)
 		return NULL;
 
-	if (attr->datalen < 32 || memcmp(rib->remoteid, attr->data, 32))
+	if (attr->datalen < 32 ||
+	    memcmp(rib->remoteid, lsa_attr_data(attr), 32))
 		return NULL;
 
 	if (lsa_path_contains(attr, rib->myid))

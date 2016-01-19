@@ -37,11 +37,12 @@ struct lsa_attr {
 	struct iv_avl_node	an;
 	int			type;
 	int			keylen;
-	void			*key;
 	int			datalen;
-	void			*data;
+	uint8_t			buf[0];
 };
 
+void *lsa_attr_key(struct lsa_attr *attr);
+void *lsa_attr_data(struct lsa_attr *attr);
 int lsa_attr_compare_keys(struct lsa_attr *a, struct lsa_attr *b);
 struct lsa_attr *lsa_attr_find(struct lsa *lsa, int type,
 			       void *key, int keylen);

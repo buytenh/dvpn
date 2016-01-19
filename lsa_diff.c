@@ -87,7 +87,8 @@ int lsa_diff(struct lsa *a, struct lsa *b, void *cookie,
 			bnode = iv_avl_tree_next(bnode);
 		} else {
 			if (aattr->datalen != battr->datalen ||
-			    memcmp(aattr->data, battr->data, aattr->datalen)) {
+			    memcmp(lsa_attr_data(aattr), lsa_attr_data(battr),
+				   aattr->datalen)) {
 				diffs++;
 				attr_mod(cookie, aattr, battr);
 			}

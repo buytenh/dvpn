@@ -111,7 +111,7 @@ static void got_response(void *_qpeer)
 		attr = iv_container_of(an, struct lsa_attr, an);
 		if (attr->type == LSA_ATTR_TYPE_PEER) {
 			if (attr->keylen == 32)
-				qpeer_find_or_add(attr->key);
+				qpeer_find_or_add(lsa_attr_key(attr));
 		}
 	}
 

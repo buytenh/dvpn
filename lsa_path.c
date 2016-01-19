@@ -25,13 +25,15 @@
 
 int lsa_path_contains(struct lsa_attr *attr, uint8_t *id)
 {
+	void *data;
 	int i;
 
 	if (attr->type != LSA_ATTR_TYPE_ADV_PATH)
 		abort();
 
+	data = lsa_attr_data(attr);
 	for (i = 0; i < attr->datalen; i += 32) {
-		if (!memcmp(attr->data + i, id, 32))
+		if (!memcmp(data + i, id, 32))
 			return 1;
 	}
 

@@ -144,7 +144,8 @@ static int lsa_better(struct lsa *a, struct lsa *b)
 	if (aattr->datalen > battr->datalen)
 		return 0;
 
-	return !!(memcmp(aattr->data, battr->data, aattr->datalen) < 0);
+	return !!(memcmp(lsa_attr_data(aattr), lsa_attr_data(battr),
+			 aattr->datalen) < 0);
 }
 
 static void set_newbest(struct loc_rib *rib, struct loc_rib_id *rid,

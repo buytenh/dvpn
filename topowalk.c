@@ -215,11 +215,11 @@ static void query_node(int fd, struct node *n)
 
 			if (attr->keylen != 32)
 				continue;
-			to = find_node(attr->key);
+			to = find_node(lsa_attr_key(attr));
 
 			if (attr->datalen < sizeof(*data))
 				continue;
-			data = attr->data;
+			data = lsa_attr_data(attr);
 
 			metric = ntohs(data->metric);
 			peer_type = lsa_peer_type_to_peer_type(data->peer_type);
@@ -227,7 +227,7 @@ static void query_node(int fd, struct node *n)
 			if (peer_type != PEER_TYPE_INVALID)
 				add_edge(n, to, metric, peer_type);
 		} else if (attr->type == LSA_ATTR_TYPE_NODE_NAME) {
-			set_node_name(n, attr->data, attr->datalen);
+			set_node_name(n, lsa_attr_data(attr), attr->datalen);
 		}
 	}
 
