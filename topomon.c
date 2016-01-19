@@ -35,14 +35,14 @@
 #include "x509.h"
 
 struct qpeer {
-	struct iv_avl_node	an;
-	uint8_t			id[32];
-	struct iv_fd		query_fd;
-	struct sockaddr_in6	query_addr;
-	struct iv_timer		query_timer;
-	struct iv_timer		query_timeout;
-	struct adj_rib		adj_rib_in;
-	struct rib_listener	*to_loc_listener;
+	struct iv_avl_node		an;
+	uint8_t				id[32];
+	struct iv_fd			query_fd;
+	struct sockaddr_in6		query_addr;
+	struct iv_timer			query_timer;
+	struct iv_timer			query_timeout;
+	struct adj_rib			adj_rib_in;
+	struct rib_listener_to_loc	to_loc_listener;
 };
 
 static void qpeer_find_or_add(uint8_t *id);
@@ -145,7 +145,7 @@ static void qpeer_zap(struct qpeer *qpeer)
 	if (iv_timer_registered(&qpeer->query_timeout))
 		iv_timer_unregister(&qpeer->query_timeout);
 	adj_rib_flush(&qpeer->adj_rib_in);
-	to_loc_listener_free(qpeer->to_loc_listener);
+	rib_listener_to_loc_deinit(&qpeer->to_loc_listener);
 	free(qpeer);
 }
 
@@ -216,8 +216,11 @@ static void qpeer_add(uint8_t *id, int permanent)
 
 	snprintf(name, sizeof(name), "adj-rib-in-%p", qpeer);
 
-	qpeer->to_loc_listener = to_loc_listener_new(&loc_rib);
-	adj_rib_listener_register(&qpeer->adj_rib_in, qpeer->to_loc_listener);
+	qpeer->to_loc_listener.dest = &loc_rib;
+	rib_listener_to_loc_init(&qpeer->to_loc_listener);
+
+	adj_rib_listener_register(&qpeer->adj_rib_in,
+				  &qpeer->to_loc_listener.rl);
 }
 
 static struct qpeer *qpeer_find(uint8_t *id)

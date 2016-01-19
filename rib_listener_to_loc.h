@@ -22,8 +22,14 @@
 
 #include "rib_listener.h"
 
-struct rib_listener *to_loc_listener_new(struct loc_rib *dest);
-void to_loc_listener_free(struct rib_listener *rl);
+struct rib_listener_to_loc
+{
+	struct loc_rib		*dest;
+	struct rib_listener	rl;
+};
+
+void rib_listener_to_loc_init(struct rib_listener_to_loc *rl);
+void rib_listener_to_loc_deinit(struct rib_listener_to_loc *rl);
 
 
 #endif
