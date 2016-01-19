@@ -22,8 +22,14 @@
 
 #include "rib_listener.h"
 
-struct rib_listener *debug_listener_new(char *name);
-void debug_listener_free(struct rib_listener *rl);
+struct rib_listener_debug
+{
+	char			*name;
+	struct rib_listener	rl;
+};
+
+void rib_listener_debug_init(struct rib_listener_debug *rl);
+void rib_listener_debug_deinit(struct rib_listener_debug *rl);
 
 
 #endif

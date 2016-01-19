@@ -28,9 +28,10 @@
 
 static void attr_add(void *cookie, struct lsa_attr *attr)
 {
+	struct rib_listener_debug *rl = cookie;
 	char t[128];
 
-	printf("%s: attr add: %s", (char *)cookie,
+	printf("%s: attr add: %s", rl->name,
 	       lsa_attr_type_name(attr->type, t, sizeof(t)));
 
 	if (attr->keylen) {
@@ -47,9 +48,10 @@ static void attr_add(void *cookie, struct lsa_attr *attr)
 static void
 attr_mod(void *cookie, struct lsa_attr *aattr, struct lsa_attr *battr)
 {
+	struct rib_listener_debug *rl = cookie;
 	char t[128];
 
-	printf("%s: attr mod: %s", (char *)cookie,
+	printf("%s: attr mod: %s", rl->name,
 	       lsa_attr_type_name(aattr->type, t, sizeof(t)));
 
 	if (aattr->keylen) {
@@ -67,9 +69,10 @@ attr_mod(void *cookie, struct lsa_attr *aattr, struct lsa_attr *battr)
 
 static void attr_del(void *cookie, struct lsa_attr *attr)
 {
+	struct rib_listener_debug *rl = cookie;
 	char t[128];
 
-	printf("%s: attr del: %s", (char *)cookie,
+	printf("%s: attr del: %s", rl->name,
 	       lsa_attr_type_name(attr->type, t, sizeof(t)));
 
 	if (attr->keylen) {
@@ -85,7 +88,9 @@ static void attr_del(void *cookie, struct lsa_attr *attr)
 
 static void lsa_add(void *cookie, struct lsa *a)
 {
-	printf("%s: lsa add [", (char *)cookie);
+	struct rib_listener_debug *rl = cookie;
+
+	printf("%s: lsa add [", rl->name);
 	printhex(stdout, a->id, 32);
 	printf("]\n");
 
@@ -96,7 +101,9 @@ static void lsa_add(void *cookie, struct lsa *a)
 
 static void lsa_mod(void *cookie, struct lsa *a, struct lsa *b)
 {
-	printf("%s: lsa mod [", (char *)cookie);
+	struct rib_listener_debug *rl = cookie;
+
+	printf("%s: lsa mod [", rl->name);
 	printhex(stdout, a->id, 32);
 	printf("]\n");
 
@@ -107,7 +114,9 @@ static void lsa_mod(void *cookie, struct lsa *a, struct lsa *b)
 
 static void lsa_del(void *cookie, struct lsa *a)
 {
-	printf("%s: lsa del [", (char *)cookie);
+	struct rib_listener_debug *rl = cookie;
+
+	printf("%s: lsa del [", rl->name);
 	printhex(stdout, a->id, 32);
 	printf("]\n");
 
@@ -116,24 +125,14 @@ static void lsa_del(void *cookie, struct lsa *a)
 	printf("\n");
 }
 
-struct rib_listener *debug_listener_new(char *name)
+void rib_listener_debug_init(struct rib_listener_debug *rl)
 {
-	struct rib_listener *rl;
-
-	rl = malloc(sizeof(*rl));
-	if (rl == NULL)
-		return NULL;
-
-	rl->cookie = (void *)strdup(name);
-	rl->lsa_add = lsa_add;
-	rl->lsa_mod = lsa_mod;
-	rl->lsa_del = lsa_del;
-
-	return rl;
+	rl->rl.cookie = rl;
+	rl->rl.lsa_add = lsa_add;
+	rl->rl.lsa_mod = lsa_mod;
+	rl->rl.lsa_del = lsa_del;
 }
 
-void debug_listener_free(struct rib_listener *rl)
+void rib_listener_debug_deinit(struct rib_listener_debug *rl)
 {
-	free(rl->cookie);
-	free(rl);
 }

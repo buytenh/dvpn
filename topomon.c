@@ -49,7 +49,7 @@ static void qpeer_find_or_add(uint8_t *id);
 
 static struct iv_avl_tree qpeers;
 static struct loc_rib loc_rib;
-static struct rib_listener *debug_listener;
+static struct rib_listener_debug debug_listener;
 static struct iv_signal sigint;
 
 static int qpeer_compare(struct iv_avl_node *_a, struct iv_avl_node *_b)
@@ -329,8 +329,10 @@ int main(int argc, char *argv[])
 
 	loc_rib_init(&loc_rib);
 
-	debug_listener = debug_listener_new("loc-rib");
-	loc_rib_listener_register(&loc_rib, debug_listener);
+	debug_listener.name = "loc-rib";
+	rib_listener_debug_init(&debug_listener);
+
+	loc_rib_listener_register(&loc_rib, &debug_listener.rl);
 
 	gnutls_global_init();
 	qpeer_add_config(config);
@@ -346,7 +348,8 @@ int main(int argc, char *argv[])
 	iv_main();
 
 	loc_rib_deinit(&loc_rib);
-	debug_listener_free(debug_listener);
+
+	rib_listener_debug_deinit(&debug_listener);
 
 	iv_deinit();
 
