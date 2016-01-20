@@ -161,7 +161,6 @@ static void qpeer_add(uint8_t *id, int permanent)
 	int fd;
 	struct qpeer *qpeer;
 	uint8_t addr[16];
-	char name[128];
 
 	fd = socket(AF_INET6, SOCK_DGRAM, 0);
 	if (fd < 0) {
@@ -213,8 +212,6 @@ static void qpeer_add(uint8_t *id, int permanent)
 	memset(&qpeer->adj_rib_in.myid, 0, 32);
 	memcpy(&qpeer->adj_rib_in.remoteid, id, 32);
 	adj_rib_init(&qpeer->adj_rib_in);
-
-	snprintf(name, sizeof(name), "adj-rib-in-%p", qpeer);
 
 	qpeer->to_loc_listener.dest = &loc_rib;
 	rib_listener_to_loc_init(&qpeer->to_loc_listener);
