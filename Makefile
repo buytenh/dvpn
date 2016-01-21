@@ -1,9 +1,10 @@
-all:		dvpn topomon topowalk
+all:		dgpd dvpn topomon topowalk
 
 clean:
 		rm -f *.dot
 		rm -f client.ini
 		rm -f client.key
+		rm -f dgpd
 		rm -f dvpn
 		rm -f server.ini
 		rm -f server.key
@@ -13,6 +14,9 @@ clean:
 install:	dvpn
 		install -m 0755 dvpn /usr/bin
 		install -m 0644 dvpn.service /usr/lib/systemd/system
+
+dgpd:		dgpd.c adj_rib.c adj_rib.h conf.c conf.h loc_rib.c loc_rib.h lsa.c lsa.h lsa_deserialise.c lsa_deserialise.h lsa_diff.c lsa_diff.h lsa_path.c lsa_path.h lsa_print.c lsa_print.h rib_listener.h rib_listener_debug.c rib_listener_debug.h rib_listener_to_loc.c rib_listener_to_loc.h util.c util.h x509.c x509.h
+		gcc -Wall -g -o dgpd dgpd.c adj_rib.c conf.c loc_rib.c lsa.c lsa_deserialise.c lsa_diff.c lsa_path.c lsa_print.c rib_listener_debug.c rib_listener_to_loc.c util.c x509.c -lgnutls -lini_config -livykis -lnettle
 
 dvpn:		dvpn.c conf.c conf.h confdiff.c confdiff.h connect.c connect.h itf.c itf.h iv_getaddrinfo.c iv_getaddrinfo.h listen.c listen.h lsa.c lsa.h lsa_path.c lsa_path.h lsa_print.c lsa_print.h lsa_serialise.c lsa_serialise.h lsa_type.h pconn.c pconn.h tun.c tun.h util.c util.h x509.c x509.h
 		gcc -Wall -g -o dvpn dvpn.c conf.c confdiff.c connect.c itf.c iv_getaddrinfo.c listen.c lsa.c lsa_path.c lsa_print.c lsa_serialise.c pconn.c tun.c util.c x509.c -lgnutls -lini_config -livykis -lnettle
