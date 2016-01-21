@@ -19,6 +19,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <fcntl.h>
 #include <getopt.h>
 #include <gnutls/x509.h>
 #include <iv.h>
@@ -30,6 +31,7 @@
 #include "lsa.h"
 #include "lsa_deserialise.h"
 #include "lsa_diff.h"
+#include "lsa_serialise.h"
 #include "lsa_type.h"
 #include "rib_listener_debug.h"
 #include "rib_listener_to_loc.h"
@@ -251,6 +253,30 @@ static void query_start(void)
 	adj_rib_listener_register(&local_adj_rib_in, &local_to_loc_listener.rl);
 }
 
+static int rib_dump(int fd)
+{
+	struct iv_avl_node *an;
+
+	iv_avl_tree_for_each (an, &loc_rib.ids) {
+		struct loc_rib_id *rid;
+		uint8_t buf[65536];
+		int len;
+
+		rid = iv_container_of(an, struct loc_rib_id, an);
+		if (rid->best == NULL)
+			continue;
+
+		len = lsa_serialise(buf, sizeof(buf), rid->best, NULL);
+		if (len > sizeof(buf))
+			abort();
+
+		if (write(fd, buf, len) != len)
+			return -1;
+	}
+
+	return 0;
+}
+
 static void got_connection(void *_dummy)
 {
 	struct sockaddr_storage addr;
@@ -264,6 +290,10 @@ static void got_connection(void *_dummy)
 		perror("got_connection: accept");
 		return;
 	}
+
+	fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
+
+	rib_dump(fd);
 
 	close(fd);
 }
