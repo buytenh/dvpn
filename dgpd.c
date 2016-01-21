@@ -19,7 +19,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <fcntl.h>
 #include <getopt.h>
 #include <gnutls/x509.h>
 #include <iv.h>
@@ -43,6 +42,12 @@ struct dgp_peer {
 	uint8_t			addr[16];
 };
 
+struct dgp_conn_incoming {
+	struct iv_list_head	list;
+	int			fd;
+	struct rib_listener	from_loc;
+};
+
 static uint8_t local_id[32];
 
 static struct loc_rib loc_rib;
@@ -58,6 +63,7 @@ static struct rib_listener peer_listener;
 static struct iv_avl_tree peers;
 
 static struct iv_fd fd_incoming;
+static struct iv_list_head conns_incoming;
 
 static struct iv_signal sigint;
 
@@ -253,28 +259,67 @@ static void query_start(void)
 	adj_rib_listener_register(&local_adj_rib_in, &local_to_loc_listener.rl);
 }
 
-static int rib_dump(int fd)
+static void conn_kill(struct dgp_conn_incoming *conn)
+{
+	iv_list_del(&conn->list);
+	close(conn->fd);
+	loc_rib_listener_unregister(&loc_rib, &conn->from_loc);
+	free(conn);
+}
+
+static int output_lsa(struct dgp_conn_incoming *conn, struct lsa *lsa)
+{
+	uint8_t buf[65536];
+	int len;
+
+	len = lsa_serialise(buf, sizeof(buf), lsa, NULL);
+	if (len > sizeof(buf))
+		abort();
+
+	if (write(conn->fd, buf, len) != len) {
+		conn_kill(conn);
+		return 1;
+	}
+
+	return 0;
+}
+
+static void conn_lsa_add(void *_conn, struct lsa *lsa)
+{
+	struct dgp_conn_incoming *conn = _conn;
+
+	output_lsa(conn, lsa);
+}
+
+static void conn_lsa_mod(void *_conn, struct lsa *old, struct lsa *new)
+{
+	struct dgp_conn_incoming *conn = _conn;
+
+	output_lsa(conn, new);
+}
+
+static void conn_lsa_del(void *_conn, struct lsa *lsa)
+{
+	struct dgp_conn_incoming *conn = _conn;
+	struct lsa dummy;
+
+	memcpy(&dummy.id, lsa->id, 32);
+	INIT_IV_AVL_TREE(&dummy.attrs, NULL);
+
+	output_lsa(conn, &dummy);
+}
+
+static void rib_dump(struct dgp_conn_incoming *conn)
 {
 	struct iv_avl_node *an;
 
 	iv_avl_tree_for_each (an, &loc_rib.ids) {
 		struct loc_rib_id *rid;
-		uint8_t buf[65536];
-		int len;
 
 		rid = iv_container_of(an, struct loc_rib_id, an);
-		if (rid->best == NULL)
-			continue;
-
-		len = lsa_serialise(buf, sizeof(buf), rid->best, NULL);
-		if (len > sizeof(buf))
-			abort();
-
-		if (write(fd, buf, len) != len)
-			return -1;
+		if (rid->best != NULL && output_lsa(conn, rid->best))
+			break;
 	}
-
-	return 0;
 }
 
 static void got_connection(void *_dummy)
@@ -282,6 +327,7 @@ static void got_connection(void *_dummy)
 	struct sockaddr_storage addr;
 	socklen_t addrlen;
 	int fd;
+	struct dgp_conn_incoming *conn;
 
 	addrlen = sizeof(addr);
 
@@ -291,11 +337,23 @@ static void got_connection(void *_dummy)
 		return;
 	}
 
-	fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
+	conn = malloc(sizeof(*conn));
+	if (conn == NULL) {
+		close(fd);
+		return;
+	}
 
-	rib_dump(fd);
+	iv_list_add_tail(&conn->list, &conns_incoming);
 
-	close(fd);
+	conn->fd = fd;
+
+	conn->from_loc.cookie = conn;
+	conn->from_loc.lsa_add = conn_lsa_add;
+	conn->from_loc.lsa_mod = conn_lsa_mod;
+	conn->from_loc.lsa_del = conn_lsa_del;
+	loc_rib_listener_register(&loc_rib, &conn->from_loc);
+
+	rib_dump(conn);
 }
 
 static void listen_start(void)
@@ -347,6 +405,9 @@ static void listen_start(void)
 
 static void got_sigint(void *_dummy)
 {
+	struct iv_list_head *lh;
+	struct iv_list_head *lh2;
+
 	fprintf(stderr, "SIGINT received, shutting down\n");
 
 	iv_fd_unregister(&local_query_fd);
@@ -356,6 +417,9 @@ static void got_sigint(void *_dummy)
 
 	iv_fd_unregister(&fd_incoming);
 	close(fd_incoming.fd);
+
+	iv_list_for_each_safe (lh, lh2, &conns_incoming)
+		conn_kill(iv_container_of(lh, struct dgp_conn_incoming, list));
 
 	iv_signal_unregister(&sigint);
 }
@@ -412,6 +476,7 @@ int main(int argc, char *argv[])
 	INIT_IV_AVL_TREE(&peers, compare_peers);
 
 	listen_start();
+	INIT_IV_LIST_HEAD(&conns_incoming);
 
 	IV_SIGNAL_INIT(&sigint);
 	sigint.signum = SIGINT;
