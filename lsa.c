@@ -67,7 +67,8 @@ static void attr_tree_free(struct iv_avl_node *root)
 void lsa_put(struct lsa *lsa)
 {
 	if (!--lsa->refcount) {
-		attr_tree_free(lsa->attrs.root);
+		if (lsa->attrs.root != NULL)
+			attr_tree_free(lsa->attrs.root);
 		free(lsa);
 	}
 }
