@@ -35,14 +35,17 @@
 #include "x509.h"
 
 static uint8_t local_id[32];
+
+static struct loc_rib loc_rib;
+static struct rib_listener_debug loc_rib_debug_listener;
+
 static struct iv_fd local_query_fd;
 static struct sockaddr_in6 local_query_addr;
 static struct iv_timer local_query_timer;
 static struct adj_rib local_adj_rib_in;
 static struct rib_listener_to_loc local_to_loc_listener;
 
-static struct loc_rib loc_rib;
-static struct rib_listener_debug loc_rib_debug_listener;
+static struct iv_fd fd_incoming;
 
 static struct iv_signal sigint;
 
@@ -127,7 +130,7 @@ static void query_start(void)
 	fd = socket(AF_INET6, SOCK_DGRAM, 0);
 	if (fd < 0) {
 		perror("socket");
-		return;
+		exit(1);
 	}
 
 	IV_FD_INIT(&local_query_fd);
@@ -155,8 +158,71 @@ static void query_start(void)
 
 	local_to_loc_listener.dest = &loc_rib;
 	rib_listener_to_loc_init(&local_to_loc_listener);
-
 	adj_rib_listener_register(&local_adj_rib_in, &local_to_loc_listener.rl);
+}
+
+static void got_connection(void *_dummy)
+{
+	struct sockaddr_storage addr;
+	socklen_t addrlen;
+	int fd;
+
+	addrlen = sizeof(addr);
+
+	fd = accept(fd_incoming.fd, (struct sockaddr *)&addr, &addrlen);
+	if (fd < 0) {
+		perror("got_connection: accept");
+		return;
+	}
+
+	close(fd);
+}
+
+static void listen_start(void)
+{
+	int fd;
+	int yes;
+	uint8_t addr[16];
+	struct sockaddr_in6 saddr;
+
+	fd = socket(AF_INET6, SOCK_STREAM, 0);
+	if (fd < 0) {
+		perror("socket");
+		exit(1);
+	}
+
+	yes = 1;
+	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0) {
+		perror("listen_start: setsockopt(SOL_SOCKET, SO_REUSEADDR)");
+		exit(1);
+	}
+	if (setsockopt(fd, SOL_IP, IP_FREEBIND, &yes, sizeof(yes)) < 0) {
+		perror("listen_start: setsockopt(SOL_IP, IP_FREEBIND)");
+		exit(1);
+	}
+
+	v6_global_addr_from_key_id(addr, local_id, 32);
+
+	saddr.sin6_family = AF_INET6;
+	saddr.sin6_port = htons(44461);
+	saddr.sin6_flowinfo = 0;
+	memcpy(&saddr.sin6_addr, addr, 16);
+	saddr.sin6_scope_id = 0;
+
+	if (bind(fd, (struct sockaddr *)&saddr, sizeof(saddr)) < 0) {
+		perror("listen_start: bind");
+		exit(1);
+	}
+
+	if (listen(fd, 100) < 0) {
+		perror("listen_start: listen");
+		exit(1);
+	}
+
+	IV_FD_INIT(&fd_incoming);
+	fd_incoming.fd = fd;
+	fd_incoming.handler_in = got_connection;
+	iv_fd_register(&fd_incoming);
 }
 
 static void got_sigint(void *_dummy)
@@ -167,6 +233,9 @@ static void got_sigint(void *_dummy)
 	iv_timer_unregister(&local_query_timer);
 	adj_rib_flush(&local_adj_rib_in);
 	rib_listener_to_loc_deinit(&local_to_loc_listener);
+
+	iv_fd_unregister(&fd_incoming);
+	close(fd_incoming.fd);
 
 	iv_signal_unregister(&sigint);
 }
@@ -203,18 +272,19 @@ int main(int argc, char *argv[])
 
 	iv_init();
 
-	loc_rib_init(&loc_rib);
-
-	loc_rib_debug_listener.name = "loc-rib";
-	rib_listener_debug_init(&loc_rib_debug_listener);
-
-	loc_rib_listener_register(&loc_rib, &loc_rib_debug_listener.rl);
-
 	gnutls_global_init();
 	read_local_id(config);
 	gnutls_global_deinit();
 
+	loc_rib_init(&loc_rib);
+
+	loc_rib_debug_listener.name = "loc-rib";
+	rib_listener_debug_init(&loc_rib_debug_listener);
+	loc_rib_listener_register(&loc_rib, &loc_rib_debug_listener.rl);
+
 	query_start();
+
+	listen_start();
 
 	IV_SIGNAL_INIT(&sigint);
 	sigint.signum = SIGINT;
