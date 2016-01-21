@@ -34,7 +34,7 @@ struct loc_rib_id {
 	struct iv_avl_node	an;
 	uint8_t			id[32];
 	struct iv_avl_tree	lsas;
-	struct loc_rib_lsa_ref	*best;
+	struct lsa		*best;
 };
 
 struct loc_rib_lsa_ref {
