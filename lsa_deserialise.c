@@ -30,6 +30,15 @@ struct src
 	int		off;
 };
 
+#define SRC_GET_PTR(_src, _buflen)				\
+	({							\
+		int off = (_src)->off;				\
+		if ((_src)->srclen - off < _buflen)		\
+			goto short_read;			\
+		(_src)->off += _buflen;				\
+		(_src)->src + off;				\
+	})
+
 #define SRC_READ(_src, _buf, _buflen)					\
 	{								\
 		if ((_src)->srclen - (_src)->off < _buflen)		\
@@ -77,16 +86,16 @@ struct lsa *lsa_deserialise(uint8_t *buf, int buflen)
 		int type;
 		int val;
 		int keylen;
-		uint8_t key[65536];
+		uint8_t *key;
 		int datalen;
-		uint8_t data[65536];
+		uint8_t *data;
 
 		type = SRC_READ_U8(&src);
 
 		val = SRC_READ_U16(&src);
 		if (val & 0x8000) {
 			keylen = val & 0x7fff;
-			SRC_READ(&src, key, keylen);
+			key = SRC_GET_PTR(&src, keylen);
 
 			datalen = SRC_READ_U16(&src) & 0x7fff;
 		} else {
@@ -94,7 +103,7 @@ struct lsa *lsa_deserialise(uint8_t *buf, int buflen)
 			datalen = val & 0x7fff;
 		}
 
-		SRC_READ(&src, data, datalen);
+		data = SRC_GET_PTR(&src, datalen);
 
 		lsa_attr_add(lsa, type, key, keylen, data, datalen);
 	}
