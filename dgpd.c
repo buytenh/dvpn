@@ -29,10 +29,17 @@
 #include "loc_rib.h"
 #include "lsa.h"
 #include "lsa_deserialise.h"
+#include "lsa_diff.h"
 #include "lsa_type.h"
 #include "rib_listener_debug.h"
 #include "rib_listener_to_loc.h"
 #include "x509.h"
+
+struct dgp_peer {
+	struct iv_avl_node	an;
+	uint8_t			id[32];
+	uint8_t			addr[16];
+};
 
 static uint8_t local_id[32];
 
@@ -44,6 +51,9 @@ static struct sockaddr_in6 local_query_addr;
 static struct iv_timer local_query_timer;
 static struct adj_rib local_adj_rib_in;
 static struct rib_listener_to_loc local_to_loc_listener;
+
+static struct rib_listener peer_listener;
+static struct iv_avl_tree peers;
 
 static struct iv_fd fd_incoming;
 
@@ -66,6 +76,86 @@ static void read_local_id(const char *config)
 	x509_get_key_id(local_id, key);
 
 	gnutls_x509_privkey_deinit(key);
+}
+
+static int compare_peers(struct iv_avl_node *_a, struct iv_avl_node *_b)
+{
+	struct dgp_peer *a = iv_container_of(_a, struct dgp_peer, an);
+	struct dgp_peer *b = iv_container_of(_b, struct dgp_peer, an);
+
+	return memcmp(a->id, b->id, sizeof(a->id));
+}
+
+static void peer_attr_add(void *_dummy, struct lsa_attr *attr)
+{
+	struct dgp_peer *peer;
+
+	if (attr->type != LSA_ATTR_TYPE_PEER)
+		return;
+
+	peer = malloc(sizeof(*peer));
+	if (peer == NULL)
+		abort();
+
+	memcpy(peer->id, lsa_attr_key(attr), 32);
+	v6_global_addr_from_key_id(peer->addr, peer->id, 32);
+
+	iv_avl_tree_insert(&peers, &peer->an);
+}
+
+static struct dgp_peer *peer_find(uint8_t *id)
+{
+	struct iv_avl_node *an;
+
+	an = peers.root;
+	while (an != NULL) {
+		struct dgp_peer *peer;
+		int ret;
+
+		peer = iv_container_of(an, struct dgp_peer, an);
+
+		ret = memcmp(id, peer->id, 32);
+		if (ret == 0)
+			return peer;
+
+		if (ret < 0)
+			an = an->left;
+		else
+			an = an->right;
+	}
+
+	return NULL;
+}
+
+static void peer_attr_del(void *_dummy, struct lsa_attr *attr)
+{
+	struct dgp_peer *peer;
+
+	if (attr->type != LSA_ATTR_TYPE_PEER)
+		return;
+
+	peer = peer_find(lsa_attr_key(attr));
+	if (peer == NULL)
+		abort();
+
+	iv_avl_tree_delete(&peers, &peer->an);
+
+	free(peer);
+}
+
+static void peer_lsa_add(void *_dummy, struct lsa *lsa)
+{
+	lsa_diff(NULL, lsa, NULL, peer_attr_add, NULL, peer_attr_del);
+}
+
+static void peer_lsa_mod(void *_dummy, struct lsa *old, struct lsa *new)
+{
+	lsa_diff(old, new, NULL, peer_attr_add, NULL, peer_attr_del);
+}
+
+static void peer_lsa_del(void *_dummy, struct lsa *lsa)
+{
+	lsa_diff(lsa, NULL, NULL, peer_attr_add, NULL, peer_attr_del);
 }
 
 static void got_response(void *_dummy)
@@ -283,6 +373,13 @@ int main(int argc, char *argv[])
 	loc_rib_listener_register(&loc_rib, &loc_rib_debug_listener.rl);
 
 	query_start();
+
+	peer_listener.lsa_add = peer_lsa_add;
+	peer_listener.lsa_mod = peer_lsa_mod;
+	peer_listener.lsa_del = peer_lsa_del;
+	loc_rib_listener_register(&loc_rib, &peer_listener);
+
+	INIT_IV_AVL_TREE(&peers, compare_peers);
 
 	listen_start();
 
