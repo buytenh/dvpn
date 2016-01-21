@@ -30,26 +30,12 @@ struct src
 	int		off;
 };
 
-static int src_read(struct src *src, uint8_t *buf, int buflen)
-{
-	int tocopy;
-
-	tocopy = src->srclen - src->off;
-	if (tocopy > buflen)
-		tocopy = buflen;
-
-	if (tocopy > 0)
-		memcpy(buf, src->src + src->off, tocopy);
-
-	src->off += buflen;
-
-	return (tocopy >= 0) ? tocopy : 0;
-}
-
-#define SRC_READ(src, buf, buflen)				\
-	{							\
-		if (src_read(src, buf, buflen) != buflen)	\
-			goto short_read;			\
+#define SRC_READ(_src, _buf, _buflen)					\
+	{								\
+		if ((_src)->srclen - (_src)->off < _buflen)		\
+			goto short_read;				\
+		memcpy(_buf, (_src)->src + (_src)->off, _buflen);	\
+		(_src)->off += _buflen;					\
 	}
 
 #define SRC_READ_U8(src)			\
