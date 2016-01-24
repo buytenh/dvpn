@@ -17,14 +17,14 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#ifndef __PCONN_H
-#define __PCONN_H
+#ifndef __TCONN_H
+#define __TCONN_H
 
 #include <gnutls/gnutls.h>
 #include <iv.h>
 #include <stdint.h>
 
-struct pconn {
+struct tconn {
 	int			fd;
 	int			role;
 	gnutls_x509_privkey_t	key;
@@ -52,12 +52,12 @@ struct pconn {
 	int			tx_bytes;
 };
 
-#define PCONN_ROLE_SERVER	0
-#define PCONN_ROLE_CLIENT	1
+#define TCONN_ROLE_SERVER	0
+#define TCONN_ROLE_CLIENT	1
 
-int pconn_start(struct pconn *pc);
-int pconn_record_send(struct pconn *pc, const uint8_t *record, int len);
-void pconn_destroy(struct pconn *pc);
+int tconn_start(struct tconn *pc);
+int tconn_record_send(struct tconn *pc, const uint8_t *record, int len);
+void tconn_destroy(struct tconn *pc);
 
 
 #endif

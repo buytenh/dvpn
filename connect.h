@@ -24,7 +24,7 @@
 #include <iv.h>
 #include <netdb.h>
 #include "iv_getaddrinfo.h"
-#include "pconn.h"
+#include "tconn.h"
 #include "tun.h"
 #include "util.h"
 
@@ -54,7 +54,7 @@ struct server_peer
 			struct iv_fd		connectfd;
 		};
 		struct {
-			struct pconn		pconn;
+			struct tconn		tconn;
 			struct iv_timer		keepalive_timer;
 		};
 	};

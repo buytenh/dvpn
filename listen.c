@@ -28,7 +28,7 @@
 #include "conf.h"
 #include "itf.h"
 #include "listen.h"
-#include "pconn.h"
+#include "tconn.h"
 #include "tun.h"
 #include "util.h"
 #include "x509.h"
@@ -40,7 +40,7 @@ struct client_conn
 
 	int			state;
 	struct iv_timer		rx_timeout;
-	struct pconn		pconn;
+	struct tconn		tconn;
 	struct iv_timer		keepalive_timer;
 };
 
@@ -63,8 +63,8 @@ static void client_conn_kill(struct client_conn *cc)
 	if (iv_timer_registered(&cc->rx_timeout))
 		iv_timer_unregister(&cc->rx_timeout);
 
-	pconn_destroy(&cc->pconn);
-	close(cc->pconn.fd);
+	tconn_destroy(&cc->tconn);
+	close(cc->tconn.fd);
 
 	if (iv_timer_registered(&cc->keepalive_timer))
 		iv_timer_unregister(&cc->keepalive_timer);
@@ -77,7 +77,7 @@ static void print_name(FILE *fp, struct client_conn *cc)
 	if (cc->le != NULL)
 		fprintf(fp, "%s", cc->le->name);
 	else
-		fprintf(fp, "conn%d", cc->pconn.fd);
+		fprintf(fp, "conn%d", cc->tconn.fd);
 }
 
 static void rx_timeout(void *_cc)
@@ -95,7 +95,7 @@ static int verify_key_id(void *_cc, const uint8_t *id, int len)
 	struct client_conn *cc = _cc;
 	struct iv_list_head *lh;
 
-	fprintf(stderr, "conn%d: peer key ID ", cc->pconn.fd);
+	fprintf(stderr, "conn%d: peer key ID ", cc->tconn.fd);
 	printhex(stderr, id, len);
 
 	iv_list_for_each (lh, &cc->ls->listen_entries) {
@@ -135,13 +135,13 @@ static void handshake_done(void *_cc, char *desc)
 	le->current = cc;
 
 	i = 1;
-	if (setsockopt(cc->pconn.fd, SOL_TCP, TCP_NODELAY, &i, sizeof(i)) < 0) {
+	if (setsockopt(cc->tconn.fd, SOL_TCP, TCP_NODELAY, &i, sizeof(i)) < 0) {
 		perror("setsockopt(SOL_TCP, TCP_NODELAY)");
 		abort();
 	}
 
 	len = sizeof(i);
-	if (getsockopt(cc->pconn.fd, SOL_TCP, TCP_MAXSEG, &i, &len) < 0) {
+	if (getsockopt(cc->tconn.fd, SOL_TCP, TCP_MAXSEG, &i, &len) < 0) {
 		perror("getsockopt(SOL_TCP, TCP_MAXSEG)");
 		abort();
 	}
@@ -233,7 +233,7 @@ static void send_keepalive(void *_cc)
 	static uint8_t keepalive[] = { 0x00, 0x00, 0x00 };
 	struct client_conn *cc = _cc;
 
-	if (pconn_record_send(&cc->pconn, keepalive, 3)) {
+	if (tconn_record_send(&cc->tconn, keepalive, 3)) {
 		fprintf(stderr, "%s: error sending keepalive, disconnecting\n", 
 			cc->le->name);
 		client_conn_kill(cc);
@@ -290,20 +290,20 @@ static void got_connection(void *_ls)
 	cc->rx_timeout.handler = rx_timeout;
 	iv_timer_register(&cc->rx_timeout);
 
-	cc->pconn.fd = fd;
-	cc->pconn.role = PCONN_ROLE_SERVER;
-	cc->pconn.key = ls->key;
-	cc->pconn.cookie = cc;
-	cc->pconn.verify_key_id = verify_key_id;
-	cc->pconn.handshake_done = handshake_done;
-	cc->pconn.record_received = record_received;
-	cc->pconn.connection_lost = connection_lost;
+	cc->tconn.fd = fd;
+	cc->tconn.role = TCONN_ROLE_SERVER;
+	cc->tconn.key = ls->key;
+	cc->tconn.cookie = cc;
+	cc->tconn.verify_key_id = verify_key_id;
+	cc->tconn.handshake_done = handshake_done;
+	cc->tconn.record_received = record_received;
+	cc->tconn.connection_lost = connection_lost;
 
 	IV_TIMER_INIT(&cc->keepalive_timer);
 	cc->keepalive_timer.cookie = cc;
 	cc->keepalive_timer.handler = send_keepalive;
 
-	pconn_start(&cc->pconn);
+	tconn_start(&cc->tconn);
 }
 
 static void got_packet(void *_le, uint8_t *buf, int len)
@@ -328,7 +328,7 @@ static void got_packet(void *_le, uint8_t *buf, int len)
 	sndbuf[2] = len & 0xff;
 	memcpy(sndbuf + 3, buf, len);
 
-	if (pconn_record_send(&cc->pconn, sndbuf, len + 3)) {
+	if (tconn_record_send(&cc->tconn, sndbuf, len + 3)) {
 		fprintf(stderr, "%s: error sending TLS record, disconnecting\n",
 			cc->le->name);
 		client_conn_kill(cc);

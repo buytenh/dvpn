@@ -32,7 +32,7 @@
 #include "connect.h"
 #include "itf.h"
 #include "iv_getaddrinfo.h"
-#include "pconn.h"
+#include "tconn.h"
 #include "tun.h"
 #include "util.h"
 #include "x509.h"
@@ -75,7 +75,7 @@ static void send_keepalive(void *_sp)
 	if (sp->state != STATE_CONNECTED)
 		abort();
 
-	if (pconn_record_send(&sp->pconn, keepalive, 3)) {
+	if (tconn_record_send(&sp->tconn, keepalive, 3)) {
 		fprintf(stderr, "%s: error sending keepalive, disconnecting "
 				"and retrying in %d seconds\n",
 			sp->name, SHORT_RETRY_WAIT_TIME);
@@ -83,8 +83,8 @@ static void send_keepalive(void *_sp)
 		sp->set_state(sp->cookie, 0);
 		itf_set_state(tun_interface_get_name(&sp->tun), 0);
 
-		pconn_destroy(&sp->pconn);
-		close(sp->pconn.fd);
+		tconn_destroy(&sp->tconn);
+		close(sp->tconn.fd);
 
 		sp->state = STATE_WAITING_RETRY;
 
@@ -113,13 +113,13 @@ static void handshake_done(void *_sp, char *desc)
 	fprintf(stderr, "%s: handshake done, using %s\n", sp->name, desc);
 
 	i = 1;
-	if (setsockopt(sp->pconn.fd, SOL_TCP, TCP_NODELAY, &i, sizeof(i)) < 0) {
+	if (setsockopt(sp->tconn.fd, SOL_TCP, TCP_NODELAY, &i, sizeof(i)) < 0) {
 		perror("setsockopt(SOL_TCP, TCP_NODELAY)");
 		abort();
 	}
 
 	len = sizeof(i);
-	if (getsockopt(sp->pconn.fd, SOL_TCP, TCP_MAXSEG, &i, &len) < 0) {
+	if (getsockopt(sp->tconn.fd, SOL_TCP, TCP_MAXSEG, &i, &len) < 0) {
 		perror("getsockopt(SOL_TCP, TCP_MAXSEG)");
 		abort();
 	}
@@ -198,8 +198,8 @@ static void record_received(void *_sp, const uint8_t *rec, int len)
 		itf_set_state(tun_interface_get_name(&sp->tun), 0);
 		sp->set_state(sp->cookie, 0);
 
-		pconn_destroy(&sp->pconn);
-		close(sp->pconn.fd);
+		tconn_destroy(&sp->tconn);
+		close(sp->tconn.fd);
 
 		iv_timer_unregister(&sp->keepalive_timer);
 
@@ -234,8 +234,8 @@ static void connection_lost(void *_sp)
 		itf_set_state(tun_interface_get_name(&sp->tun), 0);
 	}
 
-	pconn_destroy(&sp->pconn);
-	close(sp->pconn.fd);
+	tconn_destroy(&sp->tconn);
+	close(sp->tconn.fd);
 
 	if (sp->state == STATE_CONNECTED &&
 	    iv_timer_registered(&sp->keepalive_timer)) {
@@ -269,15 +269,15 @@ static void connect_success(struct server_peer *sp, int fd)
 	sp->rx_timeout.expires.tv_sec += HANDSHAKE_TIMEOUT;
 	iv_timer_register(&sp->rx_timeout);
 
-	sp->pconn.fd = fd;
-	sp->pconn.role = PCONN_ROLE_CLIENT;
-	sp->pconn.key = sp->key;
-	sp->pconn.cookie = sp;
-	sp->pconn.verify_key_id = verify_key_id;
-	sp->pconn.handshake_done = handshake_done;
-	sp->pconn.record_received = record_received;
-	sp->pconn.connection_lost = connection_lost;
-	pconn_start(&sp->pconn);
+	sp->tconn.fd = fd;
+	sp->tconn.role = TCONN_ROLE_CLIENT;
+	sp->tconn.key = sp->key;
+	sp->tconn.cookie = sp;
+	sp->tconn.verify_key_id = verify_key_id;
+	sp->tconn.handshake_done = handshake_done;
+	sp->tconn.record_received = record_received;
+	sp->tconn.connection_lost = connection_lost;
+	tconn_start(&sp->tconn);
 }
 
 static void try_connect(struct server_peer *sp)
@@ -455,7 +455,7 @@ static void got_packet(void *_sp, uint8_t *buf, int len)
 
 	iv_validate_now();
 
-	if (pconn_record_send(&sp->pconn, sndbuf, len + 3)) {
+	if (tconn_record_send(&sp->tconn, sndbuf, len + 3)) {
 		fprintf(stderr, "%s: error sending TLS record, disconnecting "
 				"and retrying in %d seconds\n",
 			sp->name, SHORT_RETRY_WAIT_TIME);
@@ -463,8 +463,8 @@ static void got_packet(void *_sp, uint8_t *buf, int len)
 		sp->set_state(sp->cookie, 0);
 		itf_set_state(tun_interface_get_name(&sp->tun), 0);
 
-		pconn_destroy(&sp->pconn);
-		close(sp->pconn.fd);
+		tconn_destroy(&sp->tconn);
+		close(sp->tconn.fd);
 
 		sp->state = STATE_WAITING_RETRY;
 
@@ -518,15 +518,15 @@ static void rx_timeout_expired(void *_sp)
 			waittime = SHORT_RETRY_WAIT_TIME;
 		} else if (sp->state == STATE_TLS_HANDSHAKE) {
 			fprintf(stderr, "TLS handshake timed out");
-			pconn_destroy(&sp->pconn);
-			close(sp->pconn.fd);
+			tconn_destroy(&sp->tconn);
+			close(sp->tconn.fd);
 			waittime = LONG_RETRY_WAIT_TIME;
 		} else if (sp->state == STATE_CONNECTED) {
 			fprintf(stderr, "receive timeout");
 			sp->set_state(sp->cookie, 0);
 			itf_set_state(tun_interface_get_name(&sp->tun), 0);
-			pconn_destroy(&sp->pconn);
-			close(sp->pconn.fd);
+			tconn_destroy(&sp->tconn);
+			close(sp->tconn.fd);
 			iv_timer_unregister(&sp->keepalive_timer);
 			waittime = SHORT_RETRY_WAIT_TIME;
 		} else {
@@ -593,11 +593,11 @@ void server_peer_unregister(struct server_peer *sp)
 		iv_fd_unregister(&sp->connectfd);
 		close(sp->connectfd.fd);
 	} else if (sp->state == STATE_TLS_HANDSHAKE) {
-		pconn_destroy(&sp->pconn);
-		close(sp->pconn.fd);
+		tconn_destroy(&sp->tconn);
+		close(sp->tconn.fd);
 	} else if (sp->state == STATE_CONNECTED) {
-		pconn_destroy(&sp->pconn);
-		close(sp->pconn.fd);
+		tconn_destroy(&sp->tconn);
+		close(sp->tconn.fd);
 		iv_timer_unregister(&sp->keepalive_timer);
 	} else if (sp->state == STATE_WAITING_RETRY) {
 	} else {
