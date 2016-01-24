@@ -41,10 +41,12 @@ struct dgp_peer {
 	struct iv_avl_node	an;
 	uint8_t			id[NODE_ID_LEN];
 	uint8_t			addr[16];
+	struct dgp_conn_incoming	*in;
 };
 
 struct dgp_conn_incoming {
 	struct iv_list_head	list;
+	struct dgp_peer		*peer;
 	struct iv_fd		fd;
 	struct dgp_reader	dr;
 	struct dgp_writer	dw;
@@ -109,11 +111,12 @@ static void peer_attr_add(void *_dummy, struct lsa_attr *attr)
 
 	memcpy(peer->id, lsa_attr_key(attr), NODE_ID_LEN);
 	v6_global_addr_from_key_id(peer->addr, peer->id, NODE_ID_LEN);
+	peer->in = NULL;
 
 	iv_avl_tree_insert(&peers, &peer->an);
 }
 
-static struct dgp_peer *peer_find(uint8_t *id)
+static struct dgp_peer *peer_find_by_id(uint8_t *id)
 {
 	struct iv_avl_node *an;
 
@@ -137,6 +140,19 @@ static struct dgp_peer *peer_find(uint8_t *id)
 	return NULL;
 }
 
+static void conn_kill(struct dgp_conn_incoming *conn)
+{
+	iv_list_del(&conn->list);
+	if (conn->peer != NULL)
+		conn->peer->in = NULL;
+	iv_fd_unregister(&conn->fd);
+	close(conn->fd.fd);
+	dgp_writer_unregister(&conn->dw);
+	dgp_reader_unregister(&conn->dr);
+
+	free(conn);
+}
+
 static void peer_attr_del(void *_dummy, struct lsa_attr *attr)
 {
 	struct dgp_peer *peer;
@@ -144,11 +160,13 @@ static void peer_attr_del(void *_dummy, struct lsa_attr *attr)
 	if (attr->type != LSA_ATTR_TYPE_PEER)
 		return;
 
-	peer = peer_find(lsa_attr_key(attr));
+	peer = peer_find_by_id(lsa_attr_key(attr));
 	if (peer == NULL)
 		abort();
 
 	iv_avl_tree_delete(&peers, &peer->an);
+	if (peer->in != NULL)
+		conn_kill(peer->in);
 
 	free(peer);
 }
@@ -261,15 +279,19 @@ static void query_start(void)
 	adj_rib_listener_register(&local_adj_rib_in, &local_to_loc_listener.rl);
 }
 
-static void conn_kill(struct dgp_conn_incoming *conn)
+static struct dgp_peer *peer_find_by_addr(uint8_t *addr)
 {
-	iv_list_del(&conn->list);
-	iv_fd_unregister(&conn->fd);
-	close(conn->fd.fd);
-	dgp_writer_unregister(&conn->dw);
-	dgp_reader_unregister(&conn->dr);
+	struct iv_avl_node *an;
 
-	free(conn);
+	iv_avl_tree_for_each (an, &peers) {
+		struct dgp_peer *peer;
+
+		peer = iv_container_of(an, struct dgp_peer, an);
+		if (!memcmp(addr, peer->addr, 16))
+			return peer;
+	}
+
+	return NULL;
 }
 
 static void data_avail(void *_conn)
@@ -289,9 +311,17 @@ static void dw_fail(void *_conn)
 
 static void got_connection(void *_dummy)
 {
+	static uint8_t test_id[NODE_ID_LEN] = {
+		0x69, 0x69, 0x69, 0x69, 0x69, 0x69, 0x69, 0x69,
+		0x69, 0x69, 0x69, 0x69, 0x69, 0x69, 0x69, 0x69,
+		0x69, 0x69, 0x69, 0x69, 0x69, 0x69, 0x69, 0x69,
+		0x69, 0x69, 0x69, 0x69, 0x69, 0x69, 0x69, 0x69,
+	};
 	struct sockaddr_storage addr;
 	socklen_t addrlen;
 	int fd;
+	struct sockaddr_in6 *addr6;
+	struct dgp_peer *peer;
 	struct dgp_conn_incoming *conn;
 
 	addrlen = sizeof(addr);
@@ -299,6 +329,18 @@ static void got_connection(void *_dummy)
 	fd = accept(fd_incoming.fd, (struct sockaddr *)&addr, &addrlen);
 	if (fd < 0) {
 		perror("got_connection: accept");
+		return;
+	}
+
+	if (addr.ss_family != AF_INET6) {
+		close(fd);
+		return;
+	}
+	addr6 = (struct sockaddr_in6 *)&addr;
+
+	peer = peer_find_by_addr(addr6->sin6_addr.s6_addr);
+	if (peer != NULL && memcmp(local_id, peer->id, NODE_ID_LEN) >= 0) {
+		close(fd);
 		return;
 	}
 
@@ -316,20 +358,21 @@ static void got_connection(void *_dummy)
 	conn->fd.handler_in = data_avail;
 	iv_fd_register(&conn->fd);
 
+	if (peer != NULL) {
+		if (peer->in != NULL)
+			conn_kill(peer->in);
+		peer->in = conn;
+	}
+	conn->peer = peer;
+
 	conn->dr.myid = local_id;
-	conn->dr.remoteid = (uint8_t *)"\x69\x69\x69\x69\x69\x69\x69\x69"
-				       "\x69\x69\x69\x69\x69\x69\x69\x69"
-				       "\x69\x69\x69\x69\x69\x69\x69\x69"
-				       "\x69\x69\x69\x69\x69\x69\x69\x69";
+	conn->dr.remoteid = (peer != NULL) ? peer->id : test_id;
 	conn->dr.rib = &loc_rib;
 	dgp_reader_register(&conn->dr);
 
 	conn->dw.fd = fd;
 	conn->dw.myid = NULL;
-	conn->dw.remoteid = (uint8_t *)"\x69\x69\x69\x69\x69\x69\x69\x69"
-				       "\x69\x69\x69\x69\x69\x69\x69\x69"
-				       "\x69\x69\x69\x69\x69\x69\x69\x69"
-				       "\x69\x69\x69\x69\x69\x69\x69\x69";
+	conn->dw.remoteid = (peer != NULL) ? peer->id : test_id;
 	conn->dw.rib = &loc_rib;
 	conn->dw.cookie = conn;
 	conn->dw.io_error = dw_fail;
