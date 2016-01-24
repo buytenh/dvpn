@@ -24,8 +24,8 @@
 #include <stdint.h>
 #include <sys/socket.h>
 #include "dvpn.h"
-#include "listen.h"
 #include "tconn_connect.h"
+#include "tconn_listen.h"
 #include "util.h"
 
 struct conf
@@ -55,27 +55,27 @@ struct conf_connect_entry
 
 struct conf_listening_socket
 {
-	struct iv_list_head	list;
+	struct iv_list_head		list;
 
-	struct sockaddr_storage	listen_address;
-	struct iv_list_head	listen_entries;
+	struct sockaddr_storage		listen_address;
+	struct iv_list_head		listen_entries;
 
-	int			registered;
-	struct listening_socket	ls;
+	int				registered;
+	struct tconn_listen_socket	tls;
 };
 
 struct conf_listen_entry
 {
-	struct iv_list_head	list;
+	struct iv_list_head		list;
 
-	char			*name;
-	uint8_t			fingerprint[NODE_ID_LEN];
-	enum peer_type		peer_type;
-	char			*tunitf;
+	char				*name;
+	uint8_t				fingerprint[NODE_ID_LEN];
+	enum peer_type			peer_type;
+	char				*tunitf;
 
-	int			registered;
-	struct listen_entry	le;
-	struct peer		peer;
+	int				registered;
+	struct tconn_listen_entry	tle;
+	struct peer			peer;
 };
 
 struct conf *parse_config(const char *file);

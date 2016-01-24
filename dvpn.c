@@ -28,13 +28,13 @@
 #include "conf.h"
 #include "confdiff.h"
 #include "dvpn.h"
-#include "listen.h"
 #include "lsa.h"
 #include "lsa_path.h"
 #include "lsa_print.h"
 #include "lsa_serialise.h"
 #include "lsa_type.h"
 #include "tconn_connect.h"
+#include "tconn_listen.h"
 #include "util.h"
 #include "x509.h"
 
@@ -213,14 +213,14 @@ static void stop_conf_connect_entry(struct conf_connect_entry *cce)
 static int start_conf_listen_entry(struct conf_listening_socket *cls,
 				   struct conf_listen_entry *cle)
 {
-	cle->le.ls = &cls->ls;
-	cle->le.tunitf = cle->tunitf;
-	cle->le.name = cle->name;
-	memcpy(cle->le.fingerprint, cle->fingerprint, NODE_ID_LEN);
-	cle->le.peer_type = cle->peer_type;
-	cle->le.cookie = cle;
-	cle->le.set_state = listen_set_state;
-	if (listen_entry_register(&cle->le))
+	cle->tle.tls = &cls->tls;
+	cle->tle.tunitf = cle->tunitf;
+	cle->tle.name = cle->name;
+	memcpy(cle->tle.fingerprint, cle->fingerprint, NODE_ID_LEN);
+	cle->tle.peer_type = cle->peer_type;
+	cle->tle.cookie = cle;
+	cle->tle.set_state = listen_set_state;
+	if (tconn_listen_entry_register(&cle->tle))
 		return 1;
 
 	cle->registered = 1;
@@ -236,7 +236,7 @@ static int start_conf_listen_entry(struct conf_listening_socket *cls,
 static void stop_conf_listen_entry(struct conf_listen_entry *cle)
 {
 	cle->registered = 0;
-	listen_entry_unregister(&cle->le);
+	tconn_listen_entry_unregister(&cle->tle);
 	iv_avl_tree_delete(&peers, &cle->peer.an);
 
 	if (cle->peer.up) {
@@ -249,9 +249,9 @@ static int start_conf_listening_socket(struct conf_listening_socket *cls)
 {
 	struct iv_list_head *lh;
 
-	cls->ls.listen_address = cls->listen_address;
-	cls->ls.key = key;
-	if (listening_socket_register(&cls->ls))
+	cls->tls.listen_address = cls->listen_address;
+	cls->tls.key = key;
+	if (tconn_listen_socket_register(&cls->tls))
 		return 1;
 
 	cls->registered = 1;
@@ -281,7 +281,7 @@ static void stop_conf_listening_socket(struct conf_listening_socket *cls)
 			stop_conf_listen_entry(cle);
 	}
 
-	listening_socket_unregister(&cls->ls);
+	tconn_listen_socket_unregister(&cls->tls);
 }
 
 static void stop_config(struct conf *conf)

@@ -1,6 +1,6 @@
 /*
  * dvpn, a multipoint vpn implementation
- * Copyright (C) 2015 Lennert Buytenhek
+ * Copyright (C) 2015, 2016 Lennert Buytenhek
  *
  * This library is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License version
@@ -27,16 +27,16 @@
 #include <string.h>
 #include "conf.h"
 #include "itf.h"
-#include "listen.h"
 #include "tconn.h"
+#include "tconn_listen.h"
 #include "tun.h"
 #include "util.h"
 #include "x509.h"
 
 struct client_conn
 {
-	struct listening_socket	*ls;
-	struct listen_entry	*le;
+	struct tconn_listen_socket	*tls;
+	struct tconn_listen_entry	*tle;
 
 	int			state;
 	struct iv_timer		rx_timeout;
@@ -52,12 +52,12 @@ struct client_conn
 
 static void client_conn_kill(struct client_conn *cc)
 {
-	if (cc->le != NULL) {
+	if (cc->tle != NULL) {
 		if (cc->state == STATE_CONNECTED) {
-			cc->le->set_state(cc->le->cookie, 0);
-			itf_set_state(tun_interface_get_name(&cc->le->tun), 0);
+			cc->tle->set_state(cc->tle->cookie, 0);
+			itf_set_state(tun_interface_get_name(&cc->tle->tun), 0);
 		}
-		cc->le->current = NULL;
+		cc->tle->current = NULL;
 	}
 
 	if (iv_timer_registered(&cc->rx_timeout))
@@ -74,8 +74,8 @@ static void client_conn_kill(struct client_conn *cc)
 
 static void print_name(FILE *fp, struct client_conn *cc)
 {
-	if (cc->le != NULL)
-		fprintf(fp, "%s", cc->le->name);
+	if (cc->tle != NULL)
+		fprintf(fp, "%s", cc->tle->name);
 	else
 		fprintf(fp, "conn%d", cc->tconn.fd);
 }
@@ -98,13 +98,13 @@ static int verify_key_id(void *_cc, const uint8_t *id, int len)
 	fprintf(stderr, "conn%d: peer key ID ", cc->tconn.fd);
 	printhex(stderr, id, len);
 
-	iv_list_for_each (lh, &cc->ls->listen_entries) {
-		struct listen_entry *le;
+	iv_list_for_each (lh, &cc->tls->listen_entries) {
+		struct tconn_listen_entry *le;
 
-		le = iv_list_entry(lh, struct listen_entry, list);
+		le = iv_list_entry(lh, struct tconn_listen_entry, list);
 		if (!memcmp(le->fingerprint, id, NODE_ID_LEN)) {
 			fprintf(stderr, " - matches '%s'\n", le->name);
-			cc->le = le;
+			cc->tle = le;
 			return 0;
 		}
 	}
@@ -117,7 +117,7 @@ static int verify_key_id(void *_cc, const uint8_t *id, int len)
 static void handshake_done(void *_cc, char *desc)
 {
 	struct client_conn *cc = _cc;
-	struct listen_entry *le = cc->le;
+	struct tconn_listen_entry *le = cc->tle;
 	int i;
 	socklen_t len;
 	uint8_t id[NODE_ID_LEN];
@@ -152,7 +152,7 @@ static void handshake_done(void *_cc, char *desc)
 	else if (i > 1500)
 		i = 1500;
 
-	fprintf(stderr, "%s: setting interface MTU to %d\n", cc->le->name, i);
+	fprintf(stderr, "%s: setting interface MTU to %d\n", cc->tle->name, i);
 	itf_set_mtu(tun_interface_get_name(&le->tun), i);
 
 	cc->state = STATE_CONNECTED;
@@ -170,7 +170,7 @@ static void handshake_done(void *_cc, char *desc)
 
 	itf_set_state(tun_interface_get_name(&le->tun), 1);
 
-	x509_get_key_id(id, cc->ls->key);
+	x509_get_key_id(id, cc->tls->key);
 
 	v6_linklocal_addr_from_key_id(addr, id, NODE_ID_LEN);
 	itf_add_addr_v6(tun_interface_get_name(&le->tun), id, 10);
@@ -185,7 +185,7 @@ static void handshake_done(void *_cc, char *desc)
 		itf_add_addr_v6(tun_interface_get_name(&le->tun), addr, 32);
 	}
 
-	cc->le->set_state(cc->le->cookie, 1);
+	cc->tle->set_state(cc->tle->cookie, 1);
 }
 
 static void record_received(void *_cc, const uint8_t *rec, int len)
@@ -210,10 +210,10 @@ static void record_received(void *_cc, const uint8_t *rec, int len)
 	if (rlen + 3 != len)
 		return;
 
-	if (tun_interface_send_packet(&cc->le->tun, rec + 3, rlen) < 0) {
+	if (tun_interface_send_packet(&cc->tle->tun, rec + 3, rlen) < 0) {
 		fprintf(stderr, "%s: error forwarding received packet "
 				"to tun interface, disconnecting\n", 
-			cc->le->name);
+			cc->tle->name);
 		client_conn_kill(cc);
 	}
 }
@@ -235,7 +235,7 @@ static void send_keepalive(void *_cc)
 
 	if (tconn_record_send(&cc->tconn, keepalive, 3)) {
 		fprintf(stderr, "%s: error sending keepalive, disconnecting\n", 
-			cc->le->name);
+			cc->tle->name);
 		client_conn_kill(cc);
 		return;
 	}
@@ -249,7 +249,7 @@ static void send_keepalive(void *_cc)
 
 static void got_connection(void *_ls)
 {
-	struct listening_socket *ls = _ls;
+	struct tconn_listen_socket *ls = _ls;
 	struct sockaddr_storage addr;
 	socklen_t addrlen;
 	int fd;
@@ -276,8 +276,8 @@ static void got_connection(void *_ls)
 	print_address(stderr, (struct sockaddr *)&ls->listen_address);
 	fprintf(stderr, "\n");
 
-	cc->ls = ls;
-	cc->le = NULL;
+	cc->tls = ls;
+	cc->tle = NULL;
 
 	cc->state = STATE_HANDSHAKE;
 
@@ -308,7 +308,7 @@ static void got_connection(void *_ls)
 
 static void got_packet(void *_le, uint8_t *buf, int len)
 {
-	struct listen_entry *le = _le;
+	struct tconn_listen_entry *le = _le;
 	struct client_conn *cc;
 	uint8_t sndbuf[len + 3];
 
@@ -330,38 +330,38 @@ static void got_packet(void *_le, uint8_t *buf, int len)
 
 	if (tconn_record_send(&cc->tconn, sndbuf, len + 3)) {
 		fprintf(stderr, "%s: error sending TLS record, disconnecting\n",
-			cc->le->name);
+			cc->tle->name);
 		client_conn_kill(cc);
 	}
 }
 
-int listening_socket_register(struct listening_socket *ls)
+int tconn_listen_socket_register(struct tconn_listen_socket *ls)
 {
 	int fd;
 	int yes;
 
 	fd = socket(ls->listen_address.ss_family, SOCK_STREAM, 0);
 	if (fd < 0) {
-		perror("listening_socket_add: socket");
+		perror("tconn_listen_socket: socket");
 		return 1;
 	}
 
 	yes = 1;
 	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0) {
-		perror("listening_socket_add: setsockopt");
+		perror("tconn_listen_socket: setsockopt");
 		close(fd);
 		return 1;
 	}
 
 	if (bind(fd, (struct sockaddr *)&ls->listen_address,
 		 sizeof(ls->listen_address)) < 0) {
-		perror("listening_socket_add: bind");
+		perror("tconn_listen_socket: bind");
 		close(fd);
 		return 1;
 	}
 
 	if (listen(fd, 100) < 0) {
-		perror("listening_socket_add: listen");
+		perror("tconn_listen_socket: listen");
 		close(fd);
 		return 1;
 	}
@@ -377,7 +377,7 @@ int listening_socket_register(struct listening_socket *ls)
 	return 0;
 }
 
-void listening_socket_unregister(struct listening_socket *ls)
+void tconn_listen_socket_unregister(struct tconn_listen_socket *ls)
 {
 	struct iv_list_head *lh;
 	struct iv_list_head *lh2;
@@ -386,14 +386,14 @@ void listening_socket_unregister(struct listening_socket *ls)
 	close(ls->listen_fd.fd);
 
 	iv_list_for_each_safe (lh, lh2, &ls->listen_entries) {
-		struct listen_entry *le;
+		struct tconn_listen_entry *le;
 
-		le = iv_list_entry(lh, struct listen_entry, list);
-		listen_entry_unregister(le);
+		le = iv_list_entry(lh, struct tconn_listen_entry, list);
+		tconn_listen_entry_unregister(le);
 	}
 }
 
-int listen_entry_register(struct listen_entry *le)
+int tconn_listen_entry_register(struct tconn_listen_entry *le)
 {
 	le->tun.itfname = le->tunitf;
 	le->tun.cookie = le;
@@ -401,7 +401,7 @@ int listen_entry_register(struct listen_entry *le)
 	if (tun_interface_register(&le->tun) < 0)
 		return 1;
 
-	iv_list_add_tail(&le->list, &le->ls->listen_entries);
+	iv_list_add_tail(&le->list, &le->tls->listen_entries);
 
 	itf_set_state(tun_interface_get_name(&le->tun), 0);
 
@@ -410,7 +410,7 @@ int listen_entry_register(struct listen_entry *le)
 	return 0;
 }
 
-void listen_entry_unregister(struct listen_entry *le)
+void tconn_listen_entry_unregister(struct tconn_listen_entry *le)
 {
 	if (le->current != NULL)
 		client_conn_kill(le->current);

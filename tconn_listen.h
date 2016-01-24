@@ -1,6 +1,6 @@
 /*
  * dvpn, a multipoint vpn implementation
- * Copyright (C) 2015 Lennert Buytenhek
+ * Copyright (C) 2015, 2016 Lennert Buytenhek
  *
  * This library is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License version
@@ -17,14 +17,14 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#ifndef __LISTEN_H
-#define __LISTEN_H
+#ifndef __TCONN_LISTEN_H
+#define __TCONN_LISTEN_H
 
 #include <gnutls/x509.h>
 #include "conf.h"
 #include "tun.h"
 
-struct listening_socket
+struct tconn_listen_socket
 {
 	struct sockaddr_storage	listen_address;
 	gnutls_x509_privkey_t	key;
@@ -33,26 +33,26 @@ struct listening_socket
 	struct iv_list_head	listen_entries;
 };
 
-int listening_socket_register(struct listening_socket *ls);
-void listening_socket_unregister(struct listening_socket *ls);
+int tconn_listen_socket_register(struct tconn_listen_socket *tls);
+void tconn_listen_socket_unregister(struct tconn_listen_socket *tls);
 
-struct listen_entry
+struct tconn_listen_entry
 {
-	struct listening_socket	*ls;
-	char			*tunitf;
-	char			*name;
-	uint8_t			fingerprint[NODE_ID_LEN];
-	enum peer_type		peer_type;
-	void			*cookie;
-	void			(*set_state)(void *cookie, int up);
+	struct tconn_listen_socket	*tls;
+	char				*tunitf;
+	char				*name;
+	uint8_t				fingerprint[NODE_ID_LEN];
+	enum peer_type			peer_type;
+	void				*cookie;
+	void				(*set_state)(void *cookie, int up);
 
-	struct iv_list_head	list;
-	struct tun_interface	tun;
-	struct client_conn	*current;
+	struct iv_list_head		list;
+	struct tun_interface		tun;
+	struct client_conn		*current;
 };
 
-int listen_entry_register(struct listen_entry *le);
-void listen_entry_unregister(struct listen_entry *le);
+int tconn_listen_entry_register(struct tconn_listen_entry *tle);
+void tconn_listen_entry_unregister(struct tconn_listen_entry *tle);
 
 
 #endif
