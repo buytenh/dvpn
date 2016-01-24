@@ -190,7 +190,7 @@ static int start_conf_connect_entry(struct conf_connect_entry *cce)
 
 	cce->registered = 1;
 
-	memcpy(cce->peer.id, cce->fingerprint, NODE_ID_LEN);
+	cce->peer.id = cce->fingerprint;
 	cce->peer.peer_type = cce->peer_type;
 	cce->peer.up = 0;
 	iv_avl_tree_insert(&peers, &cce->peer.an);
@@ -225,7 +225,7 @@ static int start_conf_listen_entry(struct conf_listening_socket *cls,
 
 	cle->registered = 1;
 
-	memcpy(cle->peer.id, cle->fingerprint, NODE_ID_LEN);
+	cle->peer.id = cle->fingerprint;
 	cle->peer.peer_type = cle->peer_type;
 	cle->peer.up = 0;
 	iv_avl_tree_insert(&peers, &cle->peer.an);
