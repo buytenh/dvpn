@@ -22,6 +22,7 @@
 
 #include <gnutls/x509.h>
 #include "conf.h"
+#include "tun.h"
 
 struct listening_socket
 {

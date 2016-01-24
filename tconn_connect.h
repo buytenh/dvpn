@@ -17,8 +17,8 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#ifndef __CONNECT_H
-#define __CONNECT_H
+#ifndef __TCONN_CONNECT_H
+#define __TCONN_CONNECT_H
 
 #include <gnutls/x509.h>
 #include <iv.h>
@@ -28,7 +28,7 @@
 #include "tun.h"
 #include "util.h"
 
-struct server_peer
+struct tconn_connect
 {
 	char			*tunitf;
 	char			*name;
@@ -60,8 +60,8 @@ struct server_peer
 	};
 };
 
-int server_peer_register(struct server_peer *sp);
-void server_peer_unregister(struct server_peer *sp);
+int tconn_connect_start(struct tconn_connect *tc);
+void tconn_connect_destroy(struct tconn_connect *tc);
 
 
 #endif

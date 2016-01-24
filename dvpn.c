@@ -27,7 +27,6 @@
 #include <string.h>
 #include "conf.h"
 #include "confdiff.h"
-#include "connect.h"
 #include "dvpn.h"
 #include "listen.h"
 #include "lsa.h"
@@ -35,6 +34,7 @@
 #include "lsa_print.h"
 #include "lsa_serialise.h"
 #include "lsa_type.h"
+#include "tconn_connect.h"
 #include "util.h"
 #include "x509.h"
 
@@ -176,16 +176,16 @@ static void listen_set_state(void *_cle, int up)
 
 static int start_conf_connect_entry(struct conf_connect_entry *cce)
 {
-	cce->sp.tunitf = cce->tunitf;
-	cce->sp.name = cce->name;
-	cce->sp.hostname = cce->hostname;
-	cce->sp.port = cce->port;
-	cce->sp.key = key;
-	memcpy(cce->sp.fingerprint, cce->fingerprint, NODE_ID_LEN);
-	cce->sp.peer_type = cce->peer_type;
-	cce->sp.cookie = cce;
-	cce->sp.set_state = connect_set_state;
-	if (server_peer_register(&cce->sp))
+	cce->tc.tunitf = cce->tunitf;
+	cce->tc.name = cce->name;
+	cce->tc.hostname = cce->hostname;
+	cce->tc.port = cce->port;
+	cce->tc.key = key;
+	memcpy(cce->tc.fingerprint, cce->fingerprint, NODE_ID_LEN);
+	cce->tc.peer_type = cce->peer_type;
+	cce->tc.cookie = cce;
+	cce->tc.set_state = connect_set_state;
+	if (tconn_connect_start(&cce->tc))
 		return 1;
 
 	cce->registered = 1;
@@ -201,7 +201,7 @@ static int start_conf_connect_entry(struct conf_connect_entry *cce)
 static void stop_conf_connect_entry(struct conf_connect_entry *cce)
 {
 	cce->registered = 0;
-	server_peer_unregister(&cce->sp);
+	tconn_connect_destroy(&cce->tc);
 	iv_avl_tree_delete(&peers, &cce->peer.an);
 
 	if (cce->peer.up) {

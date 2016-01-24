@@ -23,9 +23,9 @@
 #include <iv_list.h>
 #include <stdint.h>
 #include <sys/socket.h>
-#include "connect.h"
 #include "dvpn.h"
 #include "listen.h"
+#include "tconn_connect.h"
 #include "util.h"
 
 struct conf
@@ -49,7 +49,7 @@ struct conf_connect_entry
 	char			*tunitf;
 
 	int			registered;
-	struct server_peer	sp;
+	struct tconn_connect	tc;
 	struct peer		peer;
 };
 
