@@ -46,6 +46,7 @@ static int compare_refs(struct iv_avl_node *_a, struct iv_avl_node *_b)
 void adj_rib_init(struct adj_rib *rib)
 {
 	INIT_IV_AVL_TREE(&rib->lsas, compare_refs);
+	rib->size = 0;
 	INIT_IV_LIST_HEAD(&rib->listeners);
 }
 
@@ -107,6 +108,11 @@ static void notify(struct adj_rib *rib, struct lsa *old, struct lsa *new)
 	old = map(rib, old);
 	new = map(rib, new);
 
+	if (old != NULL)
+		rib->size -= old->size;
+	if (new != NULL)
+		rib->size += new->size;
+
 	if (old == NULL && new != NULL) {
 		iv_list_for_each_safe (ilh, ilh2, &rib->listeners) {
 			rl = iv_container_of(ilh, struct rib_listener, list);
@@ -125,29 +131,50 @@ static void notify(struct adj_rib *rib, struct lsa *old, struct lsa *new)
 	}
 }
 
-void adj_rib_add_lsa(struct adj_rib *rib, struct lsa *lsa)
+static void adj_rib_del_lsa(struct adj_rib *rib, struct adj_rib_lsa_ref *ref)
+{
+	notify(rib, ref->lsa, NULL);
+
+	iv_avl_tree_delete(&rib->lsas, &ref->an);
+	lsa_put(ref->lsa);
+	free(ref);
+}
+
+int adj_rib_add_lsa(struct adj_rib *rib, struct lsa *lsa)
 {
 	struct adj_rib_lsa_ref *ref;
 
 	ref = adj_rib_find_ref(rib, lsa->id);
 
 	if (iv_avl_tree_empty(&lsa->attrs)) {
+		if (ref == NULL)
+			return -1;
+
+		adj_rib_del_lsa(rib, ref);
+		return 0;
+	}
+
+	if (rib->size + lsa->size > ADJ_RIB_MAX_SIZE) {
+		fprintf(stderr, "adj_rib_add_lsa: dropping LSA "
+				"received from peer ");
+		printhex(stderr, rib->remoteid, NODE_ID_LEN);
+		fprintf(stderr, " because of RIB overflow\n");
+
+		if (ref != NULL)
+			adj_rib_del_lsa(rib, ref);
+
+		return -1;
+	}
+
+	if (ref == NULL) {
+		ref = malloc(sizeof(*ref));
 		if (ref == NULL) {
-			fprintf(stderr, "error!\n");
-			return;
+			fprintf(stderr, "adj_rib_add_lsa: memory "
+					"allocation failure\n");
+			return -1;
 		}
 
-		notify(rib, ref->lsa, NULL);
-
-		iv_avl_tree_delete(&rib->lsas, &ref->an);
-		lsa_put(ref->lsa);
-		free(ref);
-	} else if (ref == NULL) {
 		notify(rib, NULL, lsa);
-
-		ref = malloc(sizeof(*ref));
-		if (ref == NULL)
-			abort();
 
 		ref->lsa = lsa_get(lsa);
 		iv_avl_tree_insert(&rib->lsas, &ref->an);
@@ -157,6 +184,8 @@ void adj_rib_add_lsa(struct adj_rib *rib, struct lsa *lsa)
 		lsa_put(ref->lsa);
 		ref->lsa = lsa_get(lsa);
 	}
+
+	return 0;
 }
 
 void adj_rib_flush(struct adj_rib *rib)
@@ -167,11 +196,7 @@ void adj_rib_flush(struct adj_rib *rib)
 		ref = iv_container_of(rib->lsas.root,
 				      struct adj_rib_lsa_ref, an);
 
-		notify(rib, ref->lsa, NULL);
-
-		iv_avl_tree_delete(&rib->lsas, &ref->an);
-		lsa_put(ref->lsa);
-		free(ref);
+		adj_rib_del_lsa(rib, ref);
 	}
 }
 

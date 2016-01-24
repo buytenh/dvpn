@@ -25,16 +25,19 @@
 #include "lsa.h"
 #include "rib_listener.h"
 
+#define ADJ_RIB_MAX_SIZE	1048576
+
 struct adj_rib {
 	uint8_t			myid[NODE_ID_LEN];
 	uint8_t			remoteid[NODE_ID_LEN];
 
 	struct iv_avl_tree	lsas;
+	int			size;
 	struct iv_list_head	listeners;
 };
 
 void adj_rib_init(struct adj_rib *rib);
-void adj_rib_add_lsa(struct adj_rib *rib, struct lsa *lsa);
+int adj_rib_add_lsa(struct adj_rib *rib, struct lsa *lsa);
 void adj_rib_flush(struct adj_rib *rib);
 
 void adj_rib_listener_register(struct adj_rib *rib, struct rib_listener *rl);
