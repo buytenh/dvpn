@@ -181,7 +181,7 @@ static int start_conf_connect_entry(struct conf_connect_entry *cce)
 	cce->tc.hostname = cce->hostname;
 	cce->tc.port = cce->port;
 	cce->tc.key = key;
-	memcpy(cce->tc.fingerprint, cce->fingerprint, NODE_ID_LEN);
+	cce->tc.fingerprint = cce->fingerprint;
 	cce->tc.peer_type = cce->peer_type;
 	cce->tc.cookie = cce;
 	cce->tc.set_state = connect_set_state;
