@@ -46,7 +46,7 @@ void lsa_print(FILE *fp, struct lsa *lsa)
 	fprintf(fp, "-----BEGIN LSA-----\n");
 
 	fprintf(fp, "ID: ");
-	printhex(fp, lsa->id, sizeof(lsa->id));
+	printhex(fp, lsa->id, NODE_ID_LEN);
 	fprintf(fp, "\n");
 
 	iv_avl_tree_for_each (an, &lsa->attrs) {

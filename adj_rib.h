@@ -26,8 +26,8 @@
 #include "rib_listener.h"
 
 struct adj_rib {
-	uint8_t			myid[32];
-	uint8_t			remoteid[32];
+	uint8_t			myid[NODE_ID_LEN];
+	uint8_t			remoteid[NODE_ID_LEN];
 
 	struct iv_avl_tree	lsas;
 	struct iv_list_head	listeners;

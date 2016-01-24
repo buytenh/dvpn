@@ -23,6 +23,7 @@
 #include <limits.h>
 #include <string.h>
 #include "spf.h"
+#include "util.h"
 
 void spf_init(struct spf_context *ctx)
 {
@@ -102,7 +103,7 @@ static int nl(struct spf_node *a, struct spf_node *b)
 {
 	int ret;
 
-	ret = memcmp(a->id, b->id, SPF_ID_LEN);
+	ret = memcmp(a->id, b->id, NODE_ID_LEN);
 	if (ret == 0)
 		abort();
 

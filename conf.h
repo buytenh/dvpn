@@ -44,7 +44,7 @@ struct conf_connect_entry
 	char			*name;
 	char			*hostname;
 	char			*port;
-	uint8_t			fingerprint[32];
+	uint8_t			fingerprint[NODE_ID_LEN];
 	enum peer_type		peer_type;
 	char			*tunitf;
 
@@ -69,7 +69,7 @@ struct conf_listen_entry
 	struct iv_list_head	list;
 
 	char			*name;
-	uint8_t			fingerprint[32];
+	uint8_t			fingerprint[NODE_ID_LEN];
 	enum peer_type		peer_type;
 	char			*tunitf;
 

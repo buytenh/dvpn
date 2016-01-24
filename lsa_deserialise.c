@@ -66,7 +66,7 @@ struct lsa *lsa_deserialise(uint8_t *buf, int buflen)
 	struct lsa *lsa = NULL;
 	struct src src;
 	int len;
-	uint8_t id[32];
+	uint8_t id[NODE_ID_LEN];
 
 	src.src = buf;
 	src.srclen = buflen;
@@ -76,7 +76,7 @@ struct lsa *lsa_deserialise(uint8_t *buf, int buflen)
 	if (len + 2 != buflen)
 		return NULL;
 
-	SRC_READ(&src, id, sizeof(id));
+	SRC_READ(&src, id, NODE_ID_LEN);
 
 	lsa = lsa_alloc(id);
 	if (lsa == NULL)

@@ -37,7 +37,7 @@
 struct node
 {
 	struct iv_list_head	list;
-	uint8_t			id[32];
+	uint8_t			id[NODE_ID_LEN];
 	char			name[128];
 	struct iv_list_head	edges;
 
@@ -63,7 +63,7 @@ static struct node *find_node(uint8_t *id)
 
 	iv_list_for_each (lh, &nodes) {
 		n = iv_container_of(lh, struct node, list);
-		if (!memcmp(n->id, id, 32))
+		if (!memcmp(n->id, id, NODE_ID_LEN))
 			return n;
 	}
 
@@ -72,7 +72,7 @@ static struct node *find_node(uint8_t *id)
 		return NULL;
 
 	iv_list_add_tail(&n->list, &nodes);
-	memcpy(n->id, id, 32);
+	memcpy(n->id, id, NODE_ID_LEN);
 	snprintf(n->name, sizeof(n->name),
 		 "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:"
 		 "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:%.2x:"
@@ -163,7 +163,7 @@ static void query_node(int fd, struct node *n)
 
 	fprintf(stderr, "- %s...", n->name);
 
-	v6_global_addr_from_key_id(buf, n->id, sizeof(n->id));
+	v6_global_addr_from_key_id(buf, n->id, NODE_ID_LEN);
 
 	addr.sin6_family = AF_INET6;
 	addr.sin6_port = htons(19275);
@@ -196,7 +196,7 @@ static void query_node(int fd, struct node *n)
 		return;
 	}
 
-	if (memcmp(n->id, lsa->id, 32)) {
+	if (memcmp(n->id, lsa->id, NODE_ID_LEN)) {
 		fprintf(stderr, " node ID mismatch\n");
 		goto out;
 	}
@@ -213,7 +213,7 @@ static void query_node(int fd, struct node *n)
 			int metric;
 			enum peer_type peer_type;
 
-			if (attr->keylen != 32)
+			if (attr->keylen != NODE_ID_LEN)
 				continue;
 			to = find_node(lsa_attr_key(attr));
 
@@ -493,7 +493,7 @@ int main(int argc, char *argv[])
 	const char *config = "/etc/dvpn.ini";
 	struct conf *conf;
 	gnutls_x509_privkey_t key;
-	uint8_t id[32];
+	uint8_t id[NODE_ID_LEN];
 
 	while (1) {
 		int c;

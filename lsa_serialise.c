@@ -73,7 +73,7 @@ int lsa_serialise(uint8_t *buf, int buflen, struct lsa *lsa, uint8_t *preid)
 	dst.off = 0;
 
 	dst_append_u16(&dst, 0);
-	dst_append(&dst, lsa->id, 32);
+	dst_append(&dst, lsa->id, NODE_ID_LEN);
 
 	iv_avl_tree_for_each (an, &lsa->attrs) {
 		struct lsa_attr *attr;
@@ -88,8 +88,8 @@ int lsa_serialise(uint8_t *buf, int buflen, struct lsa *lsa, uint8_t *preid)
 		}
 
 		if (attr->type == LSA_ATTR_TYPE_ADV_PATH && preid != NULL) {
-			dst_append_u16(&dst, attr->datalen + 32);
-			dst_append(&dst, preid, 32);
+			dst_append_u16(&dst, attr->datalen + NODE_ID_LEN);
+			dst_append(&dst, preid, NODE_ID_LEN);
 		} else {
 			dst_append_u16(&dst, attr->datalen);
 		}

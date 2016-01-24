@@ -21,10 +21,11 @@
 #define __LSA_H
 
 #include <iv_avl.h>
+#include "util.h"
 
 struct lsa {
 	int			refcount;
-	uint8_t			id[32];
+	uint8_t			id[NODE_ID_LEN];
 	struct iv_avl_tree	attrs;
 };
 

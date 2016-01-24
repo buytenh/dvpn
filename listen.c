@@ -102,7 +102,7 @@ static int verify_key_id(void *_cc, const uint8_t *id, int len)
 		struct listen_entry *le;
 
 		le = iv_list_entry(lh, struct listen_entry, list);
-		if (!memcmp(le->fingerprint, id, 32)) {
+		if (!memcmp(le->fingerprint, id, NODE_ID_LEN)) {
 			fprintf(stderr, " - matches '%s'\n", le->name);
 			cc->le = le;
 			return 0;
@@ -120,7 +120,7 @@ static void handshake_done(void *_cc, char *desc)
 	struct listen_entry *le = cc->le;
 	int i;
 	socklen_t len;
-	uint8_t id[32];
+	uint8_t id[NODE_ID_LEN];
 	uint8_t addr[16];
 
 	if (le->current != NULL) {
@@ -172,15 +172,14 @@ static void handshake_done(void *_cc, char *desc)
 
 	x509_get_key_id(id, cc->ls->key);
 
-	v6_linklocal_addr_from_key_id(addr, id, sizeof(id));
+	v6_linklocal_addr_from_key_id(addr, id, NODE_ID_LEN);
 	itf_add_addr_v6(tun_interface_get_name(&le->tun), id, 10);
 
-	v6_global_addr_from_key_id(addr, id, sizeof(id));
+	v6_global_addr_from_key_id(addr, id, NODE_ID_LEN);
 	if (le->peer_type != PEER_TYPE_TRANSIT) {
 		itf_add_addr_v6(tun_interface_get_name(&le->tun), addr, 128);
 
-		v6_global_addr_from_key_id(addr, le->fingerprint,
-					   sizeof(le->fingerprint));
+		v6_global_addr_from_key_id(addr, le->fingerprint, NODE_ID_LEN);
 		itf_add_route_v6(tun_interface_get_name(&le->tun), addr, 128);
 	} else {
 		itf_add_addr_v6(tun_interface_get_name(&le->tun), addr, 32);

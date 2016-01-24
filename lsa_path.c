@@ -32,8 +32,8 @@ int lsa_path_contains(struct lsa_attr *attr, uint8_t *id)
 		abort();
 
 	data = lsa_attr_data(attr);
-	for (i = 0; i < attr->datalen; i += 32) {
-		if (!memcmp(data + i, id, 32))
+	for (i = 0; i < attr->datalen; i += NODE_ID_LEN) {
+		if (!memcmp(data + i, id, NODE_ID_LEN))
 			return 1;
 	}
 

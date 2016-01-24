@@ -40,7 +40,7 @@ static int compare_refs(struct iv_avl_node *_a, struct iv_avl_node *_b)
 	a = iv_container_of(_a, struct adj_rib_lsa_ref, an);
 	b = iv_container_of(_b, struct adj_rib_lsa_ref, an);
 
-	return memcmp(a->lsa->id, b->lsa->id, sizeof(a->lsa->id));
+	return memcmp(a->lsa->id, b->lsa->id, NODE_ID_LEN);
 }
 
 void adj_rib_init(struct adj_rib *rib)
@@ -61,7 +61,7 @@ adj_rib_find_ref(struct adj_rib *rib, uint8_t *id)
 
 		ref = iv_container_of(an, struct adj_rib_lsa_ref, an);
 
-		ret = memcmp(id, ref->lsa->id, sizeof(ref->lsa->id));
+		ret = memcmp(id, ref->lsa->id, NODE_ID_LEN);
 		if (ret == 0)
 			return ref;
 
@@ -85,8 +85,8 @@ static struct lsa *map(struct adj_rib *rib, struct lsa *lsa)
 	if (attr == NULL)
 		return NULL;
 
-	if (attr->datalen < 32 ||
-	    memcmp(rib->remoteid, lsa_attr_data(attr), 32))
+	if (attr->datalen < NODE_ID_LEN ||
+	    memcmp(rib->remoteid, lsa_attr_data(attr), NODE_ID_LEN))
 		return NULL;
 
 	if (lsa_path_contains(attr, rib->myid))

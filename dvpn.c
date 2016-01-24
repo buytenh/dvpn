@@ -39,7 +39,7 @@
 #include "x509.h"
 
 static gnutls_x509_privkey_t key;
-static uint8_t keyid[32];
+static uint8_t keyid[NODE_ID_LEN];
 static struct iv_avl_tree peers;
 static struct lsa *me;
 static struct iv_fd topo_fd;
@@ -49,7 +49,7 @@ static int compare_peers(struct iv_avl_node *_a, struct iv_avl_node *_b)
 	struct peer *a = iv_container_of(_a, struct peer, an);
 	struct peer *b = iv_container_of(_b, struct peer, an);
 
-	return memcmp(a->id, b->id, 32);
+	return memcmp(a->id, b->id, NODE_ID_LEN);
 }
 
 static void got_topo_request(void *_dummy)
@@ -95,7 +95,7 @@ static int start_topo_listener(void)
 		return 1;
 	}
 
-	v6_global_addr_from_key_id(a, keyid, sizeof(keyid));
+	v6_global_addr_from_key_id(a, keyid, NODE_ID_LEN);
 
 	addr.sin6_family = AF_INET6;
 	addr.sin6_port = htons(19275);
@@ -147,10 +147,10 @@ static void connect_set_state(void *_cce, int up)
 		data.peer_type = peer_type_to_lsa_peer_type(cce->peer_type);
 
 		lsa_attr_add(me, LSA_ATTR_TYPE_PEER, cce->fingerprint,
-			     sizeof(cce->fingerprint), &data, sizeof(data));
+			     NODE_ID_LEN, &data, sizeof(data));
 	} else {
 		lsa_attr_del_key(me, LSA_ATTR_TYPE_PEER,
-				 cce->fingerprint, sizeof(cce->fingerprint));
+				 cce->fingerprint, NODE_ID_LEN);
 	}
 }
 
@@ -167,10 +167,10 @@ static void listen_set_state(void *_cle, int up)
 		data.peer_type = peer_type_to_lsa_peer_type(cle->peer_type);
 
 		lsa_attr_add(me, LSA_ATTR_TYPE_PEER, cle->fingerprint,
-			     sizeof(cle->fingerprint), &data, sizeof(data));
+			     NODE_ID_LEN, &data, sizeof(data));
 	} else {
 		lsa_attr_del_key(me, LSA_ATTR_TYPE_PEER,
-				 cle->fingerprint, sizeof(cle->fingerprint));
+				 cle->fingerprint, NODE_ID_LEN);
 	}
 }
 
@@ -181,7 +181,7 @@ static int start_conf_connect_entry(struct conf_connect_entry *cce)
 	cce->sp.hostname = cce->hostname;
 	cce->sp.port = cce->port;
 	cce->sp.key = key;
-	memcpy(cce->sp.fingerprint, cce->fingerprint, 32);
+	memcpy(cce->sp.fingerprint, cce->fingerprint, NODE_ID_LEN);
 	cce->sp.peer_type = cce->peer_type;
 	cce->sp.cookie = cce;
 	cce->sp.set_state = connect_set_state;
@@ -190,7 +190,7 @@ static int start_conf_connect_entry(struct conf_connect_entry *cce)
 
 	cce->registered = 1;
 
-	memcpy(cce->peer.id, cce->fingerprint, 32);
+	memcpy(cce->peer.id, cce->fingerprint, NODE_ID_LEN);
 	cce->peer.peer_type = cce->peer_type;
 	cce->peer.up = 0;
 	iv_avl_tree_insert(&peers, &cce->peer.an);
@@ -206,7 +206,7 @@ static void stop_conf_connect_entry(struct conf_connect_entry *cce)
 
 	if (cce->peer.up) {
 		lsa_attr_del_key(me, LSA_ATTR_TYPE_PEER,
-				 cce->fingerprint, sizeof(cce->fingerprint));
+				 cce->fingerprint, NODE_ID_LEN);
 	}
 }
 
@@ -216,7 +216,7 @@ static int start_conf_listen_entry(struct conf_listening_socket *cls,
 	cle->le.ls = &cls->ls;
 	cle->le.tunitf = cle->tunitf;
 	cle->le.name = cle->name;
-	memcpy(cle->le.fingerprint, cle->fingerprint, 32);
+	memcpy(cle->le.fingerprint, cle->fingerprint, NODE_ID_LEN);
 	cle->le.peer_type = cle->peer_type;
 	cle->le.cookie = cle;
 	cle->le.set_state = listen_set_state;
@@ -225,7 +225,7 @@ static int start_conf_listen_entry(struct conf_listening_socket *cls,
 
 	cle->registered = 1;
 
-	memcpy(cle->peer.id, cle->fingerprint, 32);
+	memcpy(cle->peer.id, cle->fingerprint, NODE_ID_LEN);
 	cle->peer.peer_type = cle->peer_type;
 	cle->peer.up = 0;
 	iv_avl_tree_insert(&peers, &cle->peer.an);
@@ -241,7 +241,7 @@ static void stop_conf_listen_entry(struct conf_listen_entry *cle)
 
 	if (cle->peer.up) {
 		lsa_attr_del_key(me, LSA_ATTR_TYPE_PEER,
-				 cle->fingerprint, sizeof(cle->fingerprint));
+				 cle->fingerprint, NODE_ID_LEN);
 	}
 }
 
@@ -421,7 +421,7 @@ static void got_sigusr1(void *_dummy)
 
 		p = iv_container_of(an, struct peer, an);
 
-		printhex(stderr, p->id, 32);
+		printhex(stderr, p->id, NODE_ID_LEN);
 		fprintf(stderr, " - ");
 		fprintf(stderr, "%s\n", p->up ? "up" : "down");
 	}
@@ -451,7 +451,7 @@ static int show_key_id(const char *file)
 	if (ret == 0) {
 		ret = x509_get_key_id(keyid, key);
 		if (ret == 0) {
-			printhex(stdout, keyid, 32);
+			printhex(stdout, keyid, NODE_ID_LEN);
 			printf("\n");
 		}
 		gnutls_x509_privkey_deinit(key);
@@ -507,7 +507,7 @@ int main(int argc, char *argv[])
 		return 1;
 
 	fprintf(stderr, "dvpn: using key ID ");
-	printhex(stderr, keyid, sizeof(keyid));
+	printhex(stderr, keyid, NODE_ID_LEN);
 	fprintf(stderr, "\n");
 
 	iv_init();

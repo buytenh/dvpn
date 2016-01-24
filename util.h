@@ -23,6 +23,8 @@
 #include <arpa/inet.h>
 #include <stdint.h>
 
+#define NODE_ID_LEN	32
+
 enum peer_type {
 	PEER_TYPE_INVALID = 0,
 	PEER_TYPE_EPEER = 1,

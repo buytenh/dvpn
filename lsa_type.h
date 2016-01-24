@@ -27,7 +27,7 @@ enum lsa_attr_type {
 };
 
 struct lsa_attr_adv_path {
-	uint8_t			node[0][32];
+	uint8_t			node[0][NODE_ID_LEN];
 };
 
 struct lsa_attr_peer {

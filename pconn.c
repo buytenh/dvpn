@@ -41,6 +41,7 @@
 #include <iv.h>
 #include <string.h>
 #include "pconn.h"
+#include "util.h"
 #include "x509.h"
 
 #define STATE_HANDSHAKE		1
@@ -572,7 +573,7 @@ static int pconn_verify_cert(gnutls_session_t sess)
 	gnutls_x509_crt_t peercert;
 	int ret;
 	gnutls_pubkey_t peerkey;
-	uint8_t peerid[32];
+	uint8_t peerid[NODE_ID_LEN];
 
 	/*
 	 * TBD: @@@
@@ -621,14 +622,8 @@ static int pconn_verify_cert(gnutls_session_t sess)
 	}
 
 	if (0) {
-		int i;
-
 		fprintf(stderr, "%p: ", pc);
-		for (i = 0; i < sizeof(peerid); i++) {
-			fprintf(stderr, "%.2x", peerid[i]);
-			if (i < sizeof(peerid) - 1)
-				fprintf(stderr, ":");
-		}
+		printhex(stderr, peerid, NODE_ID_LEN);
 		fprintf(stderr, "\n");
 	}
 
@@ -645,7 +640,7 @@ static int pconn_verify_cert(gnutls_session_t sess)
 	gnutls_pubkey_deinit(peerkey);
 	gnutls_x509_crt_deinit(peercert);
 
-	return pc->verify_key_id(pc->cookie, peerid, sizeof(peerid));
+	return pc->verify_key_id(pc->cookie, peerid, NODE_ID_LEN);
 
 err_free_key:
 	gnutls_pubkey_deinit(peerkey);

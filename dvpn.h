@@ -27,7 +27,7 @@
 struct peer
 {
 	struct iv_avl_node	an;
-	uint8_t			id[32];
+	uint8_t			id[NODE_ID_LEN];
 	enum peer_type		peer_type;
 	int			up;
 };

@@ -40,7 +40,7 @@ struct lsa *lsa_alloc(uint8_t *id)
 		return NULL;
 
 	lsa->refcount = 1;
-	memcpy(lsa->id, id, 32);
+	memcpy(lsa->id, id, NODE_ID_LEN);
 	INIT_IV_AVL_TREE(&lsa->attrs, compare_attr_keys);
 
 	return lsa;

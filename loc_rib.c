@@ -35,7 +35,7 @@ static int compare_ids(struct iv_avl_node *_a, struct iv_avl_node *_b)
 	a = iv_container_of(_a, struct loc_rib_id, an);
 	b = iv_container_of(_b, struct loc_rib_id, an);
 
-	return memcmp(a->id, b->id, sizeof(a->id));
+	return memcmp(a->id, b->id, NODE_ID_LEN);
 }
 
 void loc_rib_init(struct loc_rib *rib)
@@ -81,7 +81,7 @@ static struct loc_rib_id *find_id(struct loc_rib *rib, uint8_t *id)
 
 		rid = iv_container_of(an, struct loc_rib_id, an);
 
-		ret = memcmp(id, rid->id, sizeof(rid->id));
+		ret = memcmp(id, rid->id, NODE_ID_LEN);
 		if (ret == 0)
 			return rid;
 
@@ -117,7 +117,7 @@ static struct loc_rib_id *get_id(struct loc_rib *rib, uint8_t *id)
 	if (rid == NULL)
 		abort();
 
-	memcpy(rid->id, id, 32);
+	memcpy(rid->id, id, NODE_ID_LEN);
 	INIT_IV_AVL_TREE(&rid->lsas, compare_lsa_refs);
 	rid->best = NULL;
 

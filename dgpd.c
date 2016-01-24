@@ -38,7 +38,7 @@
 
 struct dgp_peer {
 	struct iv_avl_node	an;
-	uint8_t			id[32];
+	uint8_t			id[NODE_ID_LEN];
 	uint8_t			addr[16];
 };
 
@@ -48,7 +48,7 @@ struct dgp_conn_incoming {
 	struct rib_listener	from_loc;
 };
 
-static uint8_t local_id[32];
+static uint8_t local_id[NODE_ID_LEN];
 
 static struct loc_rib loc_rib;
 static struct rib_listener_debug loc_rib_debug_listener;
@@ -91,7 +91,7 @@ static int compare_peers(struct iv_avl_node *_a, struct iv_avl_node *_b)
 	struct dgp_peer *a = iv_container_of(_a, struct dgp_peer, an);
 	struct dgp_peer *b = iv_container_of(_b, struct dgp_peer, an);
 
-	return memcmp(a->id, b->id, sizeof(a->id));
+	return memcmp(a->id, b->id, NODE_ID_LEN);
 }
 
 static void peer_attr_add(void *_dummy, struct lsa_attr *attr)
@@ -105,8 +105,8 @@ static void peer_attr_add(void *_dummy, struct lsa_attr *attr)
 	if (peer == NULL)
 		abort();
 
-	memcpy(peer->id, lsa_attr_key(attr), 32);
-	v6_global_addr_from_key_id(peer->addr, peer->id, 32);
+	memcpy(peer->id, lsa_attr_key(attr), NODE_ID_LEN);
+	v6_global_addr_from_key_id(peer->addr, peer->id, NODE_ID_LEN);
 
 	iv_avl_tree_insert(&peers, &peer->an);
 }
@@ -122,7 +122,7 @@ static struct dgp_peer *peer_find(uint8_t *id)
 
 		peer = iv_container_of(an, struct dgp_peer, an);
 
-		ret = memcmp(id, peer->id, 32);
+		ret = memcmp(id, peer->id, NODE_ID_LEN);
 		if (ret == 0)
 			return peer;
 
@@ -190,7 +190,7 @@ static void got_response(void *_dummy)
 		return;
 	}
 
-	if (memcmp(lsa->id, local_id, 32)) {
+	if (memcmp(lsa->id, local_id, NODE_ID_LEN)) {
 		fprintf(stderr, "node ID mismatch\n");
 		lsa_put(lsa);
 		return;
@@ -236,7 +236,7 @@ static void query_start(void)
 	local_query_fd.handler_in = got_response;
 	iv_fd_register(&local_query_fd);
 
-	v6_global_addr_from_key_id(addr, local_id, 32);
+	v6_global_addr_from_key_id(addr, local_id, NODE_ID_LEN);
 
 	local_query_addr.sin6_family = AF_INET6;
 	local_query_addr.sin6_port = htons(19275);
@@ -250,8 +250,8 @@ static void query_start(void)
 	local_query_timer.handler = query_timer_expiry;
 	iv_timer_register(&local_query_timer);
 
-	memset(&local_adj_rib_in.myid, 0, 32);
-	memcpy(&local_adj_rib_in.remoteid, local_id, 32);
+	memset(&local_adj_rib_in.myid, 0, NODE_ID_LEN);
+	memcpy(&local_adj_rib_in.remoteid, local_id, NODE_ID_LEN);
 	adj_rib_init(&local_adj_rib_in);
 
 	local_to_loc_listener.dest = &loc_rib;
@@ -303,7 +303,7 @@ static void conn_lsa_del(void *_conn, struct lsa *lsa)
 	struct dgp_conn_incoming *conn = _conn;
 	struct lsa dummy;
 
-	memcpy(&dummy.id, lsa->id, 32);
+	memcpy(&dummy.id, lsa->id, NODE_ID_LEN);
 	INIT_IV_AVL_TREE(&dummy.attrs, NULL);
 
 	output_lsa(conn, &dummy);
@@ -379,7 +379,7 @@ static void listen_start(void)
 		exit(1);
 	}
 
-	v6_global_addr_from_key_id(addr, local_id, 32);
+	v6_global_addr_from_key_id(addr, local_id, NODE_ID_LEN);
 
 	saddr.sin6_family = AF_INET6;
 	saddr.sin6_port = htons(44461);

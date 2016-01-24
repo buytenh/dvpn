@@ -36,7 +36,7 @@
 
 struct qpeer {
 	struct iv_avl_node		an;
-	uint8_t				id[32];
+	uint8_t				id[NODE_ID_LEN];
 	struct iv_fd			query_fd;
 	struct sockaddr_in6		query_addr;
 	struct iv_timer			query_timer;
@@ -57,7 +57,7 @@ static int qpeer_compare(struct iv_avl_node *_a, struct iv_avl_node *_b)
 	struct qpeer *a = iv_container_of(_a, struct qpeer, an);
 	struct qpeer *b = iv_container_of(_b, struct qpeer, an);
 
-	return memcmp(a->id, b->id, 32);
+	return memcmp(a->id, b->id, NODE_ID_LEN);
 }
 
 static void ping_query_timeout(struct qpeer *qpeer)
@@ -99,7 +99,7 @@ static void got_response(void *_qpeer)
 		return;
 	}
 
-	if (memcmp(qpeer->id, lsa->id, 32)) {
+	if (memcmp(qpeer->id, lsa->id, NODE_ID_LEN)) {
 		fprintf(stderr, "node ID mismatch\n");
 		lsa_put(lsa);
 		return;
@@ -110,7 +110,7 @@ static void got_response(void *_qpeer)
 
 		attr = iv_container_of(an, struct lsa_attr, an);
 		if (attr->type == LSA_ATTR_TYPE_PEER) {
-			if (attr->keylen == 32)
+			if (attr->keylen == NODE_ID_LEN)
 				qpeer_find_or_add(lsa_attr_key(attr));
 		}
 	}
@@ -174,7 +174,7 @@ static void qpeer_add(uint8_t *id, int permanent)
 		return;
 	}
 
-	memcpy(qpeer->id, id, 32);
+	memcpy(qpeer->id, id, NODE_ID_LEN);
 
 	iv_avl_tree_insert(&qpeers, &qpeer->an);
 
@@ -184,7 +184,7 @@ static void qpeer_add(uint8_t *id, int permanent)
 	qpeer->query_fd.handler_in = got_response;
 	iv_fd_register(&qpeer->query_fd);
 
-	v6_global_addr_from_key_id(addr, id, 32);
+	v6_global_addr_from_key_id(addr, id, NODE_ID_LEN);
 
 	qpeer->query_addr.sin6_family = AF_INET6;
 	qpeer->query_addr.sin6_port = htons(19275);
@@ -209,8 +209,8 @@ static void qpeer_add(uint8_t *id, int permanent)
 		iv_timer_register(&qpeer->query_timeout);
 	}
 
-	memset(&qpeer->adj_rib_in.myid, 0, 32);
-	memcpy(&qpeer->adj_rib_in.remoteid, id, 32);
+	memset(&qpeer->adj_rib_in.myid, 0, NODE_ID_LEN);
+	memcpy(&qpeer->adj_rib_in.remoteid, id, NODE_ID_LEN);
 	adj_rib_init(&qpeer->adj_rib_in);
 
 	qpeer->to_loc_listener.dest = &loc_rib;
@@ -231,7 +231,7 @@ static struct qpeer *qpeer_find(uint8_t *id)
 
 		qpeer = iv_container_of(an, struct qpeer, an);
 
-		ret = memcmp(id, qpeer->id, 32);
+		ret = memcmp(id, qpeer->id, NODE_ID_LEN);
 		if (ret == 0)
 			return qpeer;
 
@@ -261,7 +261,7 @@ static void qpeer_add_config(const char *config)
 {
 	struct conf *conf;
 	gnutls_x509_privkey_t key;
-	uint8_t id[32];
+	uint8_t id[NODE_ID_LEN];
 
 	conf = parse_config(config);
 	if (conf == NULL)

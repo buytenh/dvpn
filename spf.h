@@ -22,8 +22,6 @@
 
 #include <iv_list.h>
 
-#define SPF_ID_LEN	32
-
 struct spf_context
 {
 	struct iv_list_head	nodes;
