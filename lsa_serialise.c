@@ -33,15 +33,12 @@ struct dst
 
 static void dst_append(struct dst *dst, uint8_t *buf, int buflen)
 {
-	int space;
+	if (buflen > dst->dstlen - dst->off) {
+		fprintf(stderr, "dst_append: buffer too small\n");
+		abort();
+	}
 
-	space = dst->dstlen - dst->off;
-	if (space > buflen)
-		space = buflen;
-
-	if (space > 0)
-		memcpy(dst->dst + dst->off, buf, space);
-
+	memcpy(dst->dst + dst->off, buf, buflen);
 	dst->off += buflen;
 }
 
@@ -75,7 +72,8 @@ int lsa_serialise(uint8_t *buf, int buflen, struct lsa *lsa, uint8_t *preid)
 	size = lsa->size;
 	if (preid != NULL && !iv_avl_tree_empty(&lsa->attrs))
 		size += NODE_ID_LEN;
-	if (size > LSA_MAX_SIZE)
+
+	if (size > LSA_MAX_SIZE || size > buflen)
 		return -1;
 
 	dst_append_u16(&dst, size - 2);
