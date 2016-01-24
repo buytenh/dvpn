@@ -92,6 +92,9 @@ static struct lsa *map(struct adj_rib *rib, struct lsa *lsa)
 	if (lsa_path_contains(attr, rib->myid))
 		return NULL;
 
+	if (lsa->size + NODE_ID_LEN > LSA_MAX_SIZE)
+		return NULL;
+
 	return lsa;
 }
 
