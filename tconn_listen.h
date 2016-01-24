@@ -41,7 +41,7 @@ struct tconn_listen_entry
 	struct tconn_listen_socket	*tls;
 	char				*tunitf;
 	char				*name;
-	uint8_t				fingerprint[NODE_ID_LEN];
+	uint8_t				*fingerprint;
 	enum peer_type			peer_type;
 	void				*cookie;
 	void				(*set_state)(void *cookie, int up);

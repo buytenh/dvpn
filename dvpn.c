@@ -216,7 +216,7 @@ static int start_conf_listen_entry(struct conf_listening_socket *cls,
 	cle->tle.tls = &cls->tls;
 	cle->tle.tunitf = cle->tunitf;
 	cle->tle.name = cle->name;
-	memcpy(cle->tle.fingerprint, cle->fingerprint, NODE_ID_LEN);
+	cle->tle.fingerprint = cle->fingerprint;
 	cle->tle.peer_type = cle->peer_type;
 	cle->tle.cookie = cle;
 	cle->tle.set_state = listen_set_state;
