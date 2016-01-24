@@ -26,11 +26,11 @@
 #include <string.h>
 #include "adj_rib.h"
 #include "conf.h"
+#include "dgp_writer.h"
 #include "loc_rib.h"
 #include "lsa.h"
 #include "lsa_deserialise.h"
 #include "lsa_diff.h"
-#include "lsa_serialise.h"
 #include "lsa_type.h"
 #include "rib_listener_debug.h"
 #include "rib_listener_to_loc.h"
@@ -45,7 +45,7 @@ struct dgp_peer {
 struct dgp_conn_incoming {
 	struct iv_list_head	list;
 	int			fd;
-	struct rib_listener	from_loc;
+	struct dgp_writer	dw;
 };
 
 static uint8_t local_id[NODE_ID_LEN];
@@ -263,64 +263,15 @@ static void conn_kill(struct dgp_conn_incoming *conn)
 {
 	iv_list_del(&conn->list);
 	close(conn->fd);
-	loc_rib_listener_unregister(&loc_rib, &conn->from_loc);
+	dgp_writer_unregister(&conn->dw);
 	free(conn);
 }
 
-static int output_lsa(struct dgp_conn_incoming *conn, struct lsa *lsa)
-{
-	uint8_t buf[LSA_MAX_SIZE];
-	int len;
-
-	len = lsa_serialise(buf, sizeof(buf), lsa, NULL);
-	if (len < 0)
-		abort();
-
-	if (write(conn->fd, buf, len) != len) {
-		conn_kill(conn);
-		return 1;
-	}
-
-	return 0;
-}
-
-static void conn_lsa_add(void *_conn, struct lsa *lsa)
+static void dw_fail(void *_conn)
 {
 	struct dgp_conn_incoming *conn = _conn;
 
-	output_lsa(conn, lsa);
-}
-
-static void conn_lsa_mod(void *_conn, struct lsa *old, struct lsa *new)
-{
-	struct dgp_conn_incoming *conn = _conn;
-
-	output_lsa(conn, new);
-}
-
-static void conn_lsa_del(void *_conn, struct lsa *lsa)
-{
-	struct dgp_conn_incoming *conn = _conn;
-	struct lsa dummy;
-
-	dummy.size = 2 + NODE_ID_LEN;
-	memcpy(&dummy.id, lsa->id, NODE_ID_LEN);
-	INIT_IV_AVL_TREE(&dummy.attrs, NULL);
-
-	output_lsa(conn, &dummy);
-}
-
-static void rib_dump(struct dgp_conn_incoming *conn)
-{
-	struct iv_avl_node *an;
-
-	iv_avl_tree_for_each (an, &loc_rib.ids) {
-		struct loc_rib_id *rid;
-
-		rid = iv_container_of(an, struct loc_rib_id, an);
-		if (rid->best != NULL && output_lsa(conn, rid->best))
-			break;
-	}
+	conn_kill(conn);
 }
 
 static void got_connection(void *_dummy)
@@ -348,13 +299,11 @@ static void got_connection(void *_dummy)
 
 	conn->fd = fd;
 
-	conn->from_loc.cookie = conn;
-	conn->from_loc.lsa_add = conn_lsa_add;
-	conn->from_loc.lsa_mod = conn_lsa_mod;
-	conn->from_loc.lsa_del = conn_lsa_del;
-	loc_rib_listener_register(&loc_rib, &conn->from_loc);
-
-	rib_dump(conn);
+	conn->dw.fd = conn->fd;
+	conn->dw.rib = &loc_rib;
+	conn->dw.cookie = conn;
+	conn->dw.io_error = dw_fail;
+	dgp_writer_register(&conn->dw);
 }
 
 static void listen_start(void)
