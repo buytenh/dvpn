@@ -269,11 +269,11 @@ static void conn_kill(struct dgp_conn_incoming *conn)
 
 static int output_lsa(struct dgp_conn_incoming *conn, struct lsa *lsa)
 {
-	uint8_t buf[65536];
+	uint8_t buf[LSA_MAX_SIZE];
 	int len;
 
 	len = lsa_serialise(buf, sizeof(buf), lsa, NULL);
-	if (len > sizeof(buf))
+	if (len < 0)
 		abort();
 
 	if (write(conn->fd, buf, len) != len) {

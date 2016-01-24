@@ -54,7 +54,7 @@ static int compare_peers(struct iv_avl_node *_a, struct iv_avl_node *_b)
 
 static void got_topo_request(void *_dummy)
 {
-	uint8_t buf[65536];
+	uint8_t buf[LSA_MAX_SIZE];
 	struct sockaddr_in6 addr;
 	socklen_t addrlen;
 	int ret;
@@ -69,7 +69,7 @@ static void got_topo_request(void *_dummy)
 	}
 
 	ret = lsa_serialise(buf, sizeof(buf), me, keyid);
-	if (ret > sizeof(buf))
+	if (ret < 0)
 		abort();
 
 	sendto(topo_fd.fd, buf, ret, 0, (struct sockaddr *)&addr, addrlen);
