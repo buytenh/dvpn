@@ -303,6 +303,7 @@ static void conn_lsa_del(void *_conn, struct lsa *lsa)
 	struct dgp_conn_incoming *conn = _conn;
 	struct lsa dummy;
 
+	dummy.size = 2 + NODE_ID_LEN;
 	memcpy(&dummy.id, lsa->id, NODE_ID_LEN);
 	INIT_IV_AVL_TREE(&dummy.attrs, NULL);
 

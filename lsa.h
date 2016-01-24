@@ -25,6 +25,7 @@
 
 struct lsa {
 	int			refcount;
+	int			size;
 	uint8_t			id[NODE_ID_LEN];
 	struct iv_avl_tree	attrs;
 };

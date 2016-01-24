@@ -40,6 +40,7 @@ struct lsa *lsa_alloc(uint8_t *id)
 		return NULL;
 
 	lsa->refcount = 1;
+	lsa->size = 2 + NODE_ID_LEN;
 	memcpy(lsa->id, id, NODE_ID_LEN);
 	INIT_IV_AVL_TREE(&lsa->attrs, compare_attr_keys);
 
@@ -175,6 +176,18 @@ struct lsa_attr *lsa_attr_find(struct lsa *lsa, int type,
 	return NULL;
 }
 
+static int lsa_attr_size(struct lsa_attr *attr)
+{
+	int size;
+
+	size = 1;
+	if (attr->keylen)
+		size += 2 + attr->keylen;
+	size += 2 + attr->datalen;
+
+	return size;
+}
+
 void lsa_attr_add(struct lsa *lsa, int type, void *key, int keylen,
 		  void *data, int datalen)
 {
@@ -196,12 +209,15 @@ void lsa_attr_add(struct lsa *lsa, int type, void *key, int keylen,
 	if (datalen)
 		memcpy(lsa_attr_data(attr), data, datalen);
 
+	lsa->size += lsa_attr_size(attr);
 	iv_avl_tree_insert(&lsa->attrs, &attr->an);
 }
 
 void lsa_attr_del(struct lsa *lsa, struct lsa_attr *attr)
 {
+	lsa->size -= lsa_attr_size(attr);
 	iv_avl_tree_delete(&lsa->attrs, &attr->an);
+
 	free(attr);
 }
 
