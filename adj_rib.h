@@ -28,8 +28,8 @@
 #define ADJ_RIB_MAX_SIZE	1048576
 
 struct adj_rib {
-	uint8_t			myid[NODE_ID_LEN];
-	uint8_t			remoteid[NODE_ID_LEN];
+	uint8_t			*myid;
+	uint8_t			*remoteid;
 
 	struct iv_avl_tree	lsas;
 	int			size;

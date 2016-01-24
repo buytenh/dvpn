@@ -270,8 +270,8 @@ static void query_start(void)
 	local_query_timer.handler = query_timer_expiry;
 	iv_timer_register(&local_query_timer);
 
-	memset(&local_adj_rib_in.myid, 0, NODE_ID_LEN);
-	memcpy(&local_adj_rib_in.remoteid, local_id, NODE_ID_LEN);
+	local_adj_rib_in.myid = NULL;
+	local_adj_rib_in.remoteid = local_id;
 	adj_rib_init(&local_adj_rib_in);
 
 	local_to_loc_listener.dest = &loc_rib;

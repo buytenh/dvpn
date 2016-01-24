@@ -86,11 +86,14 @@ static struct lsa *map(struct adj_rib *rib, struct lsa *lsa)
 	if (attr == NULL)
 		return NULL;
 
-	if (attr->datalen < NODE_ID_LEN ||
+	if (attr->datalen < NODE_ID_LEN)
+		return NULL;
+
+	if (rib->remoteid == NULL ||
 	    memcmp(rib->remoteid, lsa_attr_data(attr), NODE_ID_LEN))
 		return NULL;
 
-	if (lsa_path_contains(attr, rib->myid))
+	if (rib->myid != NULL && lsa_path_contains(attr, rib->myid))
 		return NULL;
 
 	if (lsa->size + NODE_ID_LEN > LSA_MAX_SIZE)

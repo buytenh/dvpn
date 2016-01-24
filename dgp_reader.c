@@ -34,8 +34,8 @@ void dgp_reader_register(struct dgp_reader *dr)
 	dr->bytes = 0;
 
 	if (dgp_reader_have_adj_rib(dr)) {
-		memcpy(dr->adj_rib_in.myid, dr->myid, NODE_ID_LEN);
-		memcpy(dr->adj_rib_in.remoteid, dr->remoteid, NODE_ID_LEN);
+		dr->adj_rib_in.myid = dr->myid;
+		dr->adj_rib_in.remoteid = dr->remoteid;
 		adj_rib_init(&dr->adj_rib_in);
 
 		dr->to_loc.dest = dr->rib;

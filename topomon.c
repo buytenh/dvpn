@@ -209,8 +209,8 @@ static void qpeer_add(uint8_t *id, int permanent)
 		iv_timer_register(&qpeer->query_timeout);
 	}
 
-	memset(&qpeer->adj_rib_in.myid, 0, NODE_ID_LEN);
-	memcpy(&qpeer->adj_rib_in.remoteid, id, NODE_ID_LEN);
+	qpeer->adj_rib_in.myid = NULL;
+	qpeer->adj_rib_in.remoteid = id;
 	adj_rib_init(&qpeer->adj_rib_in);
 
 	qpeer->to_loc_listener.dest = &loc_rib;
