@@ -21,14 +21,51 @@
 #include <stdlib.h>
 #include <string.h>
 #include "dgp_writer.h"
+#include "lsa_path.h"
 #include "lsa_serialise.h"
+#include "lsa_type.h"
 
-static int dgp_writer_output_lsa(struct dgp_writer *dw, struct lsa *lsa)
+static struct lsa *map(struct dgp_writer *dw, struct lsa *lsa)
+{
+	struct lsa_attr *attr;
+
+	if (lsa == NULL)
+		return NULL;
+
+	attr = lsa_attr_find(lsa, LSA_ATTR_TYPE_ADV_PATH, NULL, 0);
+	if (attr == NULL)
+		return NULL;
+
+	if (dw->remoteid != NULL && lsa_path_contains(attr, dw->remoteid))
+		return NULL;
+
+	if (lsa->size + 2 * NODE_ID_LEN > LSA_MAX_SIZE)
+		return NULL;
+
+	return lsa;
+}
+
+static int
+dgp_writer_output_lsa(struct dgp_writer *dw, struct lsa *old, struct lsa *new)
 {
 	uint8_t buf[LSA_MAX_SIZE];
 	int len;
+	struct lsa dummy;
+	struct lsa *lsa;
 
-	len = lsa_serialise(buf, sizeof(buf), lsa, NULL);
+	lsa = map(dw, new);
+	if (lsa == NULL) {
+		if (map(dw, old) == NULL)
+			return 0;
+
+		dummy.size = 2 + NODE_ID_LEN;
+		memcpy(&dummy.id, new->id, NODE_ID_LEN);
+		INIT_IV_AVL_TREE(&dummy.attrs, NULL);
+
+		lsa = &dummy;
+	}
+
+	len = lsa_serialise(buf, sizeof(buf), lsa, dw->myid);
 	if (len < 0)
 		abort();
 
@@ -44,26 +81,21 @@ static void dgp_writer_lsa_add(void *_dw, struct lsa *lsa)
 {
 	struct dgp_writer *dw = _dw;
 
-	dgp_writer_output_lsa(dw, lsa);
+	dgp_writer_output_lsa(dw, NULL, lsa);
 }
 
 static void dgp_writer_lsa_mod(void *_dw, struct lsa *old, struct lsa *new)
 {
 	struct dgp_writer *dw = _dw;
 
-	dgp_writer_output_lsa(dw, new);
+	dgp_writer_output_lsa(dw, old, new);
 }
 
 static void dgp_writer_lsa_del(void *_dw, struct lsa *lsa)
 {
 	struct dgp_writer *dw = _dw;
-	struct lsa dummy;
 
-	dummy.size = 2 + NODE_ID_LEN;
-	memcpy(&dummy.id, lsa->id, NODE_ID_LEN);
-	INIT_IV_AVL_TREE(&dummy.attrs, NULL);
-
-	dgp_writer_output_lsa(dw, &dummy);
+	dgp_writer_output_lsa(dw, lsa, NULL);
 }
 
 static void dgp_writer_rib_dump(struct dgp_writer *dw)
@@ -74,7 +106,7 @@ static void dgp_writer_rib_dump(struct dgp_writer *dw)
 		struct loc_rib_id *rid;
 
 		rid = iv_container_of(an, struct loc_rib_id, an);
-		if (dgp_writer_output_lsa(dw, rid->best))
+		if (dgp_writer_output_lsa(dw, NULL, rid->best))
 			break;
 	}
 }

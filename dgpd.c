@@ -300,6 +300,11 @@ static void got_connection(void *_dummy)
 	conn->fd = fd;
 
 	conn->dw.fd = conn->fd;
+	conn->dw.myid = NULL;
+	conn->dw.remoteid = (uint8_t *)"\x69\x69\x69\x69\x69\x69\x69\x69"
+				       "\x69\x69\x69\x69\x69\x69\x69\x69"
+				       "\x69\x69\x69\x69\x69\x69\x69\x69"
+				       "\x69\x69\x69\x69\x69\x69\x69\x69";
 	conn->dw.rib = &loc_rib;
 	conn->dw.cookie = conn;
 	conn->dw.io_error = dw_fail;
