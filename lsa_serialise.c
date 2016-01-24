@@ -65,14 +65,18 @@ static void dst_append_u16(struct dst *dst, int value)
 int lsa_serialise(uint8_t *buf, int buflen, struct lsa *lsa, uint8_t *preid)
 {
 	struct dst dst;
+	int size;
 	struct iv_avl_node *an;
-	int len;
 
 	dst.dst = buf;
 	dst.dstlen = buflen;
 	dst.off = 0;
 
-	dst_append_u16(&dst, 0);
+	size = lsa->size;
+	if (preid != NULL && !iv_avl_tree_empty(&lsa->attrs))
+		size += NODE_ID_LEN;
+
+	dst_append_u16(&dst, size - 2);
 	dst_append(&dst, lsa->id, NODE_ID_LEN);
 
 	iv_avl_tree_for_each (an, &lsa->attrs) {
@@ -96,10 +100,11 @@ int lsa_serialise(uint8_t *buf, int buflen, struct lsa *lsa, uint8_t *preid)
 		dst_append(&dst, lsa_attr_data(attr), attr->datalen);
 	}
 
-	len = dst.off;
+	if (size != dst.off) {
+		fprintf(stderr, "lsa_serialise: lsa size %d versus "
+				"buffer size %d\n", size, dst.off);
+		abort();
+	}
 
-	dst.off = 0;
-	dst_append_u16(&dst, len - 2);
-
-	return len;
+	return dst.off;
 }

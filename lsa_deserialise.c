@@ -108,6 +108,11 @@ struct lsa *lsa_deserialise(uint8_t *buf, int buflen)
 		lsa_attr_add(lsa, type, key, keylen, data, datalen);
 	}
 
+	if (lsa->size != buflen) {
+		fprintf(stderr, "lsa_deserialise: lsa size %d versus "
+				"buffer size %d\n", lsa->size, buflen);
+	}
+
 	return lsa;
 
 short_read:
