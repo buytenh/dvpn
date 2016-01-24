@@ -26,6 +26,7 @@
 #include <string.h>
 #include "adj_rib.h"
 #include "conf.h"
+#include "dgp_reader.h"
 #include "dgp_writer.h"
 #include "loc_rib.h"
 #include "lsa.h"
@@ -44,7 +45,8 @@ struct dgp_peer {
 
 struct dgp_conn_incoming {
 	struct iv_list_head	list;
-	int			fd;
+	struct iv_fd		fd;
+	struct dgp_reader	dr;
 	struct dgp_writer	dw;
 };
 
@@ -262,9 +264,20 @@ static void query_start(void)
 static void conn_kill(struct dgp_conn_incoming *conn)
 {
 	iv_list_del(&conn->list);
-	close(conn->fd);
+	iv_fd_unregister(&conn->fd);
+	close(conn->fd.fd);
 	dgp_writer_unregister(&conn->dw);
+	dgp_reader_unregister(&conn->dr);
+
 	free(conn);
+}
+
+static void data_avail(void *_conn)
+{
+	struct dgp_conn_incoming *conn = _conn;
+
+	if (dgp_reader_read(&conn->dr, conn->fd.fd) < 0)
+		conn_kill(conn);
 }
 
 static void dw_fail(void *_conn)
@@ -297,9 +310,21 @@ static void got_connection(void *_dummy)
 
 	iv_list_add_tail(&conn->list, &conns_incoming);
 
-	conn->fd = fd;
+	IV_FD_INIT(&conn->fd);
+	conn->fd.fd = fd;
+	conn->fd.cookie = conn;
+	conn->fd.handler_in = data_avail;
+	iv_fd_register(&conn->fd);
 
-	conn->dw.fd = conn->fd;
+	conn->dr.myid = local_id;
+	conn->dr.remoteid = (uint8_t *)"\x69\x69\x69\x69\x69\x69\x69\x69"
+				       "\x69\x69\x69\x69\x69\x69\x69\x69"
+				       "\x69\x69\x69\x69\x69\x69\x69\x69"
+				       "\x69\x69\x69\x69\x69\x69\x69\x69";
+	conn->dr.rib = &loc_rib;
+	dgp_reader_register(&conn->dr);
+
+	conn->dw.fd = fd;
 	conn->dw.myid = NULL;
 	conn->dw.remoteid = (uint8_t *)"\x69\x69\x69\x69\x69\x69\x69\x69"
 				       "\x69\x69\x69\x69\x69\x69\x69\x69"
