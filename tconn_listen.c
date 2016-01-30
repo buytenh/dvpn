@@ -44,7 +44,7 @@ struct client_conn
 	struct iv_timer		keepalive_timer;
 };
 
-#define STATE_HANDSHAKE		1
+#define STATE_TLS_HANDSHAKE	1
 #define STATE_CONNECTED		2
 
 #define HANDSHAKE_TIMEOUT	30
@@ -279,7 +279,7 @@ static void got_connection(void *_ls)
 	cc->tls = ls;
 	cc->tle = NULL;
 
-	cc->state = STATE_HANDSHAKE;
+	cc->state = STATE_TLS_HANDSHAKE;
 
 	iv_validate_now();
 
