@@ -24,7 +24,7 @@
 #include <iv.h>
 #include <iv_signal.h>
 #include <string.h>
-#include "adj_rib.h"
+#include "adj_rib_in.h"
 #include "conf.h"
 #include "dgp_reader.h"
 #include "dgp_writer.h"
@@ -60,7 +60,7 @@ static struct rib_listener_debug loc_rib_debug_listener;
 static struct iv_fd local_query_fd;
 static struct sockaddr_in6 local_query_addr;
 static struct iv_timer local_query_timer;
-static struct adj_rib local_adj_rib_in;
+static struct adj_rib_in local_adj_rib_in;
 static struct rib_listener_to_loc local_to_loc_listener;
 
 static struct rib_listener peer_listener;
@@ -206,7 +206,7 @@ static void got_response(void *_dummy)
 	lsa = lsa_deserialise(buf, ret);
 	if (lsa == NULL) {
 		fprintf(stderr, "error deserialising LSA\n");
-		adj_rib_flush(&local_adj_rib_in);
+		adj_rib_in_flush(&local_adj_rib_in);
 		return;
 	}
 
@@ -216,7 +216,7 @@ static void got_response(void *_dummy)
 		return;
 	}
 
-	adj_rib_add_lsa(&local_adj_rib_in, lsa);
+	adj_rib_in_add_lsa(&local_adj_rib_in, lsa);
 
 	lsa_put(lsa);
 }
@@ -272,11 +272,12 @@ static void query_start(void)
 
 	local_adj_rib_in.myid = NULL;
 	local_adj_rib_in.remoteid = local_id;
-	adj_rib_init(&local_adj_rib_in);
+	adj_rib_in_init(&local_adj_rib_in);
 
 	local_to_loc_listener.dest = &loc_rib;
 	rib_listener_to_loc_init(&local_to_loc_listener);
-	adj_rib_listener_register(&local_adj_rib_in, &local_to_loc_listener.rl);
+	adj_rib_in_listener_register(&local_adj_rib_in,
+				     &local_to_loc_listener.rl);
 }
 
 static struct dgp_peer *peer_find_by_addr(uint8_t *addr)
@@ -435,7 +436,7 @@ static void got_sigint(void *_dummy)
 
 	iv_fd_unregister(&local_query_fd);
 	iv_timer_unregister(&local_query_timer);
-	adj_rib_flush(&local_adj_rib_in);
+	adj_rib_in_flush(&local_adj_rib_in);
 	rib_listener_to_loc_deinit(&local_to_loc_listener);
 
 	iv_fd_unregister(&fd_incoming);

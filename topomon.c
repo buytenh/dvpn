@@ -24,7 +24,7 @@
 #include <iv.h>
 #include <iv_signal.h>
 #include <string.h>
-#include "adj_rib.h"
+#include "adj_rib_in.h"
 #include "conf.h"
 #include "loc_rib.h"
 #include "lsa.h"
@@ -41,7 +41,7 @@ struct qpeer {
 	struct sockaddr_in6		query_addr;
 	struct iv_timer			query_timer;
 	struct iv_timer			query_timeout;
-	struct adj_rib			adj_rib_in;
+	struct adj_rib_in		adj_rib_in;
 	struct rib_listener_to_loc	to_loc_listener;
 };
 
@@ -95,7 +95,7 @@ static void got_response(void *_qpeer)
 	lsa = lsa_deserialise(buf, ret);
 	if (lsa == NULL) {
 		fprintf(stderr, "error deserialising LSA\n");
-		adj_rib_flush(&qpeer->adj_rib_in);
+		adj_rib_in_flush(&qpeer->adj_rib_in);
 		return;
 	}
 
@@ -115,7 +115,7 @@ static void got_response(void *_qpeer)
 		}
 	}
 
-	adj_rib_add_lsa(&qpeer->adj_rib_in, lsa);
+	adj_rib_in_add_lsa(&qpeer->adj_rib_in, lsa);
 
 	lsa_put(lsa);
 }
@@ -144,7 +144,7 @@ static void qpeer_zap(struct qpeer *qpeer)
 	iv_timer_unregister(&qpeer->query_timer);
 	if (iv_timer_registered(&qpeer->query_timeout))
 		iv_timer_unregister(&qpeer->query_timeout);
-	adj_rib_flush(&qpeer->adj_rib_in);
+	adj_rib_in_flush(&qpeer->adj_rib_in);
 	rib_listener_to_loc_deinit(&qpeer->to_loc_listener);
 	free(qpeer);
 }
@@ -211,13 +211,13 @@ static void qpeer_add(uint8_t *id, int permanent)
 
 	qpeer->adj_rib_in.myid = NULL;
 	qpeer->adj_rib_in.remoteid = id;
-	adj_rib_init(&qpeer->adj_rib_in);
+	adj_rib_in_init(&qpeer->adj_rib_in);
 
 	qpeer->to_loc_listener.dest = &loc_rib;
 	rib_listener_to_loc_init(&qpeer->to_loc_listener);
 
-	adj_rib_listener_register(&qpeer->adj_rib_in,
-				  &qpeer->to_loc_listener.rl);
+	adj_rib_in_listener_register(&qpeer->adj_rib_in,
+				     &qpeer->to_loc_listener.rl);
 }
 
 static struct qpeer *qpeer_find(uint8_t *id)

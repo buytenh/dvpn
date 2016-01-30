@@ -22,45 +22,45 @@
 #include <iv_avl.h>
 #include <iv_list.h>
 #include <string.h>
-#include "adj_rib.h"
+#include "adj_rib_in.h"
 #include "lsa_diff.h"
 #include "lsa_path.h"
 #include "lsa_type.h"
 
-struct adj_rib_lsa_ref {
+struct adj_rib_in_lsa_ref {
 	struct iv_avl_node	an;
 	struct lsa		*lsa;
 };
 
 static int compare_refs(struct iv_avl_node *_a, struct iv_avl_node *_b)
 {
-	struct adj_rib_lsa_ref *a;
-	struct adj_rib_lsa_ref *b;
+	struct adj_rib_in_lsa_ref *a;
+	struct adj_rib_in_lsa_ref *b;
 
-	a = iv_container_of(_a, struct adj_rib_lsa_ref, an);
-	b = iv_container_of(_b, struct adj_rib_lsa_ref, an);
+	a = iv_container_of(_a, struct adj_rib_in_lsa_ref, an);
+	b = iv_container_of(_b, struct adj_rib_in_lsa_ref, an);
 
 	return memcmp(a->lsa->id, b->lsa->id, NODE_ID_LEN);
 }
 
-void adj_rib_init(struct adj_rib *rib)
+void adj_rib_in_init(struct adj_rib_in *rib)
 {
 	INIT_IV_AVL_TREE(&rib->lsas, compare_refs);
 	rib->size = 0;
 	INIT_IV_LIST_HEAD(&rib->listeners);
 }
 
-static struct adj_rib_lsa_ref *
-adj_rib_find_ref(struct adj_rib *rib, uint8_t *id)
+static struct adj_rib_in_lsa_ref *
+adj_rib_in_find_ref(struct adj_rib_in *rib, uint8_t *id)
 {
 	struct iv_avl_node *an;
 
 	an = rib->lsas.root;
 	while (an != NULL) {
-		struct adj_rib_lsa_ref *ref;
+		struct adj_rib_in_lsa_ref *ref;
 		int ret;
 
-		ref = iv_container_of(an, struct adj_rib_lsa_ref, an);
+		ref = iv_container_of(an, struct adj_rib_in_lsa_ref, an);
 
 		ret = memcmp(id, ref->lsa->id, NODE_ID_LEN);
 		if (ret == 0)
@@ -75,7 +75,7 @@ adj_rib_find_ref(struct adj_rib *rib, uint8_t *id)
 	return NULL;
 }
 
-static struct lsa *map(struct adj_rib *rib, struct lsa *lsa)
+static struct lsa *map(struct adj_rib_in *rib, struct lsa *lsa)
 {
 	struct lsa_attr *attr;
 
@@ -102,7 +102,7 @@ static struct lsa *map(struct adj_rib *rib, struct lsa *lsa)
 	return lsa;
 }
 
-static void notify(struct adj_rib *rib, struct lsa *old, struct lsa *new)
+static void notify(struct adj_rib_in *rib, struct lsa *old, struct lsa *new)
 {
 	struct iv_list_head *ilh;
 	struct iv_list_head *ilh2;
@@ -134,7 +134,8 @@ static void notify(struct adj_rib *rib, struct lsa *old, struct lsa *new)
 	}
 }
 
-static void adj_rib_del_lsa(struct adj_rib *rib, struct adj_rib_lsa_ref *ref)
+static void
+adj_rib_in_del_lsa(struct adj_rib_in *rib, struct adj_rib_in_lsa_ref *ref)
 {
 	notify(rib, ref->lsa, NULL);
 
@@ -143,28 +144,28 @@ static void adj_rib_del_lsa(struct adj_rib *rib, struct adj_rib_lsa_ref *ref)
 	free(ref);
 }
 
-int adj_rib_add_lsa(struct adj_rib *rib, struct lsa *lsa)
+int adj_rib_in_add_lsa(struct adj_rib_in *rib, struct lsa *lsa)
 {
-	struct adj_rib_lsa_ref *ref;
+	struct adj_rib_in_lsa_ref *ref;
 
-	ref = adj_rib_find_ref(rib, lsa->id);
+	ref = adj_rib_in_find_ref(rib, lsa->id);
 
 	if (iv_avl_tree_empty(&lsa->attrs)) {
 		if (ref == NULL)
 			return -1;
 
-		adj_rib_del_lsa(rib, ref);
+		adj_rib_in_del_lsa(rib, ref);
 		return 0;
 	}
 
-	if (rib->size + lsa->size > ADJ_RIB_MAX_SIZE) {
-		fprintf(stderr, "adj_rib_add_lsa: dropping LSA "
+	if (rib->size + lsa->size > ADJ_RIB_IN_MAX_SIZE) {
+		fprintf(stderr, "adj_rib_in_add_lsa: dropping LSA "
 				"received from peer ");
 		printhex(stderr, rib->remoteid, NODE_ID_LEN);
 		fprintf(stderr, " because of RIB overflow\n");
 
 		if (ref != NULL)
-			adj_rib_del_lsa(rib, ref);
+			adj_rib_in_del_lsa(rib, ref);
 
 		return -1;
 	}
@@ -172,7 +173,7 @@ int adj_rib_add_lsa(struct adj_rib *rib, struct lsa *lsa)
 	if (ref == NULL) {
 		ref = malloc(sizeof(*ref));
 		if (ref == NULL) {
-			fprintf(stderr, "adj_rib_add_lsa: memory "
+			fprintf(stderr, "adj_rib_in_add_lsa: memory "
 					"allocation failure\n");
 			return -1;
 		}
@@ -191,24 +192,26 @@ int adj_rib_add_lsa(struct adj_rib *rib, struct lsa *lsa)
 	return 0;
 }
 
-void adj_rib_flush(struct adj_rib *rib)
+void adj_rib_in_flush(struct adj_rib_in *rib)
 {
 	while (rib->lsas.root != NULL) {
-		struct adj_rib_lsa_ref *ref;
+		struct adj_rib_in_lsa_ref *ref;
 
 		ref = iv_container_of(rib->lsas.root,
-				      struct adj_rib_lsa_ref, an);
+				      struct adj_rib_in_lsa_ref, an);
 
-		adj_rib_del_lsa(rib, ref);
+		adj_rib_in_del_lsa(rib, ref);
 	}
 }
 
-void adj_rib_listener_register(struct adj_rib *rib, struct rib_listener *rl)
+void
+adj_rib_in_listener_register(struct adj_rib_in *rib, struct rib_listener *rl)
 {
 	iv_list_add_tail(&rl->list, &rib->listeners);
 }
 
-void adj_rib_listener_unregister(struct adj_rib *rib, struct rib_listener *rl)
+void
+adj_rib_in_listener_unregister(struct adj_rib_in *rib, struct rib_listener *rl)
 {
 	iv_list_del(&rl->list);
 }

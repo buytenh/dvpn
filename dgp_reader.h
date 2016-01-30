@@ -21,7 +21,7 @@
 #define __DGP_READER_H
 
 #include <iv.h>
-#include "adj_rib.h"
+#include "adj_rib_in.h"
 #include "loc_rib.h"
 #include "rib_listener.h"
 #include "rib_listener_to_loc.h"
@@ -33,7 +33,7 @@ struct dgp_reader {
 
 	int				bytes;
 	uint8_t				buf[LSA_MAX_SIZE];
-	struct adj_rib			adj_rib_in;
+	struct adj_rib_in		adj_rib_in;
 	struct rib_listener_to_loc	to_loc;
 };
 

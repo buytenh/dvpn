@@ -17,17 +17,17 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#ifndef __ADJ_RIB_H
-#define __ADJ_RIB_H
+#ifndef __ADJ_RIB_IN_H
+#define __ADJ_RIB_IN_H
 
 #include <iv_avl.h>
 #include <iv_list.h>
 #include "lsa.h"
 #include "rib_listener.h"
 
-#define ADJ_RIB_MAX_SIZE	1048576
+#define ADJ_RIB_IN_MAX_SIZE	1048576
 
-struct adj_rib {
+struct adj_rib_in {
 	uint8_t			*myid;
 	uint8_t			*remoteid;
 
@@ -36,12 +36,14 @@ struct adj_rib {
 	struct iv_list_head	listeners;
 };
 
-void adj_rib_init(struct adj_rib *rib);
-int adj_rib_add_lsa(struct adj_rib *rib, struct lsa *lsa);
-void adj_rib_flush(struct adj_rib *rib);
+void adj_rib_in_init(struct adj_rib_in *rib);
+int adj_rib_in_add_lsa(struct adj_rib_in *rib, struct lsa *lsa);
+void adj_rib_in_flush(struct adj_rib_in *rib);
 
-void adj_rib_listener_register(struct adj_rib *rib, struct rib_listener *rl);
-void adj_rib_listener_unregister(struct adj_rib *rib, struct rib_listener *rl);
+void adj_rib_in_listener_register(struct adj_rib_in *rib,
+				  struct rib_listener *rl);
+void adj_rib_in_listener_unregister(struct adj_rib_in *rib,
+				    struct rib_listener *rl);
 
 
 #endif

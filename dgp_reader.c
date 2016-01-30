@@ -24,7 +24,7 @@
 #include "dgp_reader.h"
 #include "lsa_deserialise.h"
 
-static int dgp_reader_have_adj_rib(struct dgp_reader *dr)
+static int dgp_reader_have_adj_rib_in(struct dgp_reader *dr)
 {
 	return (dr->myid != NULL && dr->remoteid != NULL);
 }
@@ -33,15 +33,15 @@ void dgp_reader_register(struct dgp_reader *dr)
 {
 	dr->bytes = 0;
 
-	if (dgp_reader_have_adj_rib(dr)) {
+	if (dgp_reader_have_adj_rib_in(dr)) {
 		dr->adj_rib_in.myid = dr->myid;
 		dr->adj_rib_in.remoteid = dr->remoteid;
-		adj_rib_init(&dr->adj_rib_in);
+		adj_rib_in_init(&dr->adj_rib_in);
 
 		dr->to_loc.dest = dr->rib;
 		rib_listener_to_loc_init(&dr->to_loc);
 
-		adj_rib_listener_register(&dr->adj_rib_in, &dr->to_loc.rl);
+		adj_rib_in_listener_register(&dr->adj_rib_in, &dr->to_loc.rl);
 	}
 }
 
@@ -78,8 +78,8 @@ int dgp_reader_read(struct dgp_reader *dr, int fd)
 			if (lsa == NULL)
 				return -1;
 
-			if (dgp_reader_have_adj_rib(dr))
-				adj_rib_add_lsa(&dr->adj_rib_in, lsa);
+			if (dgp_reader_have_adj_rib_in(dr))
+				adj_rib_in_add_lsa(&dr->adj_rib_in, lsa);
 
 			lsa_put(lsa);
 		}
@@ -93,8 +93,8 @@ int dgp_reader_read(struct dgp_reader *dr, int fd)
 
 void dgp_reader_unregister(struct dgp_reader *dr)
 {
-	if (dgp_reader_have_adj_rib(dr)) {
-		adj_rib_flush(&dr->adj_rib_in);
+	if (dgp_reader_have_adj_rib_in(dr)) {
+		adj_rib_in_flush(&dr->adj_rib_in);
 		rib_listener_to_loc_deinit(&dr->to_loc);
 	}
 }
