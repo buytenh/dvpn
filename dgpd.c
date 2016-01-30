@@ -42,6 +42,7 @@ struct dgp_peer {
 	uint8_t			id[NODE_ID_LEN];
 	uint8_t			addr[16];
 	struct dgp_conn_incoming	*in;
+	struct iv_task		kill_task;
 };
 
 struct dgp_conn_incoming {
@@ -98,6 +99,37 @@ static int compare_peers(struct iv_avl_node *_a, struct iv_avl_node *_b)
 	return memcmp(a->id, b->id, NODE_ID_LEN);
 }
 
+static void conn_kill(struct dgp_conn_incoming *conn)
+{
+	iv_list_del(&conn->list);
+	if (conn->peer != NULL)
+		conn->peer->in = NULL;
+	iv_fd_unregister(&conn->fd);
+	close(conn->fd.fd);
+	dgp_writer_unregister(&conn->dw);
+	dgp_reader_unregister(&conn->dr);
+
+	free(conn);
+}
+
+static void peer_del(struct dgp_peer *peer)
+{
+	if (peer->in != NULL)
+		conn_kill(peer->in);
+
+	if (iv_task_registered(&peer->kill_task))
+		iv_task_unregister(&peer->kill_task);
+
+	free(peer);
+}
+
+static void kill_peer(void *_peer)
+{
+	struct dgp_peer *peer = _peer;
+
+	peer_del(peer);
+}
+
 static void peer_attr_add(void *_dummy, struct lsa_attr *attr)
 {
 	struct dgp_peer *peer;
@@ -112,6 +144,10 @@ static void peer_attr_add(void *_dummy, struct lsa_attr *attr)
 	memcpy(peer->id, lsa_attr_key(attr), NODE_ID_LEN);
 	v6_global_addr_from_key_id(peer->addr, peer->id, NODE_ID_LEN);
 	peer->in = NULL;
+
+	IV_TASK_INIT(&peer->kill_task);
+	peer->kill_task.cookie = peer;
+	peer->kill_task.handler = kill_peer;
 
 	iv_avl_tree_insert(&peers, &peer->an);
 }
@@ -140,19 +176,6 @@ static struct dgp_peer *peer_find_by_id(uint8_t *id)
 	return NULL;
 }
 
-static void conn_kill(struct dgp_conn_incoming *conn)
-{
-	iv_list_del(&conn->list);
-	if (conn->peer != NULL)
-		conn->peer->in = NULL;
-	iv_fd_unregister(&conn->fd);
-	close(conn->fd.fd);
-	dgp_writer_unregister(&conn->dw);
-	dgp_reader_unregister(&conn->dr);
-
-	free(conn);
-}
-
 static void peer_attr_del(void *_dummy, struct lsa_attr *attr)
 {
 	struct dgp_peer *peer;
@@ -165,10 +188,8 @@ static void peer_attr_del(void *_dummy, struct lsa_attr *attr)
 		abort();
 
 	iv_avl_tree_delete(&peers, &peer->an);
-	if (peer->in != NULL)
-		conn_kill(peer->in);
 
-	free(peer);
+	iv_task_register(&peer->kill_task);
 }
 
 static void peer_lsa_add(void *_dummy, struct lsa *lsa)
