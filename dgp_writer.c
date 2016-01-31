@@ -25,6 +25,8 @@
 #include "lsa_serialise.h"
 #include "lsa_type.h"
 
+#define KEEPALIVE_INTERVAL	10
+
 static struct lsa *map(struct dgp_writer *dw, struct lsa *lsa)
 {
 	struct lsa_attr *attr;
@@ -74,6 +76,12 @@ dgp_writer_output_lsa(struct dgp_writer *dw, struct lsa *old, struct lsa *new)
 		return 1;
 	}
 
+	iv_timer_unregister(&dw->keepalive_timer);
+	iv_validate_now();
+	dw->keepalive_timer.expires = iv_now;
+	dw->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	iv_timer_register(&dw->keepalive_timer);
+
 	return 0;
 }
 
@@ -98,7 +106,7 @@ static void dgp_writer_lsa_del(void *_dw, struct lsa *lsa)
 	dgp_writer_output_lsa(dw, lsa, NULL);
 }
 
-static void dgp_writer_rib_dump(struct dgp_writer *dw)
+static int dgp_writer_rib_dump(struct dgp_writer *dw)
 {
 	struct iv_avl_node *an;
 
@@ -107,8 +115,33 @@ static void dgp_writer_rib_dump(struct dgp_writer *dw)
 
 		rid = iv_container_of(an, struct loc_rib_id, an);
 		if (dgp_writer_output_lsa(dw, NULL, rid->best))
-			break;
+			return 1;
 	}
+
+	return 0;
+}
+
+static void dgp_writer_send_keepalive(struct dgp_writer *dw)
+{
+	uint8_t buf[2];
+
+	buf[0] = 0x00;
+	buf[1] = 0x00;
+
+	if (write(dw->fd, buf, 2) != 2)
+		dw->io_error(dw->cookie);
+}
+
+static void dgp_writer_keepalive_timer(void *_dw)
+{
+	struct dgp_writer *dw = _dw;
+
+	iv_validate_now();
+	dw->keepalive_timer.expires = iv_now;
+	dw->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	iv_timer_register(&dw->keepalive_timer);
+
+	dgp_writer_send_keepalive(dw);
 }
 
 void dgp_writer_register(struct dgp_writer *dw)
@@ -119,10 +152,20 @@ void dgp_writer_register(struct dgp_writer *dw)
 	dw->from_loc.lsa_del = dgp_writer_lsa_del;
 	loc_rib_listener_register(dw->rib, &dw->from_loc);
 
-	dgp_writer_rib_dump(dw);
+	IV_TIMER_INIT(&dw->keepalive_timer);
+	iv_validate_now();
+	dw->keepalive_timer.expires = iv_now;
+	dw->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	dw->keepalive_timer.cookie = dw;
+	dw->keepalive_timer.handler = dgp_writer_keepalive_timer;
+	iv_timer_register(&dw->keepalive_timer);
+
+	if (!dgp_writer_rib_dump(dw))
+		dgp_writer_send_keepalive(dw);
 }
 
 void dgp_writer_unregister(struct dgp_writer *dw)
 {
 	loc_rib_listener_unregister(dw->rib, &dw->from_loc);
+	iv_timer_unregister(&dw->keepalive_timer);
 }

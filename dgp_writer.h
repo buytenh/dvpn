@@ -33,6 +33,7 @@ struct dgp_writer {
 	void			(*io_error)(void *cookie);
 
 	struct rib_listener	from_loc;
+	struct iv_timer		keepalive_timer;
 };
 
 void dgp_writer_register(struct dgp_writer *dw);
