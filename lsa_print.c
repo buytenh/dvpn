@@ -67,7 +67,7 @@ static void print_id_name(FILE *fp, uint8_t *id, struct loc_rib *name_hints)
 		struct loc_rib_id *rid;
 
 		rid = loc_rib_find_id(name_hints, id);
-		if (rid != NULL) {
+		if (rid != NULL && rid->best != NULL) {
 			struct lsa_attr *attr;
 
 			attr = lsa_attr_find(rid->best,
