@@ -42,6 +42,7 @@ static gnutls_x509_privkey_t key;
 static uint8_t keyid[NODE_ID_LEN];
 static struct loc_rib loc_rib;
 static struct rib_listener_debug loc_rib_debug_listener;
+static struct dgp_listen_socket dls;
 static struct lsa *me;
 
 static enum lsa_peer_type peer_type_to_lsa_peer_type(enum peer_type type)
@@ -358,6 +359,8 @@ static void got_sigint(void *_dummy)
 	iv_signal_unregister(&sigusr1);
 
 	stop_config(conf);
+
+	dgp_listen_socket_unregister(&dls);
 }
 
 static void got_sigusr1(void *_dummy)
@@ -448,6 +451,12 @@ int main(int argc, char *argv[])
 	loc_rib_debug_listener.name = "loc-rib";
 	rib_listener_debug_init(&loc_rib_debug_listener);
 	loc_rib_listener_register(&loc_rib, &loc_rib_debug_listener.rl);
+
+	dls.myid = keyid;
+	dls.ifindex = 0;
+	dls.loc_rib = &loc_rib;
+	dls.permit_readonly = 1;
+	dgp_listen_socket_register(&dls);
 
 	me = lsa_alloc(keyid);
 	lsa_attr_add(me, LSA_ATTR_TYPE_ADV_PATH, NULL, 0, NULL, 0);
