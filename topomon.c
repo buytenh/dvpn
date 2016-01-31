@@ -24,271 +24,23 @@
 #include <iv.h>
 #include <iv_signal.h>
 #include <string.h>
-#include "adj_rib_in.h"
 #include "conf.h"
+#include "dgp_connect.h"
 #include "loc_rib.h"
-#include "lsa.h"
-#include "lsa_deserialise.h"
-#include "lsa_type.h"
 #include "rib_listener_debug.h"
-#include "rib_listener_to_loc.h"
 #include "x509.h"
 
-struct qpeer {
-	struct iv_avl_node		an;
-	uint8_t				id[NODE_ID_LEN];
-	struct iv_fd			query_fd;
-	struct sockaddr_in6		query_addr;
-	struct iv_timer			query_timer;
-	struct iv_timer			query_timeout;
-	struct adj_rib_in		adj_rib_in;
-	struct rib_listener_to_loc	to_loc_listener;
-};
-
-static void qpeer_find_or_add(uint8_t *id);
-
-static struct iv_avl_tree qpeers;
+static uint8_t myid[NODE_ID_LEN];
 static struct loc_rib loc_rib;
 static struct rib_listener_debug debug_listener;
+static struct dgp_connect dc;
 static struct iv_signal sigint;
-
-static int qpeer_compare(struct iv_avl_node *_a, struct iv_avl_node *_b)
-{
-	struct qpeer *a = iv_container_of(_a, struct qpeer, an);
-	struct qpeer *b = iv_container_of(_b, struct qpeer, an);
-
-	return memcmp(a->id, b->id, NODE_ID_LEN);
-}
-
-static void ping_query_timeout(struct qpeer *qpeer)
-{
-	if (iv_timer_registered(&qpeer->query_timeout)) {
-		iv_timer_unregister(&qpeer->query_timeout);
-		iv_validate_now();
-		qpeer->query_timeout.expires = iv_now;
-		qpeer->query_timeout.expires.tv_sec += 30;
-		iv_timer_register(&qpeer->query_timeout);
-	}
-}
-
-static void got_response(void *_qpeer)
-{
-	struct qpeer *qpeer = _qpeer;
-	uint8_t buf[65536];
-	struct sockaddr_storage recvaddr;
-	socklen_t addrlen;
-	int ret;
-	struct lsa *lsa;
-	struct iv_avl_node *an;
-
-	addrlen = sizeof(recvaddr);
-
-	ret = recvfrom(qpeer->query_fd.fd, buf, sizeof(buf), 0,
-			(struct sockaddr *)&recvaddr, &addrlen);
-	if (ret < 0) {
-		perror("recvfrom");
-		return;
-	}
-
-	ping_query_timeout(qpeer);
-
-	lsa = lsa_deserialise(buf, ret);
-	if (lsa == NULL) {
-		fprintf(stderr, "error deserialising LSA\n");
-		adj_rib_in_flush(&qpeer->adj_rib_in);
-		return;
-	}
-
-	if (memcmp(qpeer->id, lsa->id, NODE_ID_LEN)) {
-		fprintf(stderr, "node ID mismatch\n");
-		lsa_put(lsa);
-		return;
-	}
-
-	iv_avl_tree_for_each (an, &lsa->attrs) {
-		struct lsa_attr *attr;
-
-		attr = iv_container_of(an, struct lsa_attr, an);
-		if (attr->type == LSA_ATTR_TYPE_PEER) {
-			if (attr->keylen == NODE_ID_LEN)
-				qpeer_find_or_add(lsa_attr_key(attr));
-		}
-	}
-
-	adj_rib_in_add_lsa(&qpeer->adj_rib_in, lsa);
-
-	lsa_put(lsa);
-}
-
-static void query_timer_expiry(void *_qpeer)
-{
-	struct qpeer *qpeer = _qpeer;
-	uint8_t buf[1];
-
-	qpeer->query_timer.expires.tv_sec++;
-	iv_timer_register(&qpeer->query_timer);
-
-	if (sendto(qpeer->query_fd.fd, buf, 0, 0,
-		   (struct sockaddr *)&qpeer->query_addr,
-		   sizeof(qpeer->query_addr)) < 0) {
-		perror("sendto");
-		return;
-	}
-}
-
-static void qpeer_zap(struct qpeer *qpeer)
-{
-	iv_avl_tree_delete(&qpeers, &qpeer->an);
-
-	iv_fd_unregister(&qpeer->query_fd);
-	iv_timer_unregister(&qpeer->query_timer);
-	if (iv_timer_registered(&qpeer->query_timeout))
-		iv_timer_unregister(&qpeer->query_timeout);
-	adj_rib_in_flush(&qpeer->adj_rib_in);
-	rib_listener_to_loc_deinit(&qpeer->to_loc_listener);
-	free(qpeer);
-}
-
-static void query_timeout_expiry(void *_qpeer)
-{
-	struct qpeer *qpeer = _qpeer;
-
-	qpeer_zap(qpeer);
-}
-
-static void qpeer_add(uint8_t *id, int permanent)
-{
-	int fd;
-	struct qpeer *qpeer;
-	uint8_t addr[16];
-
-	fd = socket(AF_INET6, SOCK_DGRAM, 0);
-	if (fd < 0) {
-		perror("socket");
-		return;
-	}
-
-	qpeer = malloc(sizeof(*qpeer));
-	if (qpeer == NULL) {
-		close(fd);
-		return;
-	}
-
-	memcpy(qpeer->id, id, NODE_ID_LEN);
-
-	iv_avl_tree_insert(&qpeers, &qpeer->an);
-
-	IV_FD_INIT(&qpeer->query_fd);
-	qpeer->query_fd.fd = fd;
-	qpeer->query_fd.cookie = qpeer;
-	qpeer->query_fd.handler_in = got_response;
-	iv_fd_register(&qpeer->query_fd);
-
-	v6_global_addr_from_key_id(addr, id, NODE_ID_LEN);
-
-	qpeer->query_addr.sin6_family = AF_INET6;
-	qpeer->query_addr.sin6_port = htons(19275);
-	qpeer->query_addr.sin6_flowinfo = 0;
-	memcpy(&qpeer->query_addr.sin6_addr, addr, 16);
-	qpeer->query_addr.sin6_scope_id = 0;
-
-	IV_TIMER_INIT(&qpeer->query_timer);
-	iv_validate_now();
-	qpeer->query_timer.expires = iv_now;
-	qpeer->query_timer.cookie = qpeer;
-	qpeer->query_timer.handler = query_timer_expiry;
-	iv_timer_register(&qpeer->query_timer);
-
-	IV_TIMER_INIT(&qpeer->query_timeout);
-	if (!permanent) {
-		iv_validate_now();
-		qpeer->query_timeout.expires = iv_now;
-		qpeer->query_timeout.expires.tv_sec += 30;
-		qpeer->query_timeout.cookie = qpeer;
-		qpeer->query_timeout.handler = query_timeout_expiry;
-		iv_timer_register(&qpeer->query_timeout);
-	}
-
-	qpeer->adj_rib_in.myid = NULL;
-	qpeer->adj_rib_in.remoteid = id;
-	adj_rib_in_init(&qpeer->adj_rib_in);
-
-	qpeer->to_loc_listener.dest = &loc_rib;
-	rib_listener_to_loc_init(&qpeer->to_loc_listener);
-
-	adj_rib_in_listener_register(&qpeer->adj_rib_in,
-				     &qpeer->to_loc_listener.rl);
-}
-
-static struct qpeer *qpeer_find(uint8_t *id)
-{
-	struct iv_avl_node *an;
-
-	an = qpeers.root;
-	while (an != NULL) {
-		struct qpeer *qpeer;
-		int ret;
-
-		qpeer = iv_container_of(an, struct qpeer, an);
-
-		ret = memcmp(id, qpeer->id, NODE_ID_LEN);
-		if (ret == 0)
-			return qpeer;
-
-		if (ret < 0)
-			an = an->left;
-		else
-			an = an->right;
-	}
-
-	return NULL;
-}
-
-static void qpeer_find_or_add(uint8_t *id)
-{
-	struct qpeer *qpeer;
-
-	qpeer = qpeer_find(id);
-	if (qpeer != NULL) {
-		ping_query_timeout(qpeer);
-		return;
-	}
-
-	qpeer_add(id, 0);
-}
-
-static void qpeer_add_config(const char *config)
-{
-	struct conf *conf;
-	gnutls_x509_privkey_t key;
-	uint8_t id[NODE_ID_LEN];
-
-	conf = parse_config(config);
-	if (conf == NULL)
-		return;
-
-	if (x509_read_privkey(&key, conf->private_key) < 0)
-		return;
-
-	free_config(conf);
-
-	x509_get_key_id(id, key);
-
-	gnutls_x509_privkey_deinit(key);
-
-	qpeer_add(id, 1);
-}
 
 static void got_sigint(void *_dummy)
 {
 	fprintf(stderr, "SIGINT received, shutting down\n");
 
-	while (!iv_avl_tree_empty(&qpeers)) {
-		struct iv_avl_node *an;
-
-		an = iv_avl_tree_min(&qpeers);
-		qpeer_zap(iv_container_of(an, struct qpeer, an));
-	}
+	dgp_connect_stop(&dc);
 
 	iv_signal_unregister(&sigint);
 }
@@ -300,6 +52,8 @@ int main(int argc, char *argv[])
 		{ 0, 0, 0, 0, },
 	};
 	const char *config = "/etc/dvpn.ini";
+	struct conf *conf;
+	gnutls_x509_privkey_t key;
 
 	while (1) {
 		int c;
@@ -323,9 +77,22 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	iv_init();
+	conf = parse_config(config);
+	if (conf == NULL)
+		return 1;
 
-	INIT_IV_AVL_TREE(&qpeers, qpeer_compare);
+	gnutls_global_init();
+
+	if (x509_read_privkey(&key, conf->private_key) < 0)
+		return 1;
+
+	x509_get_key_id(myid, key);
+
+	gnutls_x509_privkey_deinit(key);
+
+	gnutls_global_deinit();
+
+	iv_init();
 
 	loc_rib_init(&loc_rib);
 
@@ -334,9 +101,11 @@ int main(int argc, char *argv[])
 
 	loc_rib_listener_register(&loc_rib, &debug_listener.rl);
 
-	gnutls_global_init();
-	qpeer_add_config(config);
-	gnutls_global_deinit();
+	dc.myid = NULL;
+	dc.remoteid = myid;
+	dc.ifindex = 0;
+	dc.loc_rib = &loc_rib;
+	dgp_connect_start(&dc);
 
 	IV_SIGNAL_INIT(&sigint);
 	sigint.signum = SIGINT;
