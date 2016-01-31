@@ -27,6 +27,7 @@
 
 struct dgp_listen_socket {
 	uint8_t			*myid;
+	int			ifindex;
 	struct loc_rib		*loc_rib;
 
 	struct iv_fd		listen_fd;

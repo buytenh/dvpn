@@ -42,7 +42,7 @@ find_entry_by_addr(struct dgp_listen_socket *dls, uint8_t *addr)
 
 		dle = iv_container_of(lh, struct dgp_listen_entry, list);
 
-		v6_global_addr_from_key_id(a, dle->remoteid, NODE_ID_LEN);
+		v6_linklocal_addr_from_key_id(a, dle->remoteid, NODE_ID_LEN);
 		if (!memcmp(addr, a, 16))
 			return dle;
 	}
@@ -155,32 +155,34 @@ int dgp_listen_socket_register(struct dgp_listen_socket *dls)
 
 	yes = 1;
 	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0) {
-		perror("listen_start: setsockopt(SOL_SOCKET, SO_REUSEADDR)");
+		perror("dgp_listen_socket_register: setsockopt"
+		       "(SOL_SOCKET, SO_REUSEADDR)");
 		close(fd);
 		return 1;
 	}
 	if (setsockopt(fd, SOL_IP, IP_FREEBIND, &yes, sizeof(yes)) < 0) {
-		perror("listen_start: setsockopt(SOL_IP, IP_FREEBIND)");
+		perror("dgp_listen_socket_register: setsockopt"
+		       "(SOL_IP, IP_FREEBIND)");
 		close(fd);
 		return 1;
 	}
 
-	v6_global_addr_from_key_id(addr, dls->myid, NODE_ID_LEN);
+	v6_linklocal_addr_from_key_id(addr, dls->myid, NODE_ID_LEN);
 
 	saddr.sin6_family = AF_INET6;
 	saddr.sin6_port = htons(44461);
 	saddr.sin6_flowinfo = 0;
 	memcpy(&saddr.sin6_addr, addr, 16);
-	saddr.sin6_scope_id = 0;
+	saddr.sin6_scope_id = dls->ifindex;
 
 	if (bind(fd, (struct sockaddr *)&saddr, sizeof(saddr)) < 0) {
-		perror("listen_start: bind");
+		perror("dgp_listen_socket_register: bind");
 		close(fd);
 		return 1;
 	}
 
 	if (listen(fd, 100) < 0) {
-		perror("listen_start: listen");
+		perror("dgp_listen_socket_register: listen");
 		close(fd);
 		return 1;
 	}

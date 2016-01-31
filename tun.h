@@ -21,7 +21,7 @@
 #define __TUN_H
 
 #include <iv.h>
-#include <linux/if.h>
+#include <net/if.h>
 
 struct tun_interface {
 	const char	*itfname;

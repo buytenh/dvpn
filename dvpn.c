@@ -23,6 +23,7 @@
 #include <gnutls/x509.h>
 #include <iv.h>
 #include <iv_signal.h>
+#include <net/if.h>
 #include <string.h>
 #include "conf.h"
 #include "confdiff.h"
@@ -41,7 +42,6 @@ static gnutls_x509_privkey_t key;
 static uint8_t keyid[NODE_ID_LEN];
 static struct loc_rib loc_rib;
 static struct rib_listener_debug loc_rib_debug_listener;
-static struct dgp_listen_socket dls;
 static struct lsa *me;
 
 static enum lsa_peer_type peer_type_to_lsa_peer_type(enum peer_type type)
@@ -140,6 +140,7 @@ static int start_conf_connect_entry(struct conf_connect_entry *cce)
 
 	cce->dc.myid = keyid;
 	cce->dc.remoteid = cce->fingerprint;
+	cce->dc.ifindex = if_nametoindex(tun_interface_get_name(&cce->tc.tun));
 	cce->dc.loc_rib = &loc_rib;
 
 	return 0;
@@ -172,7 +173,12 @@ static int start_conf_listen_entry(struct conf_listening_socket *cls,
 
 	cle->registered = 1;
 
-	cle->dle.dls = &dls;
+	cle->dls.myid = keyid;
+	cle->dls.ifindex = if_nametoindex(tun_interface_get_name(&cle->tle.tun));
+	cle->dls.loc_rib = &loc_rib;
+	dgp_listen_socket_register(&cle->dls);
+
+	cle->dle.dls = &cle->dls;
 	cle->dle.remoteid = cle->fingerprint;
 	dgp_listen_entry_register(&cle->dle);
 
@@ -183,6 +189,7 @@ static void stop_conf_listen_entry(struct conf_listen_entry *cle)
 {
 	cle->registered = 0;
 	tconn_listen_entry_unregister(&cle->tle);
+	dgp_listen_socket_unregister(&cle->dls);
 	dgp_listen_entry_unregister(&cle->dle);
 
 	if (cle->tconn_up)
@@ -350,8 +357,6 @@ static void got_sigint(void *_dummy)
 	iv_signal_unregister(&sigusr1);
 
 	stop_config(conf);
-
-	dgp_listen_socket_unregister(&dls);
 }
 
 static void got_sigusr1(void *_dummy)
@@ -442,10 +447,6 @@ int main(int argc, char *argv[])
 	loc_rib_debug_listener.name = "loc-rib";
 	rib_listener_debug_init(&loc_rib_debug_listener);
 	loc_rib_listener_register(&loc_rib, &loc_rib_debug_listener.rl);
-
-	dls.myid = keyid;
-	dls.loc_rib = &loc_rib;
-	dgp_listen_socket_register(&dls);
 
 	me = lsa_alloc(keyid);
 	lsa_attr_add(me, LSA_ATTR_TYPE_ADV_PATH, NULL, 0, NULL, 0);

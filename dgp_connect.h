@@ -28,6 +28,7 @@
 struct dgp_connect {
 	uint8_t			*myid;
 	uint8_t			*remoteid;
+	int			ifindex;
 	struct loc_rib		*loc_rib;
 
 	int			state;

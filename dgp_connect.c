@@ -114,13 +114,13 @@ static void try_connect(struct dgp_connect *dc)
 		goto fail;
 	}
 
-	v6_global_addr_from_key_id(addr, dc->myid, NODE_ID_LEN);
+	v6_linklocal_addr_from_key_id(addr, dc->myid, NODE_ID_LEN);
 
 	saddr.sin6_family = AF_INET6;
 	saddr.sin6_port = 0;
 	saddr.sin6_flowinfo = 0;
 	memcpy(&saddr.sin6_addr, addr, 16);
-	saddr.sin6_scope_id = 0;
+	saddr.sin6_scope_id = dc->ifindex;
 
 	if (bind(fd, (struct sockaddr *)&saddr, sizeof(saddr)) < 0) {
 		perror("bind");
@@ -135,7 +135,7 @@ static void try_connect(struct dgp_connect *dc)
 
 	saddr.sin6_port = htons(44461);
 
-	v6_global_addr_from_key_id(addr, dc->remoteid, NODE_ID_LEN);
+	v6_linklocal_addr_from_key_id(addr, dc->remoteid, NODE_ID_LEN);
 	memcpy(&saddr.sin6_addr, addr, 16);
 
 	ret = connect(fd, (struct sockaddr *)&saddr, sizeof(saddr));
@@ -151,7 +151,7 @@ static void try_connect(struct dgp_connect *dc)
 	} else {
 		iv_validate_now();
 		dc->timeout.expires = iv_now;
-		dc->timeout.expires.tv_sec += 1;
+		dc->timeout.expires.tv_sec += 10;
 		iv_timer_register(&dc->timeout);
 	}
 
