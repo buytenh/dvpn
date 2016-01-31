@@ -116,8 +116,11 @@ static void listen_set_state(void *_cle, int up)
 
 	if (up) {
 		local_add_peer(cle->fingerprint, cle->peer_type);
+		dgp_listen_socket_register(&cle->dls);
+		dgp_listen_entry_register(&cle->dle);
 	} else {
-		dgp_listen_entry_reset(&cle->dle);
+		dgp_listen_entry_unregister(&cle->dle);
+		dgp_listen_socket_unregister(&cle->dls);
 		local_del_peer(cle->fingerprint);
 	}
 }
@@ -177,11 +180,9 @@ static int start_conf_listen_entry(struct conf_listening_socket *cls,
 	cle->dls.ifindex = if_nametoindex(tun_interface_get_name(&cle->tle.tun));
 	cle->dls.loc_rib = &loc_rib;
 	cle->dls.permit_readonly = 0;
-	dgp_listen_socket_register(&cle->dls);
 
 	cle->dle.dls = &cle->dls;
 	cle->dle.remoteid = cle->fingerprint;
-	dgp_listen_entry_register(&cle->dle);
 
 	return 0;
 }
@@ -190,11 +191,12 @@ static void stop_conf_listen_entry(struct conf_listen_entry *cle)
 {
 	cle->registered = 0;
 	tconn_listen_entry_unregister(&cle->tle);
-	dgp_listen_socket_unregister(&cle->dls);
-	dgp_listen_entry_unregister(&cle->dle);
 
-	if (cle->tconn_up)
+	if (cle->tconn_up) {
+		dgp_listen_entry_unregister(&cle->dle);
+		dgp_listen_socket_unregister(&cle->dls);
 		local_del_peer(cle->fingerprint);
+	}
 }
 
 static int start_conf_listening_socket(struct conf_listening_socket *cls)
