@@ -20,10 +20,11 @@
 #ifndef __LSA_PRINT_H
 #define __LSA_PRINT_H
 
+#include "loc_rib.h"
 #include "lsa.h"
 
 char *lsa_attr_type_name(int type, char *buf, int bufsize);
-void lsa_print(FILE *fp, struct lsa *lsa);
+void lsa_print(FILE *fp, struct lsa *lsa, struct loc_rib *name_hints);
 
 
 #endif
