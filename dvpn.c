@@ -32,7 +32,6 @@
 #include "lsa_print.h"
 #include "lsa_serialise.h"
 #include "lsa_type.h"
-#include "rib_listener_debug.h"
 #include "tconn_connect.h"
 #include "tconn_listen.h"
 #include "util.h"
@@ -41,7 +40,6 @@
 static gnutls_x509_privkey_t key;
 static uint8_t keyid[NODE_ID_LEN];
 static struct loc_rib loc_rib;
-static struct rib_listener_debug loc_rib_debug_listener;
 static struct dgp_listen_socket dls;
 static struct lsa *me;
 
@@ -449,10 +447,6 @@ int main(int argc, char *argv[])
 
 	loc_rib_init(&loc_rib);
 
-	loc_rib_debug_listener.name = "loc-rib";
-	rib_listener_debug_init(&loc_rib_debug_listener);
-	loc_rib_listener_register(&loc_rib, &loc_rib_debug_listener.rl);
-
 	dls.myid = keyid;
 	dls.ifindex = 0;
 	dls.loc_rib = &loc_rib;
@@ -499,8 +493,6 @@ int main(int argc, char *argv[])
 	lsa_put(me);
 
 	loc_rib_deinit(&loc_rib);
-
-	rib_listener_debug_deinit(&loc_rib_debug_listener);
 
 	gnutls_x509_privkey_deinit(key);
 
