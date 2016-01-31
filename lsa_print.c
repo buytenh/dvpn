@@ -26,7 +26,7 @@
 #include "lsa_type.h"
 #include "util.h"
 
-char *lsa_attr_type_name(int type, char *buf, int bufsize)
+static char *lsa_attr_type_name(int type, char *buf, int bufsize)
 {
 	switch (type) {
 	case LSA_ATTR_TYPE_ADV_PATH:
@@ -39,6 +39,13 @@ char *lsa_attr_type_name(int type, char *buf, int bufsize)
 		snprintf(buf, bufsize, "type-%d", type);
 		return buf;
 	}
+}
+
+void lsa_attr_print_type_name(FILE *fp, struct lsa_attr *attr)
+{
+	char t[128];
+
+	fputs(lsa_attr_type_name(attr->type, t, sizeof(t)), fp);
 }
 
 static void print_node_name(FILE *fp, struct lsa_attr *attr)

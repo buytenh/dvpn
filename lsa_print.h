@@ -23,7 +23,7 @@
 #include "loc_rib.h"
 #include "lsa.h"
 
-char *lsa_attr_type_name(int type, char *buf, int bufsize);
+void lsa_attr_print_type_name(FILE *fp, struct lsa_attr *attr);
 void lsa_print(FILE *fp, struct lsa *lsa, struct loc_rib *name_hints);
 
 

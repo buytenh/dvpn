@@ -29,10 +29,9 @@
 static void attr_add(void *cookie, struct lsa_attr *attr)
 {
 	struct rib_listener_debug *rl = cookie;
-	char t[128];
 
-	printf("%s: attr add: %s", rl->name,
-	       lsa_attr_type_name(attr->type, t, sizeof(t)));
+	printf("%s: attr add: ", rl->name);
+	lsa_attr_print_type_name(stdout, attr);
 
 	if (attr->keylen) {
 		printf("[");
@@ -49,10 +48,9 @@ static void
 attr_mod(void *cookie, struct lsa_attr *aattr, struct lsa_attr *battr)
 {
 	struct rib_listener_debug *rl = cookie;
-	char t[128];
 
-	printf("%s: attr mod: %s", rl->name,
-	       lsa_attr_type_name(aattr->type, t, sizeof(t)));
+	printf("%s: attr mod: ", rl->name);
+	lsa_attr_print_type_name(stdout, aattr);
 
 	if (aattr->keylen) {
 		printf("[");
@@ -70,10 +68,9 @@ attr_mod(void *cookie, struct lsa_attr *aattr, struct lsa_attr *battr)
 static void attr_del(void *cookie, struct lsa_attr *attr)
 {
 	struct rib_listener_debug *rl = cookie;
-	char t[128];
 
-	printf("%s: attr del: %s", rl->name,
-	       lsa_attr_type_name(attr->type, t, sizeof(t)));
+	printf("%s: attr del: ", rl->name);
+	lsa_attr_print_type_name(stdout, attr);
 
 	if (attr->keylen) {
 		printf("[");
