@@ -20,11 +20,13 @@
 #ifndef __RIB_LISTENER_DEBUG_H
 #define __RIB_LISTENER_DEBUG_H
 
+#include "loc_rib.h"
 #include "rib_listener.h"
 
 struct rib_listener_debug
 {
 	char			*name;
+	struct loc_rib		*name_hints;
 	struct rib_listener	rl;
 };
 

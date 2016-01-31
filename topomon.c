@@ -123,6 +123,7 @@ int main(int argc, char *argv[])
 	loc_rib_init(&loc_rib);
 
 	debug_listener.name = "loc-rib";
+	debug_listener.name_hints = &loc_rib;
 	rib_listener_debug_init(&debug_listener);
 
 	loc_rib_listener_register(&loc_rib, &debug_listener.rl);
