@@ -32,16 +32,11 @@ static void attr_add(void *cookie, struct lsa_attr *attr)
 
 	printf("%s: attr add: ", rl->name);
 	lsa_attr_print_type_name(stdout, attr);
-
-	if (attr->keylen) {
-		printf("[");
-		printhex(stdout, lsa_attr_key(attr), attr->keylen);
-		printf("]");
-	}
-
-	printf(" = [");
-	printhex(stdout, lsa_attr_data(attr), attr->datalen);
-	printf("]\n");
+	if (attr->keylen)
+		lsa_attr_print_key(stdout, attr, NULL);
+	printf(" = ");
+	lsa_attr_print_data(stdout, attr, NULL);
+	printf("\n");
 }
 
 static void
@@ -51,18 +46,13 @@ attr_mod(void *cookie, struct lsa_attr *aattr, struct lsa_attr *battr)
 
 	printf("%s: attr mod: ", rl->name);
 	lsa_attr_print_type_name(stdout, aattr);
-
-	if (aattr->keylen) {
-		printf("[");
-		printhex(stdout, lsa_attr_key(aattr), aattr->keylen);
-		printf("]");
-	}
-
-	printf(" = [");
-	printhex(stdout, lsa_attr_data(aattr), aattr->datalen);
-	printf("] -> [");
-	printhex(stdout, lsa_attr_data(battr), battr->datalen);
-	printf("]\n");
+	if (aattr->keylen)
+		lsa_attr_print_key(stdout, aattr, NULL);
+	printf(" = ");
+	lsa_attr_print_data(stdout, aattr, NULL);
+	printf(" -> ");
+	lsa_attr_print_data(stdout, battr, NULL);
+	printf("\n");
 }
 
 static void attr_del(void *cookie, struct lsa_attr *attr)
@@ -71,16 +61,11 @@ static void attr_del(void *cookie, struct lsa_attr *attr)
 
 	printf("%s: attr del: ", rl->name);
 	lsa_attr_print_type_name(stdout, attr);
-
-	if (attr->keylen) {
-		printf("[");
-		printhex(stdout, lsa_attr_key(attr), attr->keylen);
-		printf("]");
-	}
-
-	printf(" = [");
-	printhex(stdout, lsa_attr_data(attr), attr->datalen);
-	printf("]\n");
+	if (attr->keylen)
+		lsa_attr_print_key(stdout, attr, NULL);
+	printf(" = ");
+	lsa_attr_print_data(stdout, attr, NULL);
+	printf("\n");
 }
 
 static void lsa_add(void *cookie, struct lsa *a)
