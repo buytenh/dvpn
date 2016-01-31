@@ -49,6 +49,7 @@ struct dgp_listen_entry {
 
 void dgp_listen_entry_register(struct dgp_listen_entry *dle);
 void dgp_listen_entry_unregister(struct dgp_listen_entry *dle);
+void dgp_listen_entry_reset(struct dgp_listen_entry *dle);
 
 
 #endif

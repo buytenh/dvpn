@@ -119,6 +119,7 @@ static void listen_set_state(void *_cle, int up)
 	if (up) {
 		local_add_peer(cle->fingerprint, cle->peer_type);
 	} else {
+		dgp_listen_entry_reset(&cle->dle);
 		local_del_peer(cle->fingerprint);
 	}
 }

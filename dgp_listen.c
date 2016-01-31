@@ -248,3 +248,11 @@ void dgp_listen_entry_unregister(struct dgp_listen_entry *dle)
 
 	iv_list_del_init(&dle->list);
 }
+
+void dgp_listen_entry_reset(struct dgp_listen_entry *dle)
+{
+	if (dle->current != NULL) {
+		conn_kill(dle->current);
+		dle->current = NULL;
+	}
+}
