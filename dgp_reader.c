@@ -24,6 +24,15 @@
 #include "dgp_reader.h"
 #include "lsa_deserialise.h"
 
+#define KEEPALIVE_TIMEOUT	15
+
+static void dgp_reader_keepalive_timeout(void *_dr)
+{
+	struct dgp_reader *dr = _dr;
+
+	dr->io_error(dr->cookie);
+}
+
 void dgp_reader_register(struct dgp_reader *dr)
 {
 	dr->bytes = 0;
@@ -38,6 +47,14 @@ void dgp_reader_register(struct dgp_reader *dr)
 
 		adj_rib_in_listener_register(&dr->adj_rib_in, &dr->to_loc.rl);
 	}
+
+	IV_TIMER_INIT(&dr->keepalive_timeout);
+	iv_validate_now();
+	dr->keepalive_timeout.expires = iv_now;
+	dr->keepalive_timeout.expires.tv_sec += KEEPALIVE_TIMEOUT;
+	dr->keepalive_timeout.cookie = dr;
+	dr->keepalive_timeout.handler = dgp_reader_keepalive_timeout;
+	iv_timer_register(&dr->keepalive_timeout);
 }
 
 int dgp_reader_read(struct dgp_reader *dr, int fd)
@@ -58,6 +75,12 @@ int dgp_reader_read(struct dgp_reader *dr, int fd)
 	}
 
 	dr->bytes += ret;
+
+	iv_timer_unregister(&dr->keepalive_timeout);
+	iv_validate_now();
+	dr->keepalive_timeout.expires = iv_now;
+	dr->keepalive_timeout.expires.tv_sec += KEEPALIVE_TIMEOUT;
+	iv_timer_register(&dr->keepalive_timeout);
 
 	while (dr->bytes >= 2) {
 		int len;
@@ -92,4 +115,7 @@ void dgp_reader_unregister(struct dgp_reader *dr)
 		adj_rib_in_flush(&dr->adj_rib_in);
 		rib_listener_to_loc_deinit(&dr->to_loc);
 	}
+
+	if (iv_timer_registered(&dr->keepalive_timeout))
+		iv_timer_unregister(&dr->keepalive_timeout);
 }

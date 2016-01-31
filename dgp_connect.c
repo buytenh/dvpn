@@ -200,7 +200,7 @@ static void rx_timeout_expired(void *_dc)
 	}
 }
 
-static void dw_io_error(void *_dc)
+static void dr_dw_io_error(void *_dc)
 {
 	struct dgp_connect *dc = _dc;
 
@@ -221,12 +221,14 @@ void dgp_connect_start(struct dgp_connect *dc)
 	dc->dr.myid = dc->myid;
 	dc->dr.remoteid = dc->remoteid;
 	dc->dr.rib = dc->loc_rib;
+	dc->dr.cookie = dc;
+	dc->dr.io_error = dr_dw_io_error;
 
 	dc->dw.myid = dc->myid;
 	dc->dw.remoteid = dc->remoteid;
 	dc->dw.rib = dc->loc_rib;
 	dc->dw.cookie = dc;
-	dc->dw.io_error = dw_io_error;
+	dc->dw.io_error = dr_dw_io_error;
 
 	try_connect(dc);
 }

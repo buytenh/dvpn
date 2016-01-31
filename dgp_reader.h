@@ -30,11 +30,14 @@ struct dgp_reader {
 	uint8_t			*myid;
 	uint8_t			*remoteid;
 	struct loc_rib		*rib;
+	void			*cookie;
+	void			(*io_error)(void *cookie);
 
 	int				bytes;
 	uint8_t				buf[LSA_MAX_SIZE];
 	struct adj_rib_in		adj_rib_in;
 	struct rib_listener_to_loc	to_loc;
+	struct iv_timer			keepalive_timeout;
 };
 
 void dgp_reader_register(struct dgp_reader *dr);

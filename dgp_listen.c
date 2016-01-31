@@ -75,7 +75,7 @@ static void handle_dgp_read(void *_conn)
 		conn_kill(conn);
 }
 
-static void dw_io_error(void *_conn)
+static void dr_dw_io_error(void *_conn)
 {
 	struct conn *conn = _conn;
 
@@ -138,6 +138,8 @@ static void got_connection(void *_dls)
 	conn->dr.myid = dls->myid;
 	conn->dr.remoteid = (dle != NULL) ? dle->remoteid : NULL;
 	conn->dr.rib = dls->loc_rib;
+	conn->dr.cookie = conn;
+	conn->dr.io_error = dr_dw_io_error;
 	dgp_reader_register(&conn->dr);
 
 	conn->dw.fd = fd;
@@ -145,7 +147,7 @@ static void got_connection(void *_dls)
 	conn->dw.remoteid = (dle != NULL) ? dle->remoteid : NULL;
 	conn->dw.rib = dls->loc_rib;
 	conn->dw.cookie = conn;
-	conn->dw.io_error = dw_io_error;
+	conn->dw.io_error = dr_dw_io_error;
 	dgp_writer_register(&conn->dw);
 }
 
