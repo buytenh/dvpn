@@ -50,25 +50,7 @@ static void got_sigint(void *_dummy)
 
 static void got_sigusr1(void *_dummy)
 {
-	struct iv_avl_node *an;
-	int first;
-
-	fprintf(stderr, "-----BEGIN LOC-RIB DUMP-----\n");
-
-	first = 1;
-	iv_avl_tree_for_each (an, &loc_rib.ids) {
-		struct loc_rib_id *id;
-
-		id = iv_container_of(an, struct loc_rib_id, an);
-
-		if (!first)
-			fprintf(stderr, "\n");
-		first = 0;
-
-		lsa_print(stderr, id->best, &loc_rib);
-	}
-
-	fprintf(stderr, "-----END LOC-RIB DUMP-----\n");
+	loc_rib_print(stderr, &loc_rib);
 }
 
 int main(int argc, char *argv[])

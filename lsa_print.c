@@ -140,3 +140,25 @@ void lsa_print(FILE *fp, struct lsa *lsa, struct loc_rib *name_hints)
 		fprintf(fp, "\n");
 	}
 }
+
+void loc_rib_print(FILE *fp, struct loc_rib *rib)
+{
+	struct iv_avl_node *an;
+	int count;
+
+	fprintf(fp, "-----BEGIN LOC-RIB DUMP-----\n");
+
+	count = 0;
+	iv_avl_tree_for_each (an, &rib->ids) {
+		struct loc_rib_id *id;
+
+		id = iv_container_of(an, struct loc_rib_id, an);
+		if (id->best != NULL) {
+			if (count++)
+				fprintf(fp, "\n");
+			lsa_print(fp, id->best, rib);
+		}
+	}
+
+	fprintf(fp, "-----END LOC-RIB DUMP-----\n");
+}

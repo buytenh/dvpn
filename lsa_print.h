@@ -30,5 +30,7 @@ void lsa_attr_print_data(FILE *fp, struct lsa_attr *attr,
                          struct loc_rib *name_hints);
 void lsa_print(FILE *fp, struct lsa *lsa, struct loc_rib *name_hints);
 
+void loc_rib_print(FILE *fp, struct loc_rib *rib);
+
 
 #endif
