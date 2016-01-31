@@ -73,7 +73,7 @@ static void lsa_add(void *cookie, struct lsa *a)
 	struct rib_listener_debug *rl = cookie;
 
 	printf("%s: lsa add [", rl->name);
-	printhex(stdout, a->id, NODE_ID_LEN);
+	lsa_print_id_name(stdout, a->id, rl->name_hints);
 	printf("]\n");
 
 	lsa_diff(NULL, a, cookie, attr_add, attr_mod, attr_del);
@@ -86,7 +86,7 @@ static void lsa_mod(void *cookie, struct lsa *a, struct lsa *b)
 	struct rib_listener_debug *rl = cookie;
 
 	printf("%s: lsa mod [", rl->name);
-	printhex(stdout, a->id, NODE_ID_LEN);
+	lsa_print_id_name(stdout, a->id, rl->name_hints);
 	printf("]\n");
 
 	lsa_diff(a, b, cookie, attr_add, attr_mod, attr_del);
@@ -99,7 +99,7 @@ static void lsa_del(void *cookie, struct lsa *a)
 	struct rib_listener_debug *rl = cookie;
 
 	printf("%s: lsa del [", rl->name);
-	printhex(stdout, a->id, NODE_ID_LEN);
+	lsa_print_id_name(stdout, a->id, rl->name_hints);
 	printf("]\n");
 
 	lsa_diff(a, NULL, cookie, attr_add, attr_mod, attr_del);
