@@ -26,6 +26,7 @@
 #include <string.h>
 #include "conf.h"
 #include "dgp_connect.h"
+#include "lsa_print.h"
 #include "loc_rib.h"
 #include "rib_listener_debug.h"
 #include "x509.h"
@@ -35,6 +36,7 @@ static struct loc_rib loc_rib;
 static struct rib_listener_debug debug_listener;
 static struct dgp_connect dc;
 static struct iv_signal sigint;
+static struct iv_signal sigusr1;
 
 static void got_sigint(void *_dummy)
 {
@@ -43,6 +45,30 @@ static void got_sigint(void *_dummy)
 	dgp_connect_stop(&dc);
 
 	iv_signal_unregister(&sigint);
+	iv_signal_unregister(&sigusr1);
+}
+
+static void got_sigusr1(void *_dummy)
+{
+	struct iv_avl_node *an;
+	int first;
+
+	fprintf(stderr, "-----BEGIN LOC-RIB DUMP-----\n");
+
+	first = 1;
+	iv_avl_tree_for_each (an, &loc_rib.ids) {
+		struct loc_rib_id *id;
+
+		id = iv_container_of(an, struct loc_rib_id, an);
+
+		if (!first)
+			fprintf(stderr, "\n");
+		first = 0;
+
+		lsa_print(stderr, id->best, &loc_rib);
+	}
+
+	fprintf(stderr, "-----END LOC-RIB DUMP-----\n");
 }
 
 int main(int argc, char *argv[])
@@ -113,6 +139,13 @@ int main(int argc, char *argv[])
 	sigint.cookie = NULL;
 	sigint.handler = got_sigint;
 	iv_signal_register(&sigint);
+
+	IV_SIGNAL_INIT(&sigusr1);
+	sigusr1.signum = SIGUSR1;
+	sigusr1.flags = 0;
+	sigusr1.cookie = NULL;
+	sigusr1.handler = got_sigusr1;
+	iv_signal_register(&sigusr1);
 
 	iv_main();
 
