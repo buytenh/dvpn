@@ -61,7 +61,7 @@ static void print_node_name(FILE *fp, struct lsa_attr *attr)
 	}
 }
 
-static void print_id_name(FILE *fp, uint8_t *id, struct loc_rib *name_hints)
+void lsa_print_id_name(FILE *fp, uint8_t *id, struct loc_rib *name_hints)
 {
 	if (name_hints != NULL) {
 		struct loc_rib_id *rid;
@@ -87,7 +87,7 @@ void lsa_attr_print_key(FILE *fp, struct lsa_attr *attr,
 {
 	fprintf(fp, "[");
 	if (attr->type == LSA_ATTR_TYPE_PEER && attr->keylen == NODE_ID_LEN) {
-		print_id_name(fp, lsa_attr_key(attr), name_hints);
+		lsa_print_id_name(fp, lsa_attr_key(attr), name_hints);
 	} else {
 		printhex(fp, lsa_attr_key(attr), attr->keylen);
 	}
@@ -106,7 +106,7 @@ void lsa_attr_print_data(FILE *fp, struct lsa_attr *attr,
 		for (i = 0; i < attr->datalen; i += NODE_ID_LEN) {
 			if (i)
 				fputc(' ', fp);
-			print_id_name(fp, data + i, name_hints);
+			lsa_print_id_name(fp, data + i, name_hints);
 		}
 	} else if (attr->type == LSA_ATTR_TYPE_PEER &&
 		   attr->datalen == sizeof(struct lsa_attr_peer)) {
