@@ -366,7 +366,7 @@ static void got_sigint(void *_dummy)
 
 static void got_sigusr1(void *_dummy)
 {
-	lsa_print(stderr, me, &loc_rib);
+	loc_rib_print(stderr, &loc_rib);
 }
 
 static void usage(const char *me)
