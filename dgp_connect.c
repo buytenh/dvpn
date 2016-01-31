@@ -114,18 +114,26 @@ static void try_connect(struct dgp_connect *dc)
 		goto fail;
 	}
 
-	v6_linklocal_addr_from_key_id(addr, dc->myid, NODE_ID_LEN);
+	if (dc->myid != NULL) {
+		if (!dc->ifindex) {
+			v6_global_addr_from_key_id(addr, dc->myid,
+						   NODE_ID_LEN);
+		} else {
+			v6_linklocal_addr_from_key_id(addr, dc->myid,
+						      NODE_ID_LEN);
+		}
 
-	saddr.sin6_family = AF_INET6;
-	saddr.sin6_port = 0;
-	saddr.sin6_flowinfo = 0;
-	memcpy(&saddr.sin6_addr, addr, 16);
-	saddr.sin6_scope_id = dc->ifindex;
+		saddr.sin6_family = AF_INET6;
+		saddr.sin6_port = 0;
+		saddr.sin6_flowinfo = 0;
+		memcpy(&saddr.sin6_addr, addr, 16);
+		saddr.sin6_scope_id = dc->ifindex;
 
-	if (bind(fd, (struct sockaddr *)&saddr, sizeof(saddr)) < 0) {
-		perror("bind");
-		close(fd);
-		goto fail;
+		if (bind(fd, (struct sockaddr *)&saddr, sizeof(saddr)) < 0) {
+			perror("bind");
+			close(fd);
+			goto fail;
+		}
 	}
 
 	dc->fd.fd = fd;
@@ -133,10 +141,16 @@ static void try_connect(struct dgp_connect *dc)
 	dc->fd.handler_out = connect_pollout;
 	iv_fd_register(&dc->fd);
 
-	saddr.sin6_port = htons(44461);
+	if (!dc->ifindex)
+		v6_global_addr_from_key_id(addr, dc->remoteid, NODE_ID_LEN);
+	else
+		v6_linklocal_addr_from_key_id(addr, dc->remoteid, NODE_ID_LEN);
 
-	v6_linklocal_addr_from_key_id(addr, dc->remoteid, NODE_ID_LEN);
+	saddr.sin6_family = AF_INET6;
+	saddr.sin6_port = htons(44461);
+	saddr.sin6_flowinfo = 0;
 	memcpy(&saddr.sin6_addr, addr, 16);
+	saddr.sin6_scope_id = dc->ifindex;
 
 	ret = connect(fd, (struct sockaddr *)&saddr, sizeof(saddr));
 	if (ret < 0 && errno != EINPROGRESS) {
