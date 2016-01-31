@@ -82,19 +82,22 @@ static void print_id_name(FILE *fp, uint8_t *id, struct loc_rib *name_hints)
 	printhex(fp, id, NODE_ID_LEN);
 }
 
-static void
-print_key(FILE *fp, struct lsa_attr *attr, struct loc_rib *name_hints)
+void lsa_attr_print_key(FILE *fp, struct lsa_attr *attr,
+			struct loc_rib *name_hints)
 {
+	fprintf(fp, "[");
 	if (attr->type == LSA_ATTR_TYPE_PEER && attr->keylen == NODE_ID_LEN) {
 		print_id_name(fp, lsa_attr_key(attr), name_hints);
 	} else {
 		printhex(fp, lsa_attr_key(attr), attr->keylen);
 	}
+	fprintf(fp, "]");
 }
 
-static void
-print_data(FILE *fp, struct lsa_attr *attr, struct loc_rib *name_hints)
+void lsa_attr_print_data(FILE *fp, struct lsa_attr *attr,
+			 struct loc_rib *name_hints)
 {
+	fprintf(fp, "[");
 	if (attr->type == LSA_ATTR_TYPE_ADV_PATH &&
 	    (attr->datalen % NODE_ID_LEN) == 0) {
 		uint8_t *data = lsa_attr_data(attr);
@@ -110,6 +113,7 @@ print_data(FILE *fp, struct lsa_attr *attr, struct loc_rib *name_hints)
 	} else {
 		printhex(fp, lsa_attr_data(attr), attr->datalen);
 	}
+	fprintf(fp, "]");
 }
 
 void lsa_print(FILE *fp, struct lsa *lsa, struct loc_rib *name_hints)
@@ -118,27 +122,21 @@ void lsa_print(FILE *fp, struct lsa *lsa, struct loc_rib *name_hints)
 
 	fprintf(fp, "LSA [");
 	printhex(fp, lsa->id, NODE_ID_LEN / 2);
-	fprintf(fp, "\n     ");
+	fprintf(fp, ":\n     ");
 	printhex(fp, lsa->id + (NODE_ID_LEN / 2), NODE_ID_LEN / 2);
 	fprintf(fp, "]\n");
 
 	iv_avl_tree_for_each (an, &lsa->attrs) {
 		struct lsa_attr *attr;
-		char t[128];
 
 		attr = iv_container_of(an, struct lsa_attr, an);
 
-		fprintf(fp, "* %s",
-			lsa_attr_type_name(attr->type, t, sizeof(t)));
-
-		if (attr->keylen) {
-			fprintf(fp, "[");
-			print_key(fp, attr, name_hints);
-			fprintf(fp, "]");
-		}
-
-		fprintf(fp, " = [");
-		print_data(fp, attr, name_hints);
-		fprintf(fp, "]\n");
+		fprintf(fp, "* ");
+		lsa_attr_print_type_name(fp, attr);
+		if (attr->keylen)
+			lsa_attr_print_key(fp, attr, name_hints);
+		fprintf(fp, " = ");
+		lsa_attr_print_data(fp, attr, name_hints);
+		fprintf(fp, "\n");
 	}
 }
