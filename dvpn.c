@@ -176,6 +176,7 @@ static int start_conf_listen_entry(struct conf_listening_socket *cls,
 	cle->dls.myid = keyid;
 	cle->dls.ifindex = if_nametoindex(tun_interface_get_name(&cle->tle.tun));
 	cle->dls.loc_rib = &loc_rib;
+	cle->dls.permit_readonly = 0;
 	dgp_listen_socket_register(&cle->dls);
 
 	cle->dle.dls = &cle->dls;

@@ -25,6 +25,7 @@
 
 struct conn {
 	struct dgp_listen_entry		*dle;
+	struct iv_list_head		list_readonly;
 
 	struct iv_fd			fd;
 	struct dgp_reader		dr;
@@ -52,7 +53,10 @@ find_entry_by_addr(struct dgp_listen_socket *dls, uint8_t *addr)
 
 static void conn_kill(struct conn *conn)
 {
-	conn->dle->current = NULL;
+	if (conn->dle != NULL)
+		conn->dle->current = NULL;
+	else
+		iv_list_del(&conn->list_readonly);
 
 	iv_fd_unregister(&conn->fd);
 	close(conn->fd.fd);
@@ -103,7 +107,7 @@ static void got_connection(void *_dls)
 	addr6 = (struct sockaddr_in6 *)&addr;
 
 	dle = find_entry_by_addr(dls, addr6->sin6_addr.s6_addr);
-	if (dle == NULL) {
+	if (dle == NULL && !dls->permit_readonly) {
 		close(fd);
 		return;
 	}
@@ -114,11 +118,16 @@ static void got_connection(void *_dls)
 		return;
 	}
 
-	if (dle->current != NULL)
-		conn_kill(dle->current);
-	dle->current = conn;
+	if (dle != NULL) {
+		if (dle->current != NULL)
+			conn_kill(dle->current);
+		dle->current = conn;
+	}
 
 	conn->dle = dle;
+
+	if (dle == NULL)
+		iv_list_add_tail(&conn->list_readonly, &dls->readonly_conns);
 
 	IV_FD_INIT(&conn->fd);
 	conn->fd.fd = fd;
@@ -127,13 +136,13 @@ static void got_connection(void *_dls)
 	iv_fd_register(&conn->fd);
 
 	conn->dr.myid = dls->myid;
-	conn->dr.remoteid = dle->remoteid;
+	conn->dr.remoteid = (dle != NULL) ? dle->remoteid : NULL;
 	conn->dr.rib = dls->loc_rib;
 	dgp_reader_register(&conn->dr);
 
 	conn->dw.fd = fd;
 	conn->dw.myid = dls->myid;
-	conn->dw.remoteid = dle->remoteid;
+	conn->dw.remoteid = (dle != NULL) ? dle->remoteid : NULL;
 	conn->dw.rib = dls->loc_rib;
 	conn->dw.cookie = conn;
 	conn->dw.io_error = dw_io_error;
@@ -167,7 +176,10 @@ int dgp_listen_socket_register(struct dgp_listen_socket *dls)
 		return 1;
 	}
 
-	v6_linklocal_addr_from_key_id(addr, dls->myid, NODE_ID_LEN);
+	if (!dls->ifindex)
+		v6_global_addr_from_key_id(addr, dls->myid, NODE_ID_LEN);
+	else
+		v6_linklocal_addr_from_key_id(addr, dls->myid, NODE_ID_LEN);
 
 	saddr.sin6_family = AF_INET6;
 	saddr.sin6_port = htons(44461);
@@ -195,6 +207,8 @@ int dgp_listen_socket_register(struct dgp_listen_socket *dls)
 
 	INIT_IV_LIST_HEAD(&dls->listen_entries);
 
+	INIT_IV_LIST_HEAD(&dls->readonly_conns);
+
 	return 0;
 }
 
@@ -211,6 +225,13 @@ void dgp_listen_socket_unregister(struct dgp_listen_socket *dls)
 
 		dle = iv_list_entry(lh, struct dgp_listen_entry, list);
 		dgp_listen_entry_unregister(dle);
+	}
+
+	iv_list_for_each_safe (lh, lh2, &dls->readonly_conns) {
+		struct conn *conn;
+
+		conn = iv_list_entry(lh, struct conn, list_readonly);
+		conn_kill(conn);
 	}
 }
 

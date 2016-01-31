@@ -29,9 +29,11 @@ struct dgp_listen_socket {
 	uint8_t			*myid;
 	int			ifindex;
 	struct loc_rib		*loc_rib;
+	int			permit_readonly;
 
 	struct iv_fd		listen_fd;
 	struct iv_list_head	listen_entries;
+	struct iv_list_head	readonly_conns;
 };
 
 int dgp_listen_socket_register(struct dgp_listen_socket *dls);
