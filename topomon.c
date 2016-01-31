@@ -26,8 +26,8 @@
 #include <string.h>
 #include "conf.h"
 #include "dgp_connect.h"
-#include "lsa_print.h"
 #include "loc_rib.h"
+#include "loc_rib_print.h"
 #include "rib_listener_debug.h"
 #include "x509.h"
 

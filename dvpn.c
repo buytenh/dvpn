@@ -27,9 +27,9 @@
 #include <string.h>
 #include "conf.h"
 #include "confdiff.h"
+#include "loc_rib_print.h"
 #include "lsa.h"
 #include "lsa_path.h"
-#include "lsa_print.h"
 #include "lsa_serialise.h"
 #include "lsa_type.h"
 #include "tconn_connect.h"

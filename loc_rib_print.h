@@ -17,18 +17,13 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#ifndef __LSA_PRINT_H
-#define __LSA_PRINT_H
+#ifndef __LOC_RIB_PRINT_H
+#define __LOC_RIB_PRINT_H
 
 #include "loc_rib.h"
 #include "lsa.h"
 
-void lsa_attr_print_type_name(FILE *fp, struct lsa_attr *attr);
-void lsa_attr_print_key(FILE *fp, struct lsa_attr *attr,
-                        struct loc_rib *name_hints);
-void lsa_attr_print_data(FILE *fp, struct lsa_attr *attr,
-                         struct loc_rib *name_hints);
-void lsa_print(FILE *fp, struct lsa *lsa, struct loc_rib *name_hints);
+void loc_rib_print(FILE *fp, struct loc_rib *rib);
 
 
 #endif
