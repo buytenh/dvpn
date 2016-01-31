@@ -27,8 +27,7 @@
 #include "adj_rib_in.h"
 #include "conf.h"
 #include "dgp_connect.h"
-#include "dgp_reader.h"
-#include "dgp_writer.h"
+#include "dgp_listen.h"
 #include "loc_rib.h"
 #include "lsa.h"
 #include "lsa_deserialise.h"
@@ -42,17 +41,9 @@ struct dgp_peer {
 	struct iv_avl_node	an;
 	uint8_t			id[NODE_ID_LEN];
 	uint8_t			addr[16];
-	struct dgp_conn_incoming	*in;
+	struct dgp_listen_entry		dle;
 	struct dgp_connect	*dc;
 	struct iv_task		kill_task;
-};
-
-struct dgp_conn_incoming {
-	struct iv_list_head	list;
-	struct dgp_peer		*peer;
-	struct iv_fd		fd;
-	struct dgp_reader	dr;
-	struct dgp_writer	dw;
 };
 
 static uint8_t local_id[NODE_ID_LEN];
@@ -69,8 +60,7 @@ static struct rib_listener_to_loc local_to_loc_listener;
 static struct rib_listener peer_listener;
 static struct iv_avl_tree peers;
 
-static struct iv_fd fd_incoming;
-static struct iv_list_head conns_incoming;
+static struct dgp_listen_socket dls;
 
 static struct iv_signal sigint;
 
@@ -101,25 +91,11 @@ static int compare_peers(struct iv_avl_node *_a, struct iv_avl_node *_b)
 	return memcmp(a->id, b->id, NODE_ID_LEN);
 }
 
-static void conn_kill(struct dgp_conn_incoming *conn)
-{
-	iv_list_del(&conn->list);
-	if (conn->peer != NULL)
-		conn->peer->in = NULL;
-	iv_fd_unregister(&conn->fd);
-	close(conn->fd.fd);
-	dgp_writer_unregister(&conn->dw);
-	dgp_reader_unregister(&conn->dr);
-
-	free(conn);
-}
-
 static void peer_del(struct dgp_peer *peer)
 {
-	if (peer->in != NULL)
-		conn_kill(peer->in);
-
-	if (peer->dc != NULL) {
+	if (peer->dc == NULL) {
+		dgp_listen_entry_unregister(&peer->dle);
+	} else {
 		dgp_connect_stop(peer->dc);
 		free(peer->dc);
 	}
@@ -152,10 +128,13 @@ static void peer_attr_add(void *_dummy, struct lsa_attr *attr)
 
 	v6_global_addr_from_key_id(peer->addr, peer->id, NODE_ID_LEN);
 
-	peer->in = NULL;
+	if (memcmp(local_id, peer->id, NODE_ID_LEN) < 0) {
+		peer->dle.dls = &dls;
+		peer->dle.remoteid = peer->id;
+		dgp_listen_entry_register(&peer->dle);
 
-	peer->dc = NULL;
-	if (memcmp(local_id, peer->id, NODE_ID_LEN) > 0) {
+		peer->dc = NULL;
+	} else {
 		struct dgp_connect *dc;
 
 		dc = malloc(sizeof(*dc));
@@ -326,158 +305,8 @@ static void query_start(void)
 				     &local_to_loc_listener.rl);
 }
 
-static struct dgp_peer *peer_find_by_addr(uint8_t *addr)
-{
-	struct iv_avl_node *an;
-
-	iv_avl_tree_for_each (an, &peers) {
-		struct dgp_peer *peer;
-
-		peer = iv_container_of(an, struct dgp_peer, an);
-		if (!memcmp(addr, peer->addr, 16))
-			return peer;
-	}
-
-	return NULL;
-}
-
-static void data_avail(void *_conn)
-{
-	struct dgp_conn_incoming *conn = _conn;
-
-	if (dgp_reader_read(&conn->dr, conn->fd.fd) < 0)
-		conn_kill(conn);
-}
-
-static void dw_fail(void *_conn)
-{
-	struct dgp_conn_incoming *conn = _conn;
-
-	conn_kill(conn);
-}
-
-static void got_connection(void *_dummy)
-{
-	static uint8_t test_id[NODE_ID_LEN] = {
-		0x69, 0x69, 0x69, 0x69, 0x69, 0x69, 0x69, 0x69,
-		0x69, 0x69, 0x69, 0x69, 0x69, 0x69, 0x69, 0x69,
-		0x69, 0x69, 0x69, 0x69, 0x69, 0x69, 0x69, 0x69,
-		0x69, 0x69, 0x69, 0x69, 0x69, 0x69, 0x69, 0x69,
-	};
-	struct sockaddr_storage addr;
-	socklen_t addrlen;
-	int fd;
-	struct sockaddr_in6 *addr6;
-	struct dgp_peer *peer;
-	struct dgp_conn_incoming *conn;
-
-	addrlen = sizeof(addr);
-
-	fd = accept(fd_incoming.fd, (struct sockaddr *)&addr, &addrlen);
-	if (fd < 0) {
-		perror("got_connection: accept");
-		return;
-	}
-
-	if (addr.ss_family != AF_INET6) {
-		close(fd);
-		return;
-	}
-	addr6 = (struct sockaddr_in6 *)&addr;
-
-	peer = peer_find_by_addr(addr6->sin6_addr.s6_addr);
-	if (peer != NULL && memcmp(local_id, peer->id, NODE_ID_LEN) >= 0) {
-		close(fd);
-		return;
-	}
-
-	conn = malloc(sizeof(*conn));
-	if (conn == NULL) {
-		close(fd);
-		return;
-	}
-
-	iv_list_add_tail(&conn->list, &conns_incoming);
-
-	IV_FD_INIT(&conn->fd);
-	conn->fd.fd = fd;
-	conn->fd.cookie = conn;
-	conn->fd.handler_in = data_avail;
-	iv_fd_register(&conn->fd);
-
-	if (peer != NULL) {
-		if (peer->in != NULL)
-			conn_kill(peer->in);
-		peer->in = conn;
-	}
-	conn->peer = peer;
-
-	conn->dr.myid = local_id;
-	conn->dr.remoteid = (peer != NULL) ? peer->id : test_id;
-	conn->dr.rib = &loc_rib;
-	dgp_reader_register(&conn->dr);
-
-	conn->dw.fd = fd;
-	conn->dw.myid = NULL;
-	conn->dw.remoteid = (peer != NULL) ? peer->id : test_id;
-	conn->dw.rib = &loc_rib;
-	conn->dw.cookie = conn;
-	conn->dw.io_error = dw_fail;
-	dgp_writer_register(&conn->dw);
-}
-
-static void listen_start(void)
-{
-	int fd;
-	int yes;
-	uint8_t addr[16];
-	struct sockaddr_in6 saddr;
-
-	fd = socket(AF_INET6, SOCK_STREAM, 0);
-	if (fd < 0) {
-		perror("socket");
-		exit(1);
-	}
-
-	yes = 1;
-	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0) {
-		perror("listen_start: setsockopt(SOL_SOCKET, SO_REUSEADDR)");
-		exit(1);
-	}
-	if (setsockopt(fd, SOL_IP, IP_FREEBIND, &yes, sizeof(yes)) < 0) {
-		perror("listen_start: setsockopt(SOL_IP, IP_FREEBIND)");
-		exit(1);
-	}
-
-	v6_global_addr_from_key_id(addr, local_id, NODE_ID_LEN);
-
-	saddr.sin6_family = AF_INET6;
-	saddr.sin6_port = htons(44461);
-	saddr.sin6_flowinfo = 0;
-	memcpy(&saddr.sin6_addr, addr, 16);
-	saddr.sin6_scope_id = 0;
-
-	if (bind(fd, (struct sockaddr *)&saddr, sizeof(saddr)) < 0) {
-		perror("listen_start: bind");
-		exit(1);
-	}
-
-	if (listen(fd, 100) < 0) {
-		perror("listen_start: listen");
-		exit(1);
-	}
-
-	IV_FD_INIT(&fd_incoming);
-	fd_incoming.fd = fd;
-	fd_incoming.handler_in = got_connection;
-	iv_fd_register(&fd_incoming);
-}
-
 static void got_sigint(void *_dummy)
 {
-	struct iv_list_head *lh;
-	struct iv_list_head *lh2;
-
 	fprintf(stderr, "SIGINT received, shutting down\n");
 
 	iv_fd_unregister(&local_query_fd);
@@ -485,11 +314,7 @@ static void got_sigint(void *_dummy)
 	adj_rib_in_flush(&local_adj_rib_in);
 	rib_listener_to_loc_deinit(&local_to_loc_listener);
 
-	iv_fd_unregister(&fd_incoming);
-	close(fd_incoming.fd);
-
-	iv_list_for_each_safe (lh, lh2, &conns_incoming)
-		conn_kill(iv_container_of(lh, struct dgp_conn_incoming, list));
+	dgp_listen_socket_unregister(&dls);
 
 	iv_signal_unregister(&sigint);
 }
@@ -545,8 +370,9 @@ int main(int argc, char *argv[])
 
 	INIT_IV_AVL_TREE(&peers, compare_peers);
 
-	listen_start();
-	INIT_IV_LIST_HEAD(&conns_incoming);
+	dls.myid = local_id;
+	dls.loc_rib = &loc_rib;
+	dgp_listen_socket_register(&dls);
 
 	IV_SIGNAL_INIT(&sigint);
 	sigint.signum = SIGINT;
