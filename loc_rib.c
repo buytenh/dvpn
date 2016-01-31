@@ -151,28 +151,30 @@ static int lsa_better(struct lsa *a, struct lsa *b)
 static void
 set_newbest(struct loc_rib *rib, struct loc_rib_id *rid, struct lsa *lsa)
 {
+	struct lsa *oldbest;
 	struct iv_list_head *ilh;
 	struct iv_list_head *ilh2;
 	struct rib_listener *rl;
 
-	if (rid->best == NULL && lsa != NULL) {
+	oldbest = rid->best;
+	rid->best = lsa;
+
+	if (oldbest == NULL && lsa != NULL) {
 		iv_list_for_each_safe (ilh, ilh2, &rib->listeners) {
 			rl = iv_container_of(ilh, struct rib_listener, list);
 			rl->lsa_add(rl->cookie, lsa);
 		}
-	} else if (rid->best != NULL && lsa != NULL) {
+	} else if (oldbest != NULL && lsa != NULL) {
 		iv_list_for_each_safe (ilh, ilh2, &rib->listeners) {
 			rl = iv_container_of(ilh, struct rib_listener, list);
-			rl->lsa_mod(rl->cookie, rid->best, lsa);
+			rl->lsa_mod(rl->cookie, oldbest, lsa);
 		}
-	} else if (rid->best != NULL && lsa == NULL) {
+	} else if (oldbest != NULL && lsa == NULL) {
 		iv_list_for_each_safe (ilh, ilh2, &rib->listeners) {
 			rl = iv_container_of(ilh, struct rib_listener, list);
-			rl->lsa_del(rl->cookie, rid->best);
+			rl->lsa_del(rl->cookie, oldbest);
 		}
 	}
-
-	rid->best = lsa;
 }
 
 void loc_rib_add_lsa(struct loc_rib *rib, struct lsa *lsa)
