@@ -108,6 +108,21 @@ void lsa_attr_print_data(FILE *fp, struct lsa_attr *attr,
 				fputc(' ', fp);
 			print_id_name(fp, data + i, name_hints);
 		}
+	} else if (attr->type == LSA_ATTR_TYPE_PEER &&
+		   attr->datalen == sizeof(struct lsa_attr_peer)) {
+		struct lsa_attr_peer *peer = lsa_attr_data(attr);
+
+		fprintf(fp, "metric=%d type=", ntohs(peer->metric));
+		if (peer->peer_type == LSA_PEER_TYPE_EPEER)
+			fprintf(fp, "epeer");
+		else if (peer->peer_type == LSA_PEER_TYPE_CUSTOMER)
+			fprintf(fp, "customer");
+		else if (peer->peer_type == LSA_PEER_TYPE_TRANSIT)
+			fprintf(fp, "transit");
+		else if (peer->peer_type == LSA_PEER_TYPE_IPEER)
+			fprintf(fp, "ipeer");
+		else
+			fprintf(fp, "%d", peer->peer_type);
 	} else if (attr->type == LSA_ATTR_TYPE_NODE_NAME) {
 		print_node_name(fp, attr);
 	} else {
