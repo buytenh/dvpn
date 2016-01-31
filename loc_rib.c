@@ -70,7 +70,7 @@ void loc_rib_deinit(struct loc_rib *rib)
 	}
 }
 
-static struct loc_rib_id *find_id(struct loc_rib *rib, uint8_t *id)
+struct loc_rib_id *loc_rib_find_id(struct loc_rib *rib, uint8_t *id)
 {
 	struct iv_avl_node *an;
 
@@ -109,7 +109,7 @@ static struct loc_rib_id *get_id(struct loc_rib *rib, uint8_t *id)
 {
 	struct loc_rib_id *rid;
 
-	rid = find_id(rib, id);
+	rid = loc_rib_find_id(rib, id);
 	if (rid != NULL)
 		return rid;
 
@@ -240,7 +240,7 @@ void loc_rib_mod_lsa(struct loc_rib *rib, struct lsa *old, struct lsa *new)
 	struct loc_rib_id *rid;
 	struct loc_rib_lsa_ref *ref;
 
-	rid = find_id(rib, old->id);
+	rid = loc_rib_find_id(rib, old->id);
 	if (rid == NULL)
 		abort();
 
@@ -266,7 +266,7 @@ void loc_rib_del_lsa(struct loc_rib *rib, struct lsa *lsa)
 	struct loc_rib_id *rid;
 	struct loc_rib_lsa_ref *ref;
 
-	rid = find_id(rib, lsa->id);
+	rid = loc_rib_find_id(rib, lsa->id);
 	if (rid == NULL)
 		abort();
 
