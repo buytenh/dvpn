@@ -26,6 +26,7 @@
 #include <string.h>
 #include "adj_rib_in.h"
 #include "conf.h"
+#include "dgp_connect.h"
 #include "dgp_reader.h"
 #include "dgp_writer.h"
 #include "loc_rib.h"
@@ -42,26 +43,13 @@ struct dgp_peer {
 	uint8_t			id[NODE_ID_LEN];
 	uint8_t			addr[16];
 	struct dgp_conn_incoming	*in;
-	struct dgp_conn_outgoing	*out;
+	struct dgp_connect	*dc;
 	struct iv_task		kill_task;
 };
 
 struct dgp_conn_incoming {
 	struct iv_list_head	list;
 	struct dgp_peer		*peer;
-	struct iv_fd		fd;
-	struct dgp_reader	dr;
-	struct dgp_writer	dw;
-};
-
-#define STATE_CONNECTING	1
-#define STATE_ESTABLISHED	2
-#define STATE_WAIT_RETRY	3
-
-struct dgp_conn_outgoing {
-	struct dgp_peer		*peer;
-	int			state;
-	struct iv_timer		timeout;
 	struct iv_fd		fd;
 	struct dgp_reader	dr;
 	struct dgp_writer	dw;
@@ -113,170 +101,6 @@ static int compare_peers(struct iv_avl_node *_a, struct iv_avl_node *_b)
 	return memcmp(a->id, b->id, NODE_ID_LEN);
 }
 
-static void ioerr(struct dgp_conn_outgoing *conn)
-{
-	iv_fd_unregister(&conn->fd);
-	close(conn->fd.fd);
-	dgp_writer_unregister(&conn->dw);
-	dgp_reader_unregister(&conn->dr);
-
-	conn->state = STATE_WAIT_RETRY;
-
-	iv_validate_now();
-	conn->timeout.expires = iv_now;
-	conn->timeout.expires.tv_sec += 1;
-	iv_timer_register(&conn->timeout);
-}
-
-static void dco_read(void *_conn)
-{
-	struct dgp_conn_outgoing *conn = _conn;
-
-	if (dgp_reader_read(&conn->dr, conn->fd.fd) < 0)
-		ioerr(conn);
-}
-
-static void dw_io_error(void *_conn)
-{
-	struct dgp_conn_outgoing *conn = _conn;
-
-	ioerr(conn);
-}
-
-static void connect_success(struct dgp_conn_outgoing *conn, int fd)
-{
-	conn->state = STATE_ESTABLISHED;
-
-	iv_timer_unregister(&conn->timeout);
-
-	iv_fd_set_handler_in(&conn->fd, dco_read);
-	iv_fd_set_handler_out(&conn->fd, NULL);
-
-	dgp_reader_register(&conn->dr);
-
-	conn->dw.fd = conn->fd.fd;
-	dgp_writer_register(&conn->dw);
-}
-
-static void connect_pollout(void *_conn)
-{
-	struct dgp_conn_outgoing *conn = _conn;
-	int fd;
-	socklen_t len;
-	int ret;
-
-	fd = conn->fd.fd;
-
-	len = sizeof(ret);
-	if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &ret, &len) < 0) {
-		perror("getsockopt");
-		return;
-	}
-
-	if (ret == EINPROGRESS)
-		return;
-
-	if (ret == 0) {
-		connect_success(conn, fd);
-	} else {
-		fprintf(stderr, "connect: %s\n", strerror(ret));
-		iv_fd_unregister(&conn->fd);
-		close(fd);
-
-		conn->state = STATE_WAIT_RETRY;
-
-		iv_validate_now();
-		iv_timer_unregister(&conn->timeout);
-		conn->timeout.expires = iv_now;
-		conn->timeout.expires.tv_sec += 1;
-		iv_timer_register(&conn->timeout);
-	}
-}
-
-static void try_connect(struct dgp_conn_outgoing *conn)
-{
-	struct dgp_peer *peer = conn->peer;
-	int fd;
-	uint8_t addr[16];
-	struct sockaddr_in6 saddr;
-	int ret;
-
-	fd = socket(AF_INET6, SOCK_STREAM, 0);
-	if (fd < 0) {
-		perror("socket");
-		goto fail;
-	}
-
-	v6_global_addr_from_key_id(addr, local_id, NODE_ID_LEN);
-
-	saddr.sin6_family = AF_INET6;
-	saddr.sin6_port = 0;
-	saddr.sin6_flowinfo = 0;
-	memcpy(&saddr.sin6_addr, addr, 16);
-	saddr.sin6_scope_id = 0;
-
-	if (bind(fd, (struct sockaddr *)&saddr, sizeof(saddr)) < 0) {
-		perror("bind");
-		close(fd);
-		goto fail;
-	}
-
-	conn->fd.fd = fd;
-	conn->fd.handler_in = NULL;
-	conn->fd.handler_out = connect_pollout;
-	iv_fd_register(&conn->fd);
-
-	saddr.sin6_port = htons(44461);
-	memcpy(&saddr.sin6_addr, peer->addr, 16);
-
-	ret = connect(fd, (struct sockaddr *)&saddr, sizeof(saddr));
-	if (ret < 0 && errno != EINPROGRESS) {
-		perror("connect");
-		iv_fd_unregister(&conn->fd);
-		close(fd);
-		goto fail;
-	}
-
-	if (ret == 0) {
-		connect_success(conn, fd);
-	} else {
-		iv_validate_now();
-		conn->timeout.expires = iv_now;
-		conn->timeout.expires.tv_sec += 10;
-		iv_timer_register(&conn->timeout);
-	}
-
-	return;
-
-fail:
-	conn->state = STATE_WAIT_RETRY;
-
-	iv_validate_now();
-	conn->timeout.expires = iv_now;
-	conn->timeout.expires.tv_sec += 1;
-	iv_timer_register(&conn->timeout);
-}
-
-static void dco_timeout(void *_conn)
-{
-	struct dgp_conn_outgoing *conn = _conn;
-
-	if (conn->state == STATE_CONNECTING) {
-		iv_fd_unregister(&conn->fd);
-		close(conn->fd.fd);
-
-		conn->state = STATE_WAIT_RETRY;
-
-		iv_validate_now();
-		conn->timeout.expires = iv_now;
-		conn->timeout.expires.tv_sec += 1;
-		iv_timer_register(&conn->timeout);
-	} else if (conn->state == STATE_WAIT_RETRY) {
-		conn->state = STATE_CONNECTING;
-		try_connect(conn);
-	}
-}
-
 static void conn_kill(struct dgp_conn_incoming *conn)
 {
 	iv_list_del(&conn->list);
@@ -295,23 +119,9 @@ static void peer_del(struct dgp_peer *peer)
 	if (peer->in != NULL)
 		conn_kill(peer->in);
 
-	if (peer->out != NULL) {
-		struct dgp_conn_outgoing *conn = peer->out;
-
-		if (conn->state != STATE_ESTABLISHED)
-			iv_timer_unregister(&conn->timeout);
-
-		if (conn->state != STATE_WAIT_RETRY) {
-			iv_fd_unregister(&conn->fd);
-			close(conn->fd.fd);
-		}
-
-		if (conn->state == STATE_ESTABLISHED) {
-			dgp_writer_unregister(&conn->dw);
-			dgp_reader_unregister(&conn->dr);
-		}
-
-		free(conn);
+	if (peer->dc != NULL) {
+		dgp_connect_stop(peer->dc);
+		free(peer->dc);
 	}
 
 	if (iv_task_registered(&peer->kill_task))
@@ -344,37 +154,20 @@ static void peer_attr_add(void *_dummy, struct lsa_attr *attr)
 
 	peer->in = NULL;
 
-	peer->out = NULL;
+	peer->dc = NULL;
 	if (memcmp(local_id, peer->id, NODE_ID_LEN) > 0) {
-		struct dgp_conn_outgoing *conn;
+		struct dgp_connect *dc;
 
-		conn = malloc(sizeof(*conn));
-		if (conn == NULL)
+		dc = malloc(sizeof(*dc));
+		if (dc == NULL)
 			abort();
 
-		conn->peer = peer;
-		conn->state = STATE_CONNECTING;
+		dc->myid = local_id;
+		dc->remoteid = peer->id;
+		dc->loc_rib = &loc_rib;
+		dgp_connect_start(dc);
 
-		IV_TIMER_INIT(&conn->timeout);
-		conn->timeout.cookie = conn;
-		conn->timeout.handler = dco_timeout;
-
-		IV_FD_INIT(&conn->fd);
-		conn->fd.cookie = conn;
-
-		conn->dr.myid = local_id;
-		conn->dr.remoteid = peer->id;
-		conn->dr.rib = &loc_rib;
-
-		conn->dw.myid = local_id;
-		conn->dw.remoteid = peer->id;
-		conn->dw.rib = &loc_rib;
-		conn->dw.cookie = conn;
-		conn->dw.io_error = dw_io_error;
-
-		try_connect(conn);
-
-		peer->out = conn;
+		peer->dc = dc;
 	}
 
 	IV_TASK_INIT(&peer->kill_task);
