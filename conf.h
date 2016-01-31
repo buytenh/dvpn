@@ -23,7 +23,8 @@
 #include <iv_list.h>
 #include <stdint.h>
 #include <sys/socket.h>
-#include "dvpn.h"
+#include "dgp_connect.h"
+#include "dgp_listen.h"
 #include "tconn_connect.h"
 #include "tconn_listen.h"
 #include "util.h"
@@ -50,7 +51,8 @@ struct conf_connect_entry
 
 	int			registered;
 	struct tconn_connect	tc;
-	struct peer		peer;
+	int			tconn_up;
+	struct dgp_connect	dc;
 };
 
 struct conf_listening_socket
@@ -75,7 +77,8 @@ struct conf_listen_entry
 
 	int				registered;
 	struct tconn_listen_entry	tle;
-	struct peer			peer;
+	int				tconn_up;
+	struct dgp_listen_entry		dle;
 };
 
 struct conf *parse_config(const char *file);

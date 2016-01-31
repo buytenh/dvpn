@@ -132,7 +132,7 @@ static void got_connection(void *_dls)
 	dgp_reader_register(&conn->dr);
 
 	conn->dw.fd = fd;
-	conn->dw.myid = NULL;
+	conn->dw.myid = dls->myid;
 	conn->dw.remoteid = dle->remoteid;
 	conn->dw.rib = dls->loc_rib;
 	conn->dw.cookie = conn;

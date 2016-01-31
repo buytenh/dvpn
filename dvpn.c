@@ -22,17 +22,16 @@
 #include <getopt.h>
 #include <gnutls/x509.h>
 #include <iv.h>
-#include <iv_avl.h>
 #include <iv_signal.h>
 #include <string.h>
 #include "conf.h"
 #include "confdiff.h"
-#include "dvpn.h"
 #include "lsa.h"
 #include "lsa_path.h"
 #include "lsa_print.h"
 #include "lsa_serialise.h"
 #include "lsa_type.h"
+#include "rib_listener_debug.h"
 #include "tconn_connect.h"
 #include "tconn_listen.h"
 #include "util.h"
@@ -40,81 +39,10 @@
 
 static gnutls_x509_privkey_t key;
 static uint8_t keyid[NODE_ID_LEN];
-static struct iv_avl_tree peers;
+static struct loc_rib loc_rib;
+static struct rib_listener_debug loc_rib_debug_listener;
+static struct dgp_listen_socket dls;
 static struct lsa *me;
-static struct iv_fd topo_fd;
-
-static int compare_peers(struct iv_avl_node *_a, struct iv_avl_node *_b)
-{
-	struct peer *a = iv_container_of(_a, struct peer, an);
-	struct peer *b = iv_container_of(_b, struct peer, an);
-
-	return memcmp(a->id, b->id, NODE_ID_LEN);
-}
-
-static void got_topo_request(void *_dummy)
-{
-	uint8_t buf[LSA_MAX_SIZE];
-	struct sockaddr_in6 addr;
-	socklen_t addrlen;
-	int ret;
-
-	addrlen = sizeof(addr);
-	ret = recvfrom(topo_fd.fd, buf, sizeof(buf), 0,
-			(struct sockaddr *)&addr, &addrlen);
-	if (ret < 0) {
-		if (errno != EAGAIN)
-			perror("got_topo_request: recvfrom");
-		return;
-	}
-
-	ret = lsa_serialise(buf, sizeof(buf), me, keyid);
-	if (ret < 0)
-		abort();
-
-	sendto(topo_fd.fd, buf, ret, 0, (struct sockaddr *)&addr, addrlen);
-}
-
-static int start_topo_listener(void)
-{
-	int fd;
-	int yes;
-	uint8_t a[16];
-	struct sockaddr_in6 addr;
-
-	fd = socket(AF_INET6, SOCK_DGRAM, 0);
-	if (fd < 0) {
-		perror("start_topo_listener: socket");
-		return 1;
-	}
-
-	yes = 1;
-	if (setsockopt(fd, SOL_IP, IP_FREEBIND, &yes, sizeof(yes)) < 0) {
-		perror("start_topo_listener: setsockopt(SOL_IP, IP_FREEBIND)");
-		close(fd);
-		return 1;
-	}
-
-	v6_global_addr_from_key_id(a, keyid, NODE_ID_LEN);
-
-	addr.sin6_family = AF_INET6;
-	addr.sin6_port = htons(19275);
-	addr.sin6_flowinfo = 0;
-	memcpy(&addr.sin6_addr, a, 16);
-	addr.sin6_scope_id = 0;
-	if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-		perror("start_topo_listener: bind");
-		close(fd);
-		return 1;
-	}
-
-	IV_FD_INIT(&topo_fd);
-	topo_fd.fd = fd;
-	topo_fd.handler_in = got_topo_request;
-	iv_fd_register(&topo_fd);
-
-	return 0;
-}
 
 static enum lsa_peer_type peer_type_to_lsa_peer_type(enum peer_type type)
 {
@@ -134,23 +62,50 @@ static enum lsa_peer_type peer_type_to_lsa_peer_type(enum peer_type type)
 	}
 }
 
+static void local_add_peer(uint8_t *id, enum peer_type type)
+{
+	struct lsa *newme;
+	struct lsa_attr_peer data;
+
+	newme = lsa_clone(me);
+
+	data.metric = htons(1);
+	data.peer_type = peer_type_to_lsa_peer_type(type);
+	lsa_attr_add(newme, LSA_ATTR_TYPE_PEER, id, NODE_ID_LEN,
+		     &data, sizeof(data));
+
+	loc_rib_mod_lsa(&loc_rib, me, newme);
+
+	lsa_put(me);
+	me = newme;
+}
+
+static void local_del_peer(uint8_t *id)
+{
+	struct lsa *newme;
+
+	newme = lsa_clone(me);
+
+	lsa_attr_del_key(newme, LSA_ATTR_TYPE_PEER, id, NODE_ID_LEN);
+
+	loc_rib_mod_lsa(&loc_rib, me, newme);
+
+	lsa_put(me);
+	me = newme;
+}
+
 static void connect_set_state(void *_cce, int up)
 {
 	struct conf_connect_entry *cce = _cce;
 
-	cce->peer.up = up;
+	cce->tconn_up = up;
 
 	if (up) {
-		struct lsa_attr_peer data;
-
-		data.metric = htons(1);
-		data.peer_type = peer_type_to_lsa_peer_type(cce->peer_type);
-
-		lsa_attr_add(me, LSA_ATTR_TYPE_PEER, cce->fingerprint,
-			     NODE_ID_LEN, &data, sizeof(data));
+		local_add_peer(cce->fingerprint, cce->peer_type);
+		dgp_connect_start(&cce->dc);
 	} else {
-		lsa_attr_del_key(me, LSA_ATTR_TYPE_PEER,
-				 cce->fingerprint, NODE_ID_LEN);
+		dgp_connect_stop(&cce->dc);
+		local_del_peer(cce->fingerprint);
 	}
 }
 
@@ -158,19 +113,12 @@ static void listen_set_state(void *_cle, int up)
 {
 	struct conf_listen_entry *cle = _cle;
 
-	cle->peer.up = up;
+	cle->tconn_up = up;
 
 	if (up) {
-		struct lsa_attr_peer data;
-
-		data.metric = htons(1);
-		data.peer_type = peer_type_to_lsa_peer_type(cle->peer_type);
-
-		lsa_attr_add(me, LSA_ATTR_TYPE_PEER, cle->fingerprint,
-			     NODE_ID_LEN, &data, sizeof(data));
+		local_add_peer(cle->fingerprint, cle->peer_type);
 	} else {
-		lsa_attr_del_key(me, LSA_ATTR_TYPE_PEER,
-				 cle->fingerprint, NODE_ID_LEN);
+		local_del_peer(cle->fingerprint);
 	}
 }
 
@@ -190,10 +138,9 @@ static int start_conf_connect_entry(struct conf_connect_entry *cce)
 
 	cce->registered = 1;
 
-	cce->peer.id = cce->fingerprint;
-	cce->peer.peer_type = cce->peer_type;
-	cce->peer.up = 0;
-	iv_avl_tree_insert(&peers, &cce->peer.an);
+	cce->dc.myid = keyid;
+	cce->dc.remoteid = cce->fingerprint;
+	cce->dc.loc_rib = &loc_rib;
 
 	return 0;
 }
@@ -201,13 +148,13 @@ static int start_conf_connect_entry(struct conf_connect_entry *cce)
 static void stop_conf_connect_entry(struct conf_connect_entry *cce)
 {
 	cce->registered = 0;
-	tconn_connect_destroy(&cce->tc);
-	iv_avl_tree_delete(&peers, &cce->peer.an);
 
-	if (cce->peer.up) {
-		lsa_attr_del_key(me, LSA_ATTR_TYPE_PEER,
-				 cce->fingerprint, NODE_ID_LEN);
+	if (cce->tconn_up) {
+		dgp_connect_stop(&cce->dc);
+		local_del_peer(cce->fingerprint);
 	}
+
+	tconn_connect_destroy(&cce->tc);
 }
 
 static int start_conf_listen_entry(struct conf_listening_socket *cls,
@@ -225,10 +172,9 @@ static int start_conf_listen_entry(struct conf_listening_socket *cls,
 
 	cle->registered = 1;
 
-	cle->peer.id = cle->fingerprint;
-	cle->peer.peer_type = cle->peer_type;
-	cle->peer.up = 0;
-	iv_avl_tree_insert(&peers, &cle->peer.an);
+	cle->dle.dls = &dls;
+	cle->dle.remoteid = cle->fingerprint;
+	dgp_listen_entry_register(&cle->dle);
 
 	return 0;
 }
@@ -237,12 +183,10 @@ static void stop_conf_listen_entry(struct conf_listen_entry *cle)
 {
 	cle->registered = 0;
 	tconn_listen_entry_unregister(&cle->tle);
-	iv_avl_tree_delete(&peers, &cle->peer.an);
+	dgp_listen_entry_unregister(&cle->dle);
 
-	if (cle->peer.up) {
-		lsa_attr_del_key(me, LSA_ATTR_TYPE_PEER,
-				 cle->fingerprint, NODE_ID_LEN);
-	}
+	if (cle->tconn_up)
+		local_del_peer(cle->fingerprint);
 }
 
 static int start_conf_listening_socket(struct conf_listening_socket *cls)
@@ -401,37 +345,18 @@ static void got_sigint(void *_dummy)
 {
 	fprintf(stderr, "SIGINT received, shutting down\n");
 
-	iv_fd_unregister(&topo_fd);
 	iv_signal_unregister(&sighup);
 	iv_signal_unregister(&sigint);
 	iv_signal_unregister(&sigusr1);
 
 	stop_config(conf);
+
+	dgp_listen_socket_unregister(&dls);
 }
 
 static void got_sigusr1(void *_dummy)
 {
-	struct iv_avl_node *an;
-
-	fprintf(stderr, "=== configured peers =================="
-			"=======================================\n");
-
-	iv_avl_tree_for_each (an, &peers) {
-		struct peer *p;
-
-		p = iv_container_of(an, struct peer, an);
-
-		printhex(stderr, p->id, NODE_ID_LEN);
-		fprintf(stderr, " - ");
-		fprintf(stderr, "%s\n", p->up ? "up" : "down");
-	}
-
-	fprintf(stderr, "\n");
-
 	lsa_print(stderr, me);
-
-	fprintf(stderr, "======================================="
-			"=======================================\n");
 }
 
 static void usage(const char *me)
@@ -512,17 +437,23 @@ int main(int argc, char *argv[])
 
 	iv_init();
 
+	loc_rib_init(&loc_rib);
+
+	loc_rib_debug_listener.name = "loc-rib";
+	rib_listener_debug_init(&loc_rib_debug_listener);
+	loc_rib_listener_register(&loc_rib, &loc_rib_debug_listener.rl);
+
+	dls.myid = keyid;
+	dls.loc_rib = &loc_rib;
+	dgp_listen_socket_register(&dls);
+
 	me = lsa_alloc(keyid);
 	lsa_attr_add(me, LSA_ATTR_TYPE_ADV_PATH, NULL, 0, NULL, 0);
 	if (conf->node_name != NULL) {
 		lsa_attr_add(me, LSA_ATTR_TYPE_NODE_NAME, NULL, 0,
 			     conf->node_name, strlen(conf->node_name));
 	}
-
-	INIT_IV_AVL_TREE(&peers, compare_peers);
-
-	if (start_topo_listener())
-		return 1;
+	loc_rib_add_lsa(&loc_rib, me);
 
 	if (start_config(conf))
 		return 1;
@@ -552,9 +483,12 @@ int main(int argc, char *argv[])
 
 	iv_deinit();
 
-	close(topo_fd.fd);
-
+	loc_rib_del_lsa(&loc_rib, me);
 	lsa_put(me);
+
+	loc_rib_deinit(&loc_rib);
+
+	rib_listener_debug_deinit(&loc_rib_debug_listener);
 
 	gnutls_x509_privkey_deinit(key);
 
