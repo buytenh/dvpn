@@ -174,16 +174,18 @@ static void record_received(void *_tc, const uint8_t *rec, int len)
 
 	iv_timer_unregister(&tc->rx_timeout);
 	tc->rx_timeout.expires = iv_now;
+	tc->rx_timeout.expires.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
+	iv_timer_register(&tc->rx_timeout);
 
 	if (len <= 3)
-		goto out;
+		return;
 
 	if (rec[0] != 0x00)
-		goto out;
+		return;
 
 	rlen = (rec[1] << 8) | rec[2];
 	if (rlen + 3 != len)
-		goto out;
+		return;
 
 	if (tun_interface_send_packet(&tc->tun, rec + 3, rlen) < 0) {
 		fprintf(stderr, "%s: error forwarding received packet "
@@ -201,15 +203,13 @@ static void record_received(void *_tc, const uint8_t *rec, int len)
 
 		tc->state = STATE_WAITING_RETRY;
 
+		iv_validate_now();
+
+		iv_timer_unregister(&tc->rx_timeout);
+		tc->rx_timeout.expires = iv_now;
 		tc->rx_timeout.expires.tv_sec += SHORT_RETRY_WAIT_TIME;
 		iv_timer_register(&tc->rx_timeout);
-
-		return;
 	}
-
-out:
-	tc->rx_timeout.expires.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
-	iv_timer_register(&tc->rx_timeout);
 }
 
 static void connection_lost(void *_tc)
