@@ -258,9 +258,6 @@ static void connect_success(struct tconn_connect *tc, int fd)
 	tc->state = STATE_TLS_HANDSHAKE;
 
 	iv_validate_now();
-
-	if (iv_timer_registered(&tc->rx_timeout))
-		iv_timer_unregister(&tc->rx_timeout);
 	tc->rx_timeout.expires = iv_now;
 	tc->rx_timeout.expires.tv_sec += HANDSHAKE_TIMEOUT;
 	iv_timer_register(&tc->rx_timeout);
@@ -313,9 +310,6 @@ static void try_connect(struct tconn_connect *tc)
 		tc->state = STATE_WAITING_RETRY;
 
 		iv_validate_now();
-
-		if (iv_timer_registered(&tc->rx_timeout))
-			iv_timer_unregister(&tc->rx_timeout);
 		tc->rx_timeout.expires = iv_now;
 		tc->rx_timeout.expires.tv_sec += LONG_RETRY_WAIT_TIME;
 		iv_timer_register(&tc->rx_timeout);
@@ -327,9 +321,6 @@ static void try_connect(struct tconn_connect *tc)
 		connect_success(tc, fd);
 	} else {
 		iv_validate_now();
-
-		if (iv_timer_registered(&tc->rx_timeout))
-			iv_timer_unregister(&tc->rx_timeout);
 		tc->rx_timeout.expires = iv_now;
 		tc->rx_timeout.expires.tv_sec += CONNECT_TIMEOUT;
 		iv_timer_register(&tc->rx_timeout);
@@ -358,6 +349,7 @@ static void connect_pollout(void *_tc)
 	if (ret == EINPROGRESS)
 		return;
 
+	iv_timer_unregister(&tc->rx_timeout);
 	iv_fd_unregister(&tc->connectfd);
 
 	if (ret == 0) {
@@ -381,6 +373,8 @@ static void resolve_complete(void *_tc, int rc, struct addrinfo *res)
 			tc->name);
 
 		tc->state = STATE_CONNECT;
+
+		iv_timer_unregister(&tc->rx_timeout);
 
 		tc->res = res;
 		tc->rp = res;
