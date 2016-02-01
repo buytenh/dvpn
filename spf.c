@@ -85,7 +85,7 @@ static void pull_up(struct spf_node **heap, int index)
 		struct spf_node *temp;
 
 		parent = (index - 1) / 2;
-		if (heap[parent]->cost > heap[index]->cost)
+		if (heap[parent]->cost <= heap[index]->cost)
 			break;
 
 		temp = heap[index];
@@ -143,7 +143,7 @@ void spf_run(struct spf_context *ctx, struct spf_node *source)
 		if (--heapsize) {
 			heap[0] = heap[heapsize];
 			heap[0]->heapidx = 0;
-			push_down(heap, 0);
+			push_down(heap, heapsize);
 		}
 
 		iv_list_for_each (lh, &from->edges) {
