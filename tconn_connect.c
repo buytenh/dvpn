@@ -157,14 +157,10 @@ static void handshake_done(void *_tc, char *desc)
 	itf_add_addr_v6(tun_interface_get_name(&tc->tun), addr, 10);
 
 	v6_global_addr_from_key_id(addr, id);
-	if (tc->peer_type != PEER_TYPE_TRANSIT) {
-		itf_add_addr_v6(tun_interface_get_name(&tc->tun), addr, 128);
+	itf_add_addr_v6(tun_interface_get_name(&tc->tun), addr, 128);
 
-		v6_global_addr_from_key_id(addr, tc->fingerprint);
-		itf_add_route_v6(tun_interface_get_name(&tc->tun), addr, 128);
-	} else {
-		itf_add_addr_v6(tun_interface_get_name(&tc->tun), addr, 32);
-	}
+	v6_global_addr_from_key_id(addr, tc->fingerprint);
+	itf_add_route_v6(tun_interface_get_name(&tc->tun), addr, 128);
 
 	tc->set_state(tc->cookie, 1);
 }

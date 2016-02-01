@@ -176,14 +176,10 @@ static void handshake_done(void *_cc, char *desc)
 	itf_add_addr_v6(tun_interface_get_name(&le->tun), addr, 10);
 
 	v6_global_addr_from_key_id(addr, id);
-	if (le->peer_type != PEER_TYPE_TRANSIT) {
-		itf_add_addr_v6(tun_interface_get_name(&le->tun), addr, 128);
+	itf_add_addr_v6(tun_interface_get_name(&le->tun), addr, 128);
 
-		v6_global_addr_from_key_id(addr, le->fingerprint);
-		itf_add_route_v6(tun_interface_get_name(&le->tun), addr, 128);
-	} else {
-		itf_add_addr_v6(tun_interface_get_name(&le->tun), addr, 32);
-	}
+	v6_global_addr_from_key_id(addr, le->fingerprint);
+	itf_add_route_v6(tun_interface_get_name(&le->tun), addr, 128);
 
 	cc->tle->set_state(cc->tle->cookie, 1);
 }

@@ -172,7 +172,6 @@ static int start_conf_connect_entry(struct conf_connect_entry *cce)
 	cce->tc.port = cce->port;
 	cce->tc.key = key;
 	cce->tc.fingerprint = cce->fingerprint;
-	cce->tc.peer_type = cce->peer_type;
 	cce->tc.cookie = cce;
 	cce->tc.set_state = connect_set_state;
 	if (tconn_connect_start(&cce->tc))
@@ -207,7 +206,6 @@ static int start_conf_listen_entry(struct conf_listening_socket *cls,
 	cle->tle.tunitf = cle->tunitf;
 	cle->tle.name = cle->name;
 	cle->tle.fingerprint = cle->fingerprint;
-	cle->tle.peer_type = cle->peer_type;
 	cle->tle.cookie = cle;
 	cle->tle.set_state = listen_set_state;
 	if (tconn_listen_entry_register(&cle->tle))

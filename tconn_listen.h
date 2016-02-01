@@ -42,7 +42,6 @@ struct tconn_listen_entry
 	char				*tunitf;
 	char				*name;
 	uint8_t				*fingerprint;
-	enum peer_type			peer_type;
 	void				*cookie;
 	void				(*set_state)(void *cookie, int up);
 

@@ -36,7 +36,6 @@ struct tconn_connect
 	char			*port;
 	gnutls_x509_privkey_t	key;
 	uint8_t			*fingerprint;
-	enum peer_type		peer_type;
 	void			*cookie;
 	void			(*set_state)(void *cookie, int up);
 
