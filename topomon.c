@@ -94,6 +94,8 @@ int main(int argc, char *argv[])
 	if (x509_read_privkey(&key, conf->private_key) < 0)
 		return 1;
 
+	free_config(conf);
+
 	x509_get_key_id(myid, key);
 
 	gnutls_x509_privkey_deinit(key);
