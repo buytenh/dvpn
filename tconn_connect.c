@@ -434,14 +434,17 @@ static void got_packet(void *_tc, uint8_t *buf, int len)
 	if (tc->state != STATE_CONNECTED)
 		return;
 
+	iv_validate_now();
+
 	iv_timer_unregister(&tc->keepalive_timer);
+	tc->keepalive_timer.expires = iv_now;
+	tc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	iv_timer_register(&tc->keepalive_timer);
 
 	sndbuf[0] = 0x00;
 	sndbuf[1] = len >> 8;
 	sndbuf[2] = len & 0xff;
 	memcpy(sndbuf + 3, buf, len);
-
-	iv_validate_now();
 
 	if (tconn_record_send(&tc->tconn, sndbuf, len + 3)) {
 		fprintf(stderr, "%s: error sending TLS record, disconnecting "
@@ -454,19 +457,15 @@ static void got_packet(void *_tc, uint8_t *buf, int len)
 		tconn_destroy(&tc->tconn);
 		close(tc->tconn.fd);
 
+		iv_timer_unregister(&tc->keepalive_timer);
+
 		tc->state = STATE_WAITING_RETRY;
 
 		iv_timer_unregister(&tc->rx_timeout);
 		tc->rx_timeout.expires = iv_now;
 		tc->rx_timeout.expires.tv_sec += SHORT_RETRY_WAIT_TIME;
 		iv_timer_register(&tc->rx_timeout);
-
-		return;
 	}
-
-	tc->keepalive_timer.expires = iv_now;
-	tc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
-	iv_timer_register(&tc->keepalive_timer);
 }
 
 static void rx_timeout_expired(void *_tc)
