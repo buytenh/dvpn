@@ -176,23 +176,6 @@ static enum peer_type parse_peer_type(const char *pt)
 	return PEER_TYPE_INVALID;
 }
 
-static const char *default_tap_name(enum peer_type peer_type)
-{
-	if (peer_type == PEER_TYPE_EPEER)
-		return "tunp%d";
-
-	if (peer_type == PEER_TYPE_CUSTOMER)
-		return "tunc%d";
-
-	if (peer_type == PEER_TYPE_TRANSIT)
-		return "tunu%d";
-
-	if (peer_type == PEER_TYPE_IPEER)
-		return "tuni%d";
-
-	abort();
-}
-
 static int
 add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 		 const uint8_t *fp, const char *peertype, const char *itf)
@@ -249,7 +232,7 @@ add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 	asprintf(&cce->port, "%d", port);
 	memcpy(cce->fingerprint, fp, NODE_ID_LEN);
 	cce->peer_type = peer_type;
-	cce->tunitf = strdup(itf ? : default_tap_name(peer_type));
+	cce->tunitf = strdup(itf ? : "dvpn%d");
 
 	iv_list_add_tail(&cce->list, &lc->conf->connect_entries);
 
@@ -431,7 +414,7 @@ add_listen_peer(struct local_conf *lc, const char *peer, const char *listen,
 	cle->name = strdup(peer);
 	memcpy(cle->fingerprint, fp, NODE_ID_LEN);
 	cle->peer_type = peer_type;
-	cle->tunitf = strdup(itf ? : default_tap_name(peer_type));
+	cle->tunitf = strdup(itf ? : "dvpn%d");
 
 	return 0;
 }
