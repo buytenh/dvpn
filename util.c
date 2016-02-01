@@ -72,24 +72,18 @@ void printhex(FILE *fp, const uint8_t *a, int len)
 	}
 }
 
-void v6_global_addr_from_key_id(uint8_t *addr, uint8_t *id, int keylen)
+void v6_global_addr_from_key_id(uint8_t *addr, uint8_t *id)
 {
-	if (keylen < 12)
-		abort();
-
 	addr[0] = 0x20;
 	addr[1] = 0x01;
 	addr[2] = 0x00;
 	addr[3] = 0x2f;
-	memcpy(addr + 4, id + ((keylen - 12) / 2), 12);
+	memcpy(addr + 4, id + ((NODE_ID_LEN - 12) / 2), 12);
 }
 
-void v6_linklocal_addr_from_key_id(uint8_t *addr, uint8_t *id, int keylen)
+void v6_linklocal_addr_from_key_id(uint8_t *addr, uint8_t *id)
 {
-	if (keylen < 14)
-		abort();
-
 	addr[0] = 0xfe;
 	addr[1] = 0x80;
-	memcpy(addr + 2, id + ((keylen - 14) / 2), 14);
+	memcpy(addr + 2, id + ((NODE_ID_LEN - 14) / 2), 14);
 }

@@ -163,7 +163,7 @@ static void query_node(int fd, struct node *n)
 
 	fprintf(stderr, "- %s...", n->name);
 
-	v6_global_addr_from_key_id(buf, n->id, NODE_ID_LEN);
+	v6_global_addr_from_key_id(buf, n->id);
 
 	addr.sin6_family = AF_INET6;
 	addr.sin6_port = htons(19275);

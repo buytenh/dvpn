@@ -36,8 +36,8 @@ enum peer_type {
 const char *peer_type_name(enum peer_type type);
 void print_address(FILE *fp, const struct sockaddr *addr);
 void printhex(FILE *fp, const uint8_t *a, int len);
-void v6_global_addr_from_key_id(uint8_t *addr, uint8_t *id, int keylen);
-void v6_linklocal_addr_from_key_id(uint8_t *addr, uint8_t *id, int keylen);
+void v6_global_addr_from_key_id(uint8_t *addr, uint8_t *id);
+void v6_linklocal_addr_from_key_id(uint8_t *addr, uint8_t *id);
 
 
 #endif

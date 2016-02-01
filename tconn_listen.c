@@ -172,14 +172,14 @@ static void handshake_done(void *_cc, char *desc)
 
 	x509_get_key_id(id, cc->tls->key);
 
-	v6_linklocal_addr_from_key_id(addr, id, NODE_ID_LEN);
+	v6_linklocal_addr_from_key_id(addr, id);
 	itf_add_addr_v6(tun_interface_get_name(&le->tun), addr, 10);
 
-	v6_global_addr_from_key_id(addr, id, NODE_ID_LEN);
+	v6_global_addr_from_key_id(addr, id);
 	if (le->peer_type != PEER_TYPE_TRANSIT) {
 		itf_add_addr_v6(tun_interface_get_name(&le->tun), addr, 128);
 
-		v6_global_addr_from_key_id(addr, le->fingerprint, NODE_ID_LEN);
+		v6_global_addr_from_key_id(addr, le->fingerprint);
 		itf_add_route_v6(tun_interface_get_name(&le->tun), addr, 128);
 	} else {
 		itf_add_addr_v6(tun_interface_get_name(&le->tun), addr, 32);

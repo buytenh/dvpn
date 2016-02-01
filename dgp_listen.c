@@ -43,7 +43,7 @@ find_entry_by_addr(struct dgp_listen_socket *dls, uint8_t *addr)
 
 		dle = iv_container_of(lh, struct dgp_listen_entry, list);
 
-		v6_linklocal_addr_from_key_id(a, dle->remoteid, NODE_ID_LEN);
+		v6_linklocal_addr_from_key_id(a, dle->remoteid);
 		if (!memcmp(addr, a, 16))
 			return dle;
 	}
@@ -179,9 +179,9 @@ int dgp_listen_socket_register(struct dgp_listen_socket *dls)
 	}
 
 	if (!dls->ifindex)
-		v6_global_addr_from_key_id(addr, dls->myid, NODE_ID_LEN);
+		v6_global_addr_from_key_id(addr, dls->myid);
 	else
-		v6_linklocal_addr_from_key_id(addr, dls->myid, NODE_ID_LEN);
+		v6_linklocal_addr_from_key_id(addr, dls->myid);
 
 	saddr.sin6_family = AF_INET6;
 	saddr.sin6_port = htons(44461);

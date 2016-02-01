@@ -115,13 +115,10 @@ static void try_connect(struct dgp_connect *dc)
 	}
 
 	if (dc->myid != NULL) {
-		if (!dc->ifindex) {
-			v6_global_addr_from_key_id(addr, dc->myid,
-						   NODE_ID_LEN);
-		} else {
-			v6_linklocal_addr_from_key_id(addr, dc->myid,
-						      NODE_ID_LEN);
-		}
+		if (!dc->ifindex)
+			v6_global_addr_from_key_id(addr, dc->myid);
+		else
+			v6_linklocal_addr_from_key_id(addr, dc->myid);
 
 		saddr.sin6_family = AF_INET6;
 		saddr.sin6_port = 0;
@@ -142,9 +139,9 @@ static void try_connect(struct dgp_connect *dc)
 	iv_fd_register(&dc->fd);
 
 	if (!dc->ifindex)
-		v6_global_addr_from_key_id(addr, dc->remoteid, NODE_ID_LEN);
+		v6_global_addr_from_key_id(addr, dc->remoteid);
 	else
-		v6_linklocal_addr_from_key_id(addr, dc->remoteid, NODE_ID_LEN);
+		v6_linklocal_addr_from_key_id(addr, dc->remoteid);
 
 	saddr.sin6_family = AF_INET6;
 	saddr.sin6_port = htons(44461);
