@@ -89,15 +89,17 @@ static struct node *get_node(struct rt_builder *rb, uint8_t *id)
 	struct node *node;
 
 	node = find_node(rb, id);
-	if (node != NULL)
+	if (node != NULL) {
+		node->refcount++;
 		return node;
+	}
 
 	node = malloc(sizeof(*node));
 	if (node == NULL)
 		abort();
 
 	memcpy(node->id, id, NODE_ID_LEN);
-	node->refcount = 0;
+	node->refcount = 1;
 
 	node->node.id = node->id;
 	node->node.cookie = node;
@@ -181,7 +183,6 @@ static void add_edge(struct rt_builder *rb, struct node *from,
 
 	iv_avl_tree_insert(&from->edges, &edge->an);
 	from->refcount++;
-	to->refcount++;
 
 	edge2 = find_edge(to, from->id);
 	if (edge2 != NULL) {
@@ -290,6 +291,8 @@ static void lsa_add(void *_rb, struct lsa *a)
 
 	lsa_diff(NULL, a, &cb, attr_add, attr_mod, attr_del);
 
+	put_node(rb, cb.node);
+
 	recompute_rtable(rb);
 }
 
@@ -303,6 +306,8 @@ static void lsa_mod(void *_rb, struct lsa *a, struct lsa *b)
 
 	lsa_diff(a, b, &cb, attr_add, attr_mod, attr_del);
 
+	put_node(rb, cb.node);
+
 	recompute_rtable(rb);
 }
 
@@ -315,6 +320,8 @@ static void lsa_del(void *_rb, struct lsa *a)
 	cb.node = get_node(rb, a->id);
 
 	lsa_diff(a, NULL, &cb, attr_add, attr_mod, attr_del);
+
+	put_node(rb, cb.node);
 
 	recompute_rtable(rb);
 }
