@@ -39,9 +39,21 @@ void spf_node_add(struct spf_context *ctx, struct spf_node *node)
 	ctx->num_nodes++;
 }
 
+void spf_node_del(struct spf_context *ctx, struct spf_node *node)
+{
+	iv_list_del(&node->list);
+
+	ctx->num_nodes--;
+}
+
 void spf_edge_add(struct spf_node *from, struct spf_edge *edge)
 {
 	iv_list_add_tail(&edge->list, &from->edges);
+}
+
+void spf_edge_del(struct spf_node *from, struct spf_edge *edge)
+{
+	iv_list_del(&edge->list);
 }
 
 static void push_down(struct spf_node **heap, int heapsize)

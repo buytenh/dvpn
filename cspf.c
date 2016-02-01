@@ -36,6 +36,13 @@ void cspf_node_add(struct spf_context *ctx, struct cspf_node *node)
 	spf_edge_add(&node->a, &node->ab);
 }
 
+void cspf_node_del(struct spf_context *ctx, struct cspf_node *node)
+{
+	spf_node_del(ctx, &node->a);
+	spf_node_del(ctx, &node->b);
+	spf_edge_del(&node->a, &node->ab);
+}
+
 void cspf_edge_add(struct spf_context *ctx, struct cspf_edge *edge,
 		   struct cspf_node *from, struct cspf_node *to,
 		   enum peer_type to_type, int cost)
@@ -70,6 +77,35 @@ void cspf_edge_add(struct spf_context *ctx, struct cspf_edge *edge,
 
 	default:
 		fprintf(stderr, "cspf_edge_add: invalid peer type %d\n",
+			to_type);
+		break;
+	}
+}
+
+void cspf_edge_del(struct spf_context *ctx, struct cspf_edge *edge,
+		   struct cspf_node *from, struct cspf_node *to,
+		   enum peer_type to_type)
+{
+	switch (to_type) {
+	case PEER_TYPE_EPEER:
+		spf_edge_del(&from->a, &edge->e0);
+		break;
+
+	case PEER_TYPE_CUSTOMER:
+		spf_edge_del(&from->b, &edge->e0);
+		break;
+
+	case PEER_TYPE_TRANSIT:
+		spf_edge_del(&from->a, &edge->e0);
+		break;
+
+	case PEER_TYPE_IPEER:
+		spf_edge_del(&from->a, &edge->e0);
+		spf_edge_del(&from->b, &edge->e1);
+		break;
+
+	default:
+		fprintf(stderr, "cspf_edge_del: invalid peer type %d\n",
 			to_type);
 		break;
 	}

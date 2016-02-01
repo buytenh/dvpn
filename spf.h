@@ -50,7 +50,9 @@ struct spf_edge
 
 void spf_init(struct spf_context *ctx);
 void spf_node_add(struct spf_context *ctx, struct spf_node *node);
+void spf_node_del(struct spf_context *ctx, struct spf_node *node);
 void spf_edge_add(struct spf_node *from, struct spf_edge *edge);
+void spf_edge_del(struct spf_node *from, struct spf_edge *edge);
 void spf_run(struct spf_context *ctx, struct spf_node *source);
 
 

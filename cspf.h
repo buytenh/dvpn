@@ -40,9 +40,13 @@ struct cspf_edge
 };
 
 void cspf_node_add(struct spf_context *ctx, struct cspf_node *node);
+void cspf_node_del(struct spf_context *ctx, struct cspf_node *node);
 void cspf_edge_add(struct spf_context *ctx, struct cspf_edge *edge,
 		   struct cspf_node *from, struct cspf_node *to,
 		   enum peer_type to_type, int cost);
+void cspf_edge_del(struct spf_context *ctx, struct cspf_edge *edge,
+		   struct cspf_node *from, struct cspf_node *to,
+		   enum peer_type to_type);
 void cspf_run(struct spf_context *ctx, struct cspf_node *source);
 void *cspf_node_parent(struct cspf_node *node);
 int cspf_node_cost(struct cspf_node *node);
