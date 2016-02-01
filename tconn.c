@@ -640,7 +640,7 @@ static int tconn_verify_cert(gnutls_session_t sess)
 	gnutls_pubkey_deinit(peerkey);
 	gnutls_x509_crt_deinit(peercert);
 
-	return tc->verify_key_id(tc->cookie, peerid, NODE_ID_LEN);
+	return tc->verify_key_id(tc->cookie, peerid);
 
 err_free_key:
 	gnutls_pubkey_deinit(peerkey);

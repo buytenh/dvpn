@@ -30,7 +30,7 @@ struct tconn {
 	gnutls_x509_privkey_t	key;
 	void			*cookie;
 	int			(*verify_key_id)(void *cookie,
-						 const uint8_t *id, int len);
+						 const uint8_t *id);
 	void			(*handshake_done)(void *cookie, char *desc);
 	void			(*record_received)(void *cookie,
 						   const uint8_t *rec, int len);

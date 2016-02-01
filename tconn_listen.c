@@ -89,13 +89,13 @@ static void rx_timeout(void *_cc)
 	client_conn_kill(cc);
 }
 
-static int verify_key_id(void *_cc, const uint8_t *id, int len)
+static int verify_key_id(void *_cc, const uint8_t *id)
 {
 	struct client_conn *cc = _cc;
 	struct iv_list_head *lh;
 
 	fprintf(stderr, "conn%d: peer key ID ", cc->tconn.fd);
-	printhex(stderr, id, len);
+	printhex(stderr, id, NODE_ID_LEN);
 
 	iv_list_for_each (lh, &cc->tls->listen_entries) {
 		struct tconn_listen_entry *le;
