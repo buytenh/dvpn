@@ -233,10 +233,8 @@ static void connection_lost(void *_tc)
 	tconn_destroy(&tc->tconn);
 	close(tc->tconn.fd);
 
-	if (tc->state == STATE_CONNECTED &&
-	    iv_timer_registered(&tc->keepalive_timer)) {
+	if (tc->state == STATE_CONNECTED)
 		iv_timer_unregister(&tc->keepalive_timer);
-	}
 
 	tc->state = STATE_WAITING_RETRY;
 
