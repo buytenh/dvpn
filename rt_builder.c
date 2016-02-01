@@ -274,13 +274,6 @@ static void attr_del(void *_cb, struct lsa_attr *attr)
 		del_edge(rb, node, lsa_attr_key(attr));
 }
 
-static void
-attr_mod(void *_cb, struct lsa_attr *aattr, struct lsa_attr *battr)
-{
-	attr_del(_cb, aattr);
-	attr_add(_cb, battr);
-}
-
 static void lsa_add(void *_rb, struct lsa *a)
 {
 	struct rt_builder *rb = _rb;
@@ -289,7 +282,7 @@ static void lsa_add(void *_rb, struct lsa *a)
 	cb.rb = rb;
 	cb.node = get_node(rb, a->id);
 
-	lsa_diff(NULL, a, &cb, attr_add, attr_mod, attr_del);
+	lsa_diff(NULL, a, &cb, attr_add, NULL, attr_del);
 
 	put_node(rb, cb.node);
 
@@ -304,7 +297,7 @@ static void lsa_mod(void *_rb, struct lsa *a, struct lsa *b)
 	cb.rb = rb;
 	cb.node = get_node(rb, a->id);
 
-	lsa_diff(a, b, &cb, attr_add, attr_mod, attr_del);
+	lsa_diff(a, b, &cb, attr_add, NULL, attr_del);
 
 	put_node(rb, cb.node);
 
@@ -319,7 +312,7 @@ static void lsa_del(void *_rb, struct lsa *a)
 	cb.rb = rb;
 	cb.node = get_node(rb, a->id);
 
-	lsa_diff(a, NULL, &cb, attr_add, attr_mod, attr_del);
+	lsa_diff(a, NULL, &cb, attr_add, NULL, attr_del);
 
 	put_node(rb, cb.node);
 
