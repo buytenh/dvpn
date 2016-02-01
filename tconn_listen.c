@@ -179,7 +179,7 @@ static void handshake_done(void *_cc, char *desc)
 	itf_add_addr_v6(tun_interface_get_name(&le->tun), addr, 128);
 
 	v6_global_addr_from_key_id(addr, le->fingerprint);
-	itf_add_route_v6(tun_interface_get_name(&le->tun), addr, 128);
+	itf_add_route_v6_direct(tun_interface_get_name(&le->tun), addr);
 
 	cc->tle->set_state(cc->tle->cookie, 1);
 }

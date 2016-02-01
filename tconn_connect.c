@@ -160,7 +160,7 @@ static void handshake_done(void *_tc, char *desc)
 	itf_add_addr_v6(tun_interface_get_name(&tc->tun), addr, 128);
 
 	v6_global_addr_from_key_id(addr, tc->fingerprint);
-	itf_add_route_v6(tun_interface_get_name(&tc->tun), addr, 128);
+	itf_add_route_v6_direct(tun_interface_get_name(&tc->tun), addr);
 
 	tc->set_state(tc->cookie, 1);
 }
