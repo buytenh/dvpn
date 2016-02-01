@@ -24,8 +24,7 @@
 #include "conf.h"
 #include "tun.h"
 
-struct tconn_listen_socket
-{
+struct tconn_listen_socket {
 	struct sockaddr_storage	listen_address;
 	gnutls_x509_privkey_t	key;
 
@@ -36,8 +35,7 @@ struct tconn_listen_socket
 int tconn_listen_socket_register(struct tconn_listen_socket *tls);
 void tconn_listen_socket_unregister(struct tconn_listen_socket *tls);
 
-struct tconn_listen_entry
-{
+struct tconn_listen_entry {
 	struct tconn_listen_socket	*tls;
 	char				*tunitf;
 	char				*name;

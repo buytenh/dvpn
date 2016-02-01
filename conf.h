@@ -29,8 +29,7 @@
 #include "tconn_listen.h"
 #include "util.h"
 
-struct conf
-{
+struct conf {
 	char			*private_key;
 	char			*node_name;
 
@@ -38,8 +37,7 @@ struct conf
 	struct iv_list_head	listening_sockets;
 };
 
-struct conf_connect_entry
-{
+struct conf_connect_entry {
 	struct iv_list_head	list;
 
 	char			*name;
@@ -55,8 +53,7 @@ struct conf_connect_entry
 	struct dgp_connect	dc;
 };
 
-struct conf_listening_socket
-{
+struct conf_listening_socket {
 	struct iv_list_head		list;
 
 	struct sockaddr_storage		listen_address;
@@ -66,8 +63,7 @@ struct conf_listening_socket
 	struct tconn_listen_socket	tls;
 };
 
-struct conf_listen_entry
-{
+struct conf_listen_entry {
 	struct iv_list_head		list;
 
 	char				*name;

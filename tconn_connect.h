@@ -28,8 +28,7 @@
 #include "tun.h"
 #include "util.h"
 
-struct tconn_connect
-{
+struct tconn_connect {
 	char			*tunitf;
 	char			*name;
 	char			*hostname;

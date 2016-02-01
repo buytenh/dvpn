@@ -23,8 +23,7 @@
 #include <string.h>
 #include "lsa_deserialise.h"
 
-struct src
-{
+struct src {
 	uint8_t		*src;
 	int		srclen;
 	int		off;

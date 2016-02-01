@@ -24,8 +24,7 @@
 #include "lsa_serialise.h"
 #include "lsa_type.h"
 
-struct dst
-{
+struct dst {
 	uint8_t		*dst;
 	int		dstlen;
 	int		off;

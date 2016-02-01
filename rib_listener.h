@@ -24,10 +24,10 @@
 #include "lsa.h"
 
 struct rib_listener {
-	void			*cookie;
-	void			(*lsa_add)(void *, struct lsa *);
-	void			(*lsa_mod)(void *, struct lsa *, struct lsa *);
-	void			(*lsa_del)(void *, struct lsa *);
+	void		*cookie;
+	void		(*lsa_add)(void *, struct lsa *);
+	void		(*lsa_mod)(void *, struct lsa *, struct lsa *);
+	void		(*lsa_del)(void *, struct lsa *);
 
 	struct iv_list_head	list;
 };

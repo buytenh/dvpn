@@ -28,8 +28,7 @@
 #include <sys/utsname.h>
 #include "conf.h"
 
-struct local_conf
-{
+struct local_conf {
 	struct conf	*conf;
 	int		default_port;
 };

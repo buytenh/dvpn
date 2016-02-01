@@ -34,8 +34,7 @@
 #include "lsa_type.h"
 #include "x509.h"
 
-struct node
-{
+struct node {
 	struct iv_list_head	list;
 	uint8_t			id[NODE_ID_LEN];
 	char			name[128];
@@ -44,8 +43,7 @@ struct node
 	struct cspf_node	node;
 };
 
-struct edge
-{
+struct edge {
 	struct iv_list_head	list;
 	struct node		*to;
 	int			metric;

@@ -33,8 +33,7 @@
 #include "util.h"
 #include "x509.h"
 
-struct client_conn
-{
+struct client_conn {
 	struct tconn_listen_socket	*tls;
 	struct tconn_listen_entry	*tle;
 

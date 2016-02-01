@@ -22,8 +22,7 @@
 
 #include "conf.h"
 
-struct confdiff_request
-{
+struct confdiff_request {
 	struct conf	*conf;
 	struct conf	*newconf;
 	int	(*new_connect_entry)(struct conf_connect_entry *);

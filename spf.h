@@ -22,14 +22,12 @@
 
 #include <iv_list.h>
 
-struct spf_context
-{
+struct spf_context {
 	struct iv_list_head	nodes;
 	int			num_nodes;
 };
 
-struct spf_node
-{
+struct spf_node {
 	uint8_t			*id;
 	void			*cookie;
 
@@ -40,8 +38,7 @@ struct spf_node
 	int			heapidx;
 };
 
-struct spf_edge
-{
+struct spf_edge {
 	struct spf_node		*to;
 	int			cost;
 

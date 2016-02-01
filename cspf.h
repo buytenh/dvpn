@@ -23,8 +23,7 @@
 #include "spf.h"
 #include "util.h"
 
-struct cspf_node
-{
+struct cspf_node {
 	uint8_t			*id;
 	void			*cookie;
 
@@ -33,8 +32,7 @@ struct cspf_node
 	struct spf_edge		ab;
 };
 
-struct cspf_edge
-{
+struct cspf_edge {
 	struct spf_edge		e0;
 	struct spf_edge		e1;
 };
