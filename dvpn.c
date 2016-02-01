@@ -27,6 +27,7 @@
 #include <string.h>
 #include "conf.h"
 #include "confdiff.h"
+#include "itf.h"
 #include "loc_rib_print.h"
 #include "lsa.h"
 #include "lsa_path.h"
@@ -45,41 +46,19 @@ static struct rt_builder rb;
 static struct dgp_listen_socket dls;
 static struct lsa *me;
 
-static void print_addr(FILE *fp, uint8_t *addr)
-{
-	char caddr[64];
-
-	inet_ntop(AF_INET6, addr, caddr, sizeof(caddr));
-	fputs(caddr, fp);
-}
-
 static void rt_add(void *_dummy, uint8_t *dest, uint8_t *nh)
 {
-	printf("+ ");
-	print_addr(stdout, dest);
-	printf(" via ");
-	print_addr(stdout, nh);
-	printf("\n");
+	itf_add_route_v6_via(dest, nh);
 }
 
 static void rt_mod(void *_dummy, uint8_t *dest, uint8_t *oldnh, uint8_t *newnh)
 {
-	printf("| ");
-	print_addr(stdout, dest);
-	printf(" via ");
-	print_addr(stdout, oldnh);
-	printf(" to ");
-	print_addr(stdout, newnh);
-	printf("\n");
+	itf_chg_route_v6_via(dest, newnh);
 }
 
 static void rt_del(void *_dummy, uint8_t *dest, uint8_t *nh)
 {
-	printf("- ");
-	print_addr(stdout, dest);
-	printf(" via ");
-	print_addr(stdout, nh);
-	printf("\n");
+	itf_del_route_v6_via(dest, nh);
 }
 
 static enum lsa_peer_type peer_type_to_lsa_peer_type(enum peer_type type)
