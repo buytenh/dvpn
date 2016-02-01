@@ -32,6 +32,7 @@
 #include "lsa_path.h"
 #include "lsa_serialise.h"
 #include "lsa_type.h"
+#include "rt_builder.h"
 #include "tconn_connect.h"
 #include "tconn_listen.h"
 #include "util.h"
@@ -40,8 +41,46 @@
 static gnutls_x509_privkey_t key;
 static uint8_t keyid[NODE_ID_LEN];
 static struct loc_rib loc_rib;
+static struct rt_builder rb;
 static struct dgp_listen_socket dls;
 static struct lsa *me;
+
+static void print_addr(FILE *fp, uint8_t *addr)
+{
+	char caddr[64];
+
+	inet_ntop(AF_INET6, addr, caddr, sizeof(caddr));
+	fputs(caddr, fp);
+}
+
+static void rt_add(void *_dummy, uint8_t *dest, uint8_t *nh)
+{
+	printf("+ ");
+	print_addr(stdout, dest);
+	printf(" via ");
+	print_addr(stdout, nh);
+	printf("\n");
+}
+
+static void rt_mod(void *_dummy, uint8_t *dest, uint8_t *oldnh, uint8_t *newnh)
+{
+	printf("| ");
+	print_addr(stdout, dest);
+	printf(" via ");
+	print_addr(stdout, oldnh);
+	printf(" to ");
+	print_addr(stdout, newnh);
+	printf("\n");
+}
+
+static void rt_del(void *_dummy, uint8_t *dest, uint8_t *nh)
+{
+	printf("- ");
+	print_addr(stdout, dest);
+	printf(" via ");
+	print_addr(stdout, nh);
+	printf("\n");
+}
 
 static enum lsa_peer_type peer_type_to_lsa_peer_type(enum peer_type type)
 {
@@ -449,6 +488,16 @@ int main(int argc, char *argv[])
 
 	loc_rib_init(&loc_rib);
 
+	rb.rib = &loc_rib;
+	rb.source = keyid;
+	rb.cookie = NULL;
+	rb.rt_add = rt_add;
+	rb.rt_mod = rt_mod;
+	rb.rt_del = rt_del;
+	rt_builder_init(&rb);
+
+	loc_rib_listener_register(&loc_rib, &rb.rl);
+
 	dls.myid = keyid;
 	dls.ifindex = 0;
 	dls.loc_rib = &loc_rib;
@@ -495,6 +544,8 @@ int main(int argc, char *argv[])
 	lsa_put(me);
 
 	loc_rib_deinit(&loc_rib);
+
+	rt_builder_deinit(&rb);
 
 	gnutls_x509_privkey_deinit(key);
 
