@@ -28,11 +28,6 @@ static void dummy_attr_add(void *cookie, struct lsa_attr *attr)
 {
 }
 
-static void
-dummy_attr_mod(void *cookie, struct lsa_attr *aattr, struct lsa_attr *battr)
-{
-}
-
 static void dummy_attr_del(void *cookie, struct lsa_attr *attr)
 {
 }
@@ -48,8 +43,6 @@ int lsa_diff(struct lsa *a, struct lsa *b, void *cookie,
 
 	if (attr_add == NULL)
 		attr_add = dummy_attr_add;
-	if (attr_mod == NULL)
-		attr_mod = dummy_attr_mod;
 	if (attr_del == NULL)
 		attr_del = dummy_attr_del;
 
@@ -90,7 +83,12 @@ int lsa_diff(struct lsa *a, struct lsa *b, void *cookie,
 			    memcmp(lsa_attr_data(aattr), lsa_attr_data(battr),
 				   aattr->datalen)) {
 				diffs++;
-				attr_mod(cookie, aattr, battr);
+				if (attr_mod != NULL) {
+					attr_mod(cookie, aattr, battr);
+				} else {
+					attr_del(cookie, aattr);
+					attr_add(cookie, battr);
+				}
 			}
 
 			anode = iv_avl_tree_next(anode);
