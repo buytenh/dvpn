@@ -19,12 +19,7 @@
 
 /*
  * TODO:
- * - smarter receive buffering
- *   - use a global tconn unregister counter and keep pulling records
- *     out of the rx buffer as long as this number stays the same
- * - smarter tx buffering, coalesce multiple packets into one sendto()?
  * - certificate caching
- * - use state validation functions to enforce all state machine transitions
  * - byte/time limits, renegotiation
  *   - work out state machine for renegotiation
  *   - limit min (limit at which we'll accept a remote reneg)
@@ -580,7 +575,6 @@ static int tconn_verify_cert(gnutls_session_t sess)
 	 * - verify that key is different from our key
 	 * - verify key length
 	 * - verify that certificate signature is correct
-	 * - verify signature time validity
 	 * - verify that signature corresponds to given public key
 	 */
 
