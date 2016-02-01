@@ -75,6 +75,9 @@ static void send_keepalive(void *_tc)
 	if (tc->state != STATE_CONNECTED)
 		abort();
 
+	tc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	iv_timer_register(&tc->keepalive_timer);
+
 	if (tconn_record_send(&tc->tconn, keepalive, 3)) {
 		fprintf(stderr, "%s: error sending keepalive, disconnecting "
 				"and retrying in %d seconds\n",
@@ -86,6 +89,8 @@ static void send_keepalive(void *_tc)
 		tconn_destroy(&tc->tconn);
 		close(tc->tconn.fd);
 
+		iv_timer_unregister(&tc->keepalive_timer);
+
 		tc->state = STATE_WAITING_RETRY;
 
 		iv_validate_now();
@@ -94,12 +99,7 @@ static void send_keepalive(void *_tc)
 		tc->rx_timeout.expires = iv_now;
 		tc->rx_timeout.expires.tv_sec += SHORT_RETRY_WAIT_TIME;
 		iv_timer_register(&tc->rx_timeout);
-
-		return;
 	}
-
-	tc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
-	iv_timer_register(&tc->keepalive_timer);
 }
 
 static void handshake_done(void *_tc, char *desc)
