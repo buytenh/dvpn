@@ -69,6 +69,19 @@ static int verify_key_id(void *_tc, const uint8_t *id)
 
 static void schedule_retry(struct tconn_connect *tc, int waittime)
 {
+	if (tc->state == STATE_CONNECTED) {
+		tc->set_state(tc->cookie, 0);
+		itf_set_state(tun_interface_get_name(&tc->tun), 0);
+	}
+
+	if (tc->state == STATE_TLS_HANDSHAKE || tc->state == STATE_CONNECTED) {
+		tconn_destroy(&tc->tconn);
+		close(tc->tconn.fd);
+	}
+
+	if (tc->state == STATE_CONNECTED)
+		iv_timer_unregister(&tc->keepalive_timer);
+
 	tc->state = STATE_WAITING_RETRY;
 
 	if (iv_timer_registered(&tc->rx_timeout))
@@ -95,15 +108,6 @@ static void send_keepalive(void *_tc)
 		fprintf(stderr, "%s: error sending keepalive, disconnecting "
 				"and retrying in %d seconds\n",
 			tc->name, SHORT_RETRY_WAIT_TIME);
-
-		tc->set_state(tc->cookie, 0);
-		itf_set_state(tun_interface_get_name(&tc->tun), 0);
-
-		tconn_destroy(&tc->tconn);
-		close(tc->tconn.fd);
-
-		iv_timer_unregister(&tc->keepalive_timer);
-
 		schedule_retry(tc, SHORT_RETRY_WAIT_TIME);
 	}
 }
@@ -198,15 +202,6 @@ static void record_received(void *_tc, const uint8_t *rec, int len)
 				"to tun interface, disconnecting and "
 				"retrying in %d seconds\n",
 			tc->name, SHORT_RETRY_WAIT_TIME);
-
-		itf_set_state(tun_interface_get_name(&tc->tun), 0);
-		tc->set_state(tc->cookie, 0);
-
-		tconn_destroy(&tc->tconn);
-		close(tc->tconn.fd);
-
-		iv_timer_unregister(&tc->keepalive_timer);
-
 		schedule_retry(tc, SHORT_RETRY_WAIT_TIME);
 	}
 }
@@ -223,18 +218,6 @@ static void connection_lost(void *_tc)
 
 	fprintf(stderr, "%s: connection lost, retrying in %d seconds\n",
 		tc->name, waittime);
-
-	if (tc->state == STATE_CONNECTED) {
-		tc->set_state(tc->cookie, 0);
-		itf_set_state(tun_interface_get_name(&tc->tun), 0);
-	}
-
-	tconn_destroy(&tc->tconn);
-	close(tc->tconn.fd);
-
-	if (tc->state == STATE_CONNECTED)
-		iv_timer_unregister(&tc->keepalive_timer);
-
 	schedule_retry(tc, waittime);
 }
 
@@ -428,15 +411,6 @@ static void got_packet(void *_tc, uint8_t *buf, int len)
 		fprintf(stderr, "%s: error sending TLS record, disconnecting "
 				"and retrying in %d seconds\n",
 			tc->name, SHORT_RETRY_WAIT_TIME);
-
-		tc->set_state(tc->cookie, 0);
-		itf_set_state(tun_interface_get_name(&tc->tun), 0);
-
-		tconn_destroy(&tc->tconn);
-		close(tc->tconn.fd);
-
-		iv_timer_unregister(&tc->keepalive_timer);
-
 		schedule_retry(tc, SHORT_RETRY_WAIT_TIME);
 	}
 }
