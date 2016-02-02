@@ -67,6 +67,19 @@ static int verify_key_id(void *_tc, const uint8_t *id)
 	return 0;
 }
 
+static void schedule_retry(struct tconn_connect *tc, int waittime)
+{
+	tc->state = STATE_WAITING_RETRY;
+
+	if (iv_timer_registered(&tc->rx_timeout))
+		iv_timer_unregister(&tc->rx_timeout);
+
+	iv_validate_now();
+	tc->rx_timeout.expires = iv_now;
+	tc->rx_timeout.expires.tv_sec += waittime;
+	iv_timer_register(&tc->rx_timeout);
+}
+
 static void send_keepalive(void *_tc)
 {
 	static uint8_t keepalive[] = { 0x00, 0x00, 0x00 };
@@ -91,14 +104,7 @@ static void send_keepalive(void *_tc)
 
 		iv_timer_unregister(&tc->keepalive_timer);
 
-		tc->state = STATE_WAITING_RETRY;
-
-		iv_validate_now();
-
-		iv_timer_unregister(&tc->rx_timeout);
-		tc->rx_timeout.expires = iv_now;
-		tc->rx_timeout.expires.tv_sec += SHORT_RETRY_WAIT_TIME;
-		iv_timer_register(&tc->rx_timeout);
+		schedule_retry(tc, SHORT_RETRY_WAIT_TIME);
 	}
 }
 
@@ -201,14 +207,7 @@ static void record_received(void *_tc, const uint8_t *rec, int len)
 
 		iv_timer_unregister(&tc->keepalive_timer);
 
-		tc->state = STATE_WAITING_RETRY;
-
-		iv_validate_now();
-
-		iv_timer_unregister(&tc->rx_timeout);
-		tc->rx_timeout.expires = iv_now;
-		tc->rx_timeout.expires.tv_sec += SHORT_RETRY_WAIT_TIME;
-		iv_timer_register(&tc->rx_timeout);
+		schedule_retry(tc, SHORT_RETRY_WAIT_TIME);
 	}
 }
 
@@ -236,14 +235,7 @@ static void connection_lost(void *_tc)
 	if (tc->state == STATE_CONNECTED)
 		iv_timer_unregister(&tc->keepalive_timer);
 
-	tc->state = STATE_WAITING_RETRY;
-
-	iv_validate_now();
-
-	iv_timer_unregister(&tc->rx_timeout);
-	tc->rx_timeout.expires = iv_now;
-	tc->rx_timeout.expires.tv_sec += waittime;
-	iv_timer_register(&tc->rx_timeout);
+	schedule_retry(tc, waittime);
 }
 
 static void connect_success(struct tconn_connect *tc, int fd)
@@ -304,13 +296,7 @@ static void try_connect(struct tconn_connect *tc)
 
 		fprintf(stderr, "%s: error connecting, retrying in %d "
 				"seconds\n", tc->name, LONG_RETRY_WAIT_TIME);
-
-		tc->state = STATE_WAITING_RETRY;
-
-		iv_validate_now();
-		tc->rx_timeout.expires = iv_now;
-		tc->rx_timeout.expires.tv_sec += LONG_RETRY_WAIT_TIME;
-		iv_timer_register(&tc->rx_timeout);
+		schedule_retry(tc, LONG_RETRY_WAIT_TIME);
 
 		return;
 	}
@@ -389,15 +375,7 @@ static void resolve_complete(void *_tc, int rc, struct addrinfo *res)
 		fprintf(stderr, "%s: address resolution returned error '%s', "
 				"retrying in %d seconds\n",
 			tc->name, gai_strerror(rc), SHORT_RETRY_WAIT_TIME);
-
-		tc->state = STATE_WAITING_RETRY;
-
-		iv_validate_now();
-
-		iv_timer_unregister(&tc->rx_timeout);
-		tc->rx_timeout.expires = iv_now;
-		tc->rx_timeout.expires.tv_sec += SHORT_RETRY_WAIT_TIME;
-		iv_timer_register(&tc->rx_timeout);
+		schedule_retry(tc, SHORT_RETRY_WAIT_TIME);
 	}
 }
 
@@ -459,12 +437,7 @@ static void got_packet(void *_tc, uint8_t *buf, int len)
 
 		iv_timer_unregister(&tc->keepalive_timer);
 
-		tc->state = STATE_WAITING_RETRY;
-
-		iv_timer_unregister(&tc->rx_timeout);
-		tc->rx_timeout.expires = iv_now;
-		tc->rx_timeout.expires.tv_sec += SHORT_RETRY_WAIT_TIME;
-		iv_timer_register(&tc->rx_timeout);
+		schedule_retry(tc, SHORT_RETRY_WAIT_TIME);
 	}
 }
 
@@ -546,22 +519,21 @@ int tconn_connect_start(struct tconn_connect *tc)
 	itf_set_state(tun_interface_get_name(&tc->tun), 0);
 
 	IV_TIMER_INIT(&tc->rx_timeout);
-	iv_validate_now();
-	tc->rx_timeout.expires = iv_now;
 	tc->rx_timeout.cookie = tc;
 	tc->rx_timeout.handler = rx_timeout_expired;
 
-	if (start_resolve(tc) == 0) {
-		tc->rx_timeout.expires.tv_sec += RESOLVE_TIMEOUT;
-	} else {
+	if (start_resolve(tc)) {
 		fprintf(stderr, "%s: error starting address "
 				"resolution, retrying in %d seconds\n",
 			tc->name, SHORT_RETRY_WAIT_TIME);
+		schedule_retry(tc, SHORT_RETRY_WAIT_TIME);
 
-		tc->state = STATE_WAITING_RETRY;
-		tc->rx_timeout.expires.tv_sec += SHORT_RETRY_WAIT_TIME;
+		return 0;
 	}
 
+	iv_validate_now();
+	tc->rx_timeout.expires = iv_now;
+	tc->rx_timeout.expires.tv_sec += RESOLVE_TIMEOUT;
 	iv_timer_register(&tc->rx_timeout);
 
 	return 0;
