@@ -49,6 +49,14 @@ struct client_conn {
 #define HANDSHAKE_TIMEOUT	30
 #define KEEPALIVE_INTERVAL	30
 
+static void print_name(FILE *fp, struct client_conn *cc)
+{
+	if (cc->tle != NULL)
+		fprintf(fp, "%s", cc->tle->name);
+	else
+		fprintf(fp, "conn%d", cc->tconn.fd);
+}
+
 static void client_conn_kill(struct client_conn *cc)
 {
 	if (cc->tle != NULL) {
@@ -65,18 +73,10 @@ static void client_conn_kill(struct client_conn *cc)
 	tconn_destroy(&cc->tconn);
 	close(cc->tconn.fd);
 
-	if (iv_timer_registered(&cc->keepalive_timer))
+	if (cc->state == STATE_CONNECTED)
 		iv_timer_unregister(&cc->keepalive_timer);
 
 	free(cc);
-}
-
-static void print_name(FILE *fp, struct client_conn *cc)
-{
-	if (cc->tle != NULL)
-		fprintf(fp, "%s", cc->tle->name);
-	else
-		fprintf(fp, "conn%d", cc->tconn.fd);
 }
 
 static void rx_timeout(void *_cc)
@@ -111,6 +111,21 @@ static int verify_key_id(void *_cc, const uint8_t *id)
 	fprintf(stderr, " - no matches\n");
 
 	return 1;
+}
+
+static void send_keepalive(void *_cc)
+{
+	static uint8_t keepalive[] = { 0x00, 0x00, 0x00 };
+	struct client_conn *cc = _cc;
+
+	cc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	iv_timer_register(&cc->keepalive_timer);
+
+	if (tconn_record_send(&cc->tconn, keepalive, 3)) {
+		fprintf(stderr, "%s: error sending keepalive, disconnecting\n", 
+			cc->tle->name);
+		client_conn_kill(cc);
+	}
 }
 
 static void handshake_done(void *_cc, char *desc)
@@ -163,8 +178,11 @@ static void handshake_done(void *_cc, char *desc)
 	cc->rx_timeout.expires.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
 	iv_timer_register(&cc->rx_timeout);
 
+	IV_TIMER_INIT(&cc->keepalive_timer);
 	cc->keepalive_timer.expires = iv_now;
 	cc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	cc->keepalive_timer.cookie = cc;
+	cc->keepalive_timer.handler = send_keepalive;
 	iv_timer_register(&cc->keepalive_timer);
 
 	itf_set_state(tun_interface_get_name(&le->tun), 1);
@@ -223,25 +241,6 @@ static void connection_lost(void *_cc)
 	client_conn_kill(cc);
 }
 
-static void send_keepalive(void *_cc)
-{
-	static uint8_t keepalive[] = { 0x00, 0x00, 0x00 };
-	struct client_conn *cc = _cc;
-
-	if (tconn_record_send(&cc->tconn, keepalive, 3)) {
-		fprintf(stderr, "%s: error sending keepalive, disconnecting\n", 
-			cc->tle->name);
-		client_conn_kill(cc);
-		return;
-	}
-
-	iv_validate_now();
-
-	cc->keepalive_timer.expires = iv_now;
-	cc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
-	iv_timer_register(&cc->keepalive_timer);
-}
-
 static void got_connection(void *_ls)
 {
 	struct tconn_listen_socket *ls = _ls;
@@ -293,10 +292,6 @@ static void got_connection(void *_ls)
 	cc->tconn.handshake_done = handshake_done;
 	cc->tconn.record_received = record_received;
 	cc->tconn.connection_lost = connection_lost;
-
-	IV_TIMER_INIT(&cc->keepalive_timer);
-	cc->keepalive_timer.cookie = cc;
-	cc->keepalive_timer.handler = send_keepalive;
 
 	tconn_start(&cc->tconn);
 }
