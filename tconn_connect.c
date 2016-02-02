@@ -221,12 +221,17 @@ static void connection_lost(void *_tc)
 	schedule_retry(tc, waittime);
 }
 
-static void connect_success(struct tconn_connect *tc, int fd)
+static void connect_success(struct tconn_connect *tc)
 {
+	int fd;
+
 	fprintf(stderr, "%s: connection established, starting TLS handshake\n",
 		tc->name);
 
 	freeaddrinfo(tc->res);
+
+	iv_fd_unregister(&tc->connectfd);
+	fd = tc->connectfd.fd;
 
 	tc->state = STATE_TLS_HANDSHAKE;
 
@@ -246,30 +251,43 @@ static void connect_success(struct tconn_connect *tc, int fd)
 	tconn_start(&tc->tconn);
 }
 
-static void try_connect(struct tconn_connect *tc)
+static int try_connect_one(struct tconn_connect *tc)
 {
+	struct addrinfo *rp = tc->rp;
 	int fd;
 	int ret;
 
+	fprintf(stderr, "%s: attempting connection to ", tc->name);
+	print_address(stderr, rp->ai_addr);
+	fprintf(stderr, "\n");
+
+	fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+	if (fd < 0)
+		return -1;
+
+	tc->connectfd.fd = fd;
+	iv_fd_register(&tc->connectfd);
+
+	ret = connect(fd, rp->ai_addr, rp->ai_addrlen);
+	if (ret < 0 && errno != EINPROGRESS) {
+		fprintf(stderr, "%s: connect error '%s'\n",
+			tc->name, strerror(errno));
+		iv_fd_unregister(&tc->connectfd);
+		close(fd);
+		return -1;
+	}
+
+	return !!(ret == 0);
+}
+
+static void try_connect(struct tconn_connect *tc)
+{
+	int ret;
+
 	while (tc->rp != NULL) {
-		fprintf(stderr, "%s: attempting connection to ", tc->name);
-		print_address(stderr, tc->rp->ai_addr);
-		fprintf(stderr, "\n");
-
-		fd = socket(tc->rp->ai_family, tc->rp->ai_socktype,
-			    tc->rp->ai_protocol);
-
-		if (fd >= 0) {
-			fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
-
-			ret = connect(fd, tc->rp->ai_addr, tc->rp->ai_addrlen);
-			if (ret == 0 || errno == EINPROGRESS)
-				break;
-
-			fprintf(stderr, "%s: connect error '%s'\n",
-				tc->name, strerror(errno));
-			close(fd);
-		}
+		ret = try_connect_one(tc);
+		if (ret >= 0)
+			break;
 
 		tc->rp = tc->rp->ai_next;
 	}
@@ -284,16 +302,13 @@ static void try_connect(struct tconn_connect *tc)
 		return;
 	}
 
-	if (ret == 0) {
-		connect_success(tc, fd);
+	if (ret) {
+		connect_success(tc);
 	} else {
 		iv_validate_now();
 		tc->rx_timeout.expires = iv_now;
 		tc->rx_timeout.expires.tv_sec += CONNECT_TIMEOUT;
 		iv_timer_register(&tc->rx_timeout);
-
-		tc->connectfd.fd = fd;
-		iv_fd_register(&tc->connectfd);
 	}
 }
 
@@ -317,13 +332,14 @@ static void connect_pollout(void *_tc)
 		return;
 
 	iv_timer_unregister(&tc->rx_timeout);
-	iv_fd_unregister(&tc->connectfd);
 
 	if (ret == 0) {
-		connect_success(tc, fd);
+		connect_success(tc);
 	} else {
 		fprintf(stderr, "%s: connect error '%s'\n",
 			tc->name, strerror(ret));
+
+		iv_fd_unregister(&tc->connectfd);
 		close(fd);
 
 		tc->rp = tc->rp->ai_next;
