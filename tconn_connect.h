@@ -47,11 +47,12 @@ struct tconn_connect {
 			struct iv_getaddrinfo	addrinfo;
 		};
 		struct {
+			struct iv_fd		connectfd;
 			struct addrinfo		*res;
 			struct addrinfo		*rp;
-			struct iv_fd		connectfd;
 		};
 		struct {
+			struct iv_fd		tconnfd;
 			struct tconn		tconn;
 			struct iv_timer		keepalive_timer;
 		};

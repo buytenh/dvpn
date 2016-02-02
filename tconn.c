@@ -127,19 +127,19 @@ static void verify_state(struct tconn *tc)
 	int st;
 
 	st = verify_state_pollin(tc);
-	if (!st && tc->ifd.handler_in != NULL) {
+	if (!st && tc->fd->handler_in != NULL) {
 		fprintf(stderr, "error: handler_in should be NULL\n");
 		abort();
-	} else if (st && tc->ifd.handler_in == NULL) {
+	} else if (st && tc->fd->handler_in == NULL) {
 		fprintf(stderr, "error: handler_in is unexpectedly NULL\n");
 		abort();
 	}
 
 	st = verify_state_pollout(tc);
-	if (!st && tc->ifd.handler_out != NULL) {
+	if (!st && tc->fd->handler_out != NULL) {
 		fprintf(stderr, "error: handler_out should be NULL\n");
 		abort();
-	} else if (st && tc->ifd.handler_out == NULL) {
+	} else if (st && tc->fd->handler_out == NULL) {
 		fprintf(stderr, "warning: handler_out is unexpectedly NULL\n");
 	}
 
@@ -165,8 +165,8 @@ static void verify_state(struct tconn *tc)
 
 static void got_io_error(struct tconn *tc)
 {
-	iv_fd_set_handler_in(&tc->ifd, NULL);
-	iv_fd_set_handler_out(&tc->ifd, NULL);
+	iv_fd_set_handler_in(tc->fd, NULL);
+	iv_fd_set_handler_out(tc->fd, NULL);
 
 	if (!iv_task_registered(&tc->rx_task) &&
 	    ((tc->state == STATE_HANDSHAKE &&
@@ -198,7 +198,7 @@ static void tconn_fd_handler_in(void *_tc)
 	tc->rx_end = 0;
 
 	do {
-		ret = recv(tc->ifd.fd, tc->rx_buf, sizeof(tc->rx_buf), 0);
+		ret = recv(tc->fd->fd, tc->rx_buf, sizeof(tc->rx_buf), 0);
 	} while (ret < 0 && errno == EINTR);
 
 	if (ret <= 0) {
@@ -216,7 +216,7 @@ static void tconn_fd_handler_in(void *_tc)
 		return;
 	}
 
-	iv_fd_set_handler_in(&tc->ifd, NULL);
+	iv_fd_set_handler_in(tc->fd, NULL);
 
 	if ((tc->state == STATE_HANDSHAKE &&
 	     gnutls_record_get_direction(tc->sess) == 0) ||
@@ -251,7 +251,7 @@ tconn_gtls_pull_func(gnutls_transport_ptr_t _tc, void *buf, size_t len)
 
 		tc->rx_start += tocopy;
 		if (tc->rx_start == tc->rx_end)
-			iv_fd_set_handler_in(&tc->ifd, tconn_fd_handler_in);
+			iv_fd_set_handler_in(tc->fd, tconn_fd_handler_in);
 
 		return tocopy;
 	}
@@ -272,7 +272,7 @@ static void tconn_fd_handler_out(void *_tc)
 	verify_state(tc);
 
 	do {
-		ret = send(tc->ifd.fd, tc->tx_buf, tc->tx_bytes, 0);
+		ret = send(tc->fd->fd, tc->tx_buf, tc->tx_bytes, 0);
 	} while (ret < 0 && errno == EINTR);
 
 	if (ret < 0) {
@@ -298,7 +298,7 @@ static void tconn_fd_handler_out(void *_tc)
 	if (tc->tx_bytes)
 		memmove(tc->tx_buf, tc->tx_buf + ret, tc->tx_bytes);
 	else
-		iv_fd_set_handler_out(&tc->ifd, NULL);
+		iv_fd_set_handler_out(tc->fd, NULL);
 
 	verify_state(tc);
 }
@@ -333,11 +333,11 @@ again:
 	buf += tocopy;
 	len -= tocopy;
 
-	if (tc->ifd.handler_out == NULL && tc->tx_bytes == sizeof(tc->tx_buf)) {
+	if (tc->fd->handler_out == NULL && tc->tx_bytes == sizeof(tc->tx_buf)) {
 		int ret;
 
 		do {
-			ret = send(tc->ifd.fd, tc->tx_buf, tc->tx_bytes, 0);
+			ret = send(tc->fd->fd, tc->tx_buf, tc->tx_bytes, 0);
 		} while (ret < 0 && errno == EINTR);
 
 		if (ret < 0 && errno != EAGAIN) {
@@ -355,7 +355,7 @@ again:
 		}
 
 		if (tc->tx_bytes)
-			iv_fd_set_handler_out(&tc->ifd, tconn_fd_handler_out);
+			iv_fd_set_handler_out(tc->fd, tconn_fd_handler_out);
 
 		if (len && tc->tx_bytes < sizeof(tc->tx_buf))
 			goto again;
@@ -371,16 +371,16 @@ static int tconn_tx_flush(struct tconn *tc)
 	if (tc->io_error)
 		return 1;
 
-	if (tc->ifd.handler_out != NULL || tc->tx_bytes == 0)
+	if (tc->fd->handler_out != NULL || tc->tx_bytes == 0)
 		return 0;
 
 	do {
-		ret = send(tc->ifd.fd, tc->tx_buf, tc->tx_bytes, 0);
+		ret = send(tc->fd->fd, tc->tx_buf, tc->tx_bytes, 0);
 	} while (ret < 0 && errno == EINTR);
 
 	if (ret < 0) {
 		if (errno == EAGAIN) {
-			iv_fd_set_handler_out(&tc->ifd, tconn_fd_handler_out);
+			iv_fd_set_handler_out(tc->fd, tconn_fd_handler_out);
 			return 0;
 		}
 
@@ -392,7 +392,7 @@ static int tconn_tx_flush(struct tconn *tc)
 	tc->tx_bytes -= ret;
 	if (tc->tx_bytes) {
 		memmove(tc->tx_buf, tc->tx_buf + ret, tc->tx_bytes);
-		iv_fd_set_handler_out(&tc->ifd, tconn_fd_handler_out);
+		iv_fd_set_handler_out(tc->fd, tconn_fd_handler_out);
 	}
 
 	return 0;
@@ -405,8 +405,8 @@ static void gtls_perror(const char *str, int error)
 
 static void tconn_connection_abort(struct tconn *tc, int notify_err)
 {
-	iv_fd_set_handler_in(&tc->ifd, NULL);
-	iv_fd_set_handler_out(&tc->ifd, NULL);
+	iv_fd_set_handler_in(tc->fd, NULL);
+	iv_fd_set_handler_out(tc->fd, NULL);
 
 	tc->state = STATE_DEAD;
 
@@ -738,11 +738,10 @@ int tconn_start(struct tconn *tc)
 	gnutls_transport_set_pull_function(tc->sess, tconn_gtls_pull_func);
 	gnutls_transport_set_push_function(tc->sess, tconn_gtls_push_func);
 
-	IV_FD_INIT(&tc->ifd);
-	tc->ifd.fd = tc->fd;
-	tc->ifd.cookie = tc;
-	tc->ifd.handler_in = tconn_fd_handler_in;
-	iv_fd_register(&tc->ifd);
+	tc->fd->cookie = tc;
+	iv_fd_set_handler_in(tc->fd, tconn_fd_handler_in);
+	iv_fd_set_handler_out(tc->fd, NULL);
+	iv_fd_set_handler_err(tc->fd, NULL);
 
 	tc->io_error = 0;
 
@@ -808,11 +807,12 @@ void tconn_destroy(struct tconn *tc)
 {
 	verify_state(tc);
 
+	iv_fd_set_handler_in(tc->fd, NULL);
+	iv_fd_set_handler_out(tc->fd, NULL);
+
 	gnutls_deinit(tc->sess);
 
 	gnutls_certificate_free_credentials(tc->cert);
-
-	iv_fd_unregister(&tc->ifd);
 
 	if (iv_task_registered(&tc->rx_task))
 		iv_task_unregister(&tc->rx_task);

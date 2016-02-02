@@ -76,7 +76,8 @@ static void schedule_retry(struct tconn_connect *tc, int waittime)
 
 	if (tc->state == STATE_TLS_HANDSHAKE || tc->state == STATE_CONNECTED) {
 		tconn_destroy(&tc->tconn);
-		close(tc->tconn.fd);
+		iv_fd_unregister(&tc->tconnfd);
+		close(tc->tconnfd.fd);
 	}
 
 	if (tc->state == STATE_CONNECTED)
@@ -123,13 +124,14 @@ static void handshake_done(void *_tc, char *desc)
 	fprintf(stderr, "%s: handshake done, using %s\n", tc->name, desc);
 
 	i = 1;
-	if (setsockopt(tc->tconn.fd, SOL_TCP, TCP_NODELAY, &i, sizeof(i)) < 0) {
+	if (setsockopt(tc->tconnfd.fd, SOL_TCP, TCP_NODELAY,
+		       &i, sizeof(i)) < 0) {
 		perror("setsockopt(SOL_TCP, TCP_NODELAY)");
 		abort();
 	}
 
 	len = sizeof(i);
-	if (getsockopt(tc->tconn.fd, SOL_TCP, TCP_MAXSEG, &i, &len) < 0) {
+	if (getsockopt(tc->tconnfd.fd, SOL_TCP, TCP_MAXSEG, &i, &len) < 0) {
 		perror("getsockopt(SOL_TCP, TCP_MAXSEG)");
 		abort();
 	}
@@ -223,15 +225,10 @@ static void connection_lost(void *_tc)
 
 static void connect_success(struct tconn_connect *tc)
 {
-	int fd;
-
 	fprintf(stderr, "%s: connection established, starting TLS handshake\n",
 		tc->name);
 
 	freeaddrinfo(tc->res);
-
-	iv_fd_unregister(&tc->connectfd);
-	fd = tc->connectfd.fd;
 
 	tc->state = STATE_TLS_HANDSHAKE;
 
@@ -240,7 +237,7 @@ static void connect_success(struct tconn_connect *tc)
 	tc->rx_timeout.expires.tv_sec += HANDSHAKE_TIMEOUT;
 	iv_timer_register(&tc->rx_timeout);
 
-	tc->tconn.fd = fd;
+	tc->tconn.fd = &tc->tconnfd;
 	tc->tconn.role = TCONN_ROLE_CLIENT;
 	tc->tconn.key = tc->key;
 	tc->tconn.cookie = tc;
@@ -469,14 +466,16 @@ static void rx_timeout_expired(void *_tc)
 		} else if (tc->state == STATE_TLS_HANDSHAKE) {
 			fprintf(stderr, "TLS handshake timed out");
 			tconn_destroy(&tc->tconn);
-			close(tc->tconn.fd);
+			iv_fd_unregister(&tc->tconnfd);
+			close(tc->tconnfd.fd);
 			waittime = LONG_RETRY_WAIT_TIME;
 		} else if (tc->state == STATE_CONNECTED) {
 			fprintf(stderr, "receive timeout");
 			tc->set_state(tc->cookie, 0);
 			itf_set_state(tun_interface_get_name(&tc->tun), 0);
 			tconn_destroy(&tc->tconn);
-			close(tc->tconn.fd);
+			iv_fd_unregister(&tc->tconnfd);
+			close(tc->tconnfd.fd);
 			iv_timer_unregister(&tc->keepalive_timer);
 			waittime = SHORT_RETRY_WAIT_TIME;
 		} else {
@@ -543,10 +542,12 @@ void tconn_connect_destroy(struct tconn_connect *tc)
 		close(tc->connectfd.fd);
 	} else if (tc->state == STATE_TLS_HANDSHAKE) {
 		tconn_destroy(&tc->tconn);
-		close(tc->tconn.fd);
+		iv_fd_unregister(&tc->tconnfd);
+		close(tc->tconnfd.fd);
 	} else if (tc->state == STATE_CONNECTED) {
 		tconn_destroy(&tc->tconn);
-		close(tc->tconn.fd);
+		iv_fd_unregister(&tc->tconnfd);
+		close(tc->tconnfd.fd);
 		iv_timer_unregister(&tc->keepalive_timer);
 	} else if (tc->state == STATE_WAITING_RETRY) {
 	} else {

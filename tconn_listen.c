@@ -39,6 +39,7 @@ struct client_conn {
 
 	int			state;
 	struct iv_timer		rx_timeout;
+	struct iv_fd		fd;
 	struct tconn		tconn;
 	struct iv_timer		keepalive_timer;
 };
@@ -54,7 +55,7 @@ static void print_name(FILE *fp, struct client_conn *cc)
 	if (cc->tle != NULL)
 		fprintf(fp, "%s", cc->tle->name);
 	else
-		fprintf(fp, "conn%d", cc->tconn.fd);
+		fprintf(fp, "conn%d", cc->fd.fd);
 }
 
 static void client_conn_kill(struct client_conn *cc)
@@ -71,7 +72,8 @@ static void client_conn_kill(struct client_conn *cc)
 		iv_timer_unregister(&cc->rx_timeout);
 
 	tconn_destroy(&cc->tconn);
-	close(cc->tconn.fd);
+	iv_fd_unregister(&cc->fd);
+	close(cc->fd.fd);
 
 	if (cc->state == STATE_CONNECTED)
 		iv_timer_unregister(&cc->keepalive_timer);
@@ -94,7 +96,7 @@ static int verify_key_id(void *_cc, const uint8_t *id)
 	struct client_conn *cc = _cc;
 	struct iv_list_head *lh;
 
-	fprintf(stderr, "conn%d: peer key ID ", cc->tconn.fd);
+	fprintf(stderr, "conn%d: peer key ID ", cc->fd.fd);
 	printhex(stderr, id, NODE_ID_LEN);
 
 	iv_list_for_each (lh, &cc->tls->listen_entries) {
@@ -149,13 +151,13 @@ static void handshake_done(void *_cc, char *desc)
 	le->current = cc;
 
 	i = 1;
-	if (setsockopt(cc->tconn.fd, SOL_TCP, TCP_NODELAY, &i, sizeof(i)) < 0) {
+	if (setsockopt(cc->fd.fd, SOL_TCP, TCP_NODELAY, &i, sizeof(i)) < 0) {
 		perror("setsockopt(SOL_TCP, TCP_NODELAY)");
 		abort();
 	}
 
 	len = sizeof(i);
-	if (getsockopt(cc->tconn.fd, SOL_TCP, TCP_MAXSEG, &i, &len) < 0) {
+	if (getsockopt(cc->fd.fd, SOL_TCP, TCP_MAXSEG, &i, &len) < 0) {
 		perror("getsockopt(SOL_TCP, TCP_MAXSEG)");
 		abort();
 	}
@@ -284,7 +286,11 @@ static void got_connection(void *_ls)
 	cc->rx_timeout.handler = rx_timeout;
 	iv_timer_register(&cc->rx_timeout);
 
-	cc->tconn.fd = fd;
+	IV_FD_INIT(&cc->fd);
+	cc->fd.fd = fd;
+	iv_fd_register(&cc->fd);
+
+	cc->tconn.fd = &cc->fd;
 	cc->tconn.role = TCONN_ROLE_SERVER;
 	cc->tconn.key = ls->key;
 	cc->tconn.cookie = cc;
@@ -292,7 +298,6 @@ static void got_connection(void *_ls)
 	cc->tconn.handshake_done = handshake_done;
 	cc->tconn.record_received = record_received;
 	cc->tconn.connection_lost = connection_lost;
-
 	tconn_start(&cc->tconn);
 }
 

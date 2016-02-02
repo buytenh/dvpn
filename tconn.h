@@ -25,7 +25,7 @@
 #include <stdint.h>
 
 struct tconn {
-	int			fd;
+	struct iv_fd		*fd;
 	int			role;
 	gnutls_x509_privkey_t	key;
 	void			*cookie;
@@ -37,7 +37,6 @@ struct tconn {
 	void			(*connection_lost)(void *cookie);
 
 	gnutls_session_t	sess;
-	struct iv_fd		ifd;
 	gnutls_certificate_credentials_t cert;
 	int			state;
 
