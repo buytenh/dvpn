@@ -37,7 +37,6 @@ client.ini:	server.key dvpn
 		@echo Connect=localhost:19275 >> client.ini
 		@echo PeerFingerprint=`./dvpn --show-key-id server.key` >> client.ini
 		@echo PeerType=peer >> client.ini
-		@echo TunInterface=tapc%d >> client.ini
 
 client.key:
 		certtool --generate-privkey --rsa --sec-param=high --outfile client.key
@@ -50,7 +49,6 @@ server.ini:	client.key dvpn
 		@echo Listen=0.0.0.0:19275 >> server.ini
 		@echo PeerFingerprint=`./dvpn --show-key-id client.key` >> server.ini
 		@echo PeerType=peer >> server.ini
-		@echo TunInterface=tap0 >> server.ini
 
 server.key:
 		certtool --generate-privkey --rsa --sec-param=high --outfile server.key
