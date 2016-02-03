@@ -220,22 +220,22 @@ static void diff_listening_sockets(struct confdiff_request *req)
 	}
 
 	iv_list_for_each_safe (lh, lh2, &newconf->listening_sockets) {
-		struct conf_listening_socket *cls;
 		struct conf_listening_socket *newcls;
+		struct conf_listening_socket *cls;
 
-		cls = iv_list_entry(lh, struct conf_listening_socket, list);
-		newcls = find_listening_socket(conf, &cls->listen_address);
+		newcls = iv_list_entry(lh, struct conf_listening_socket, list);
 
-		if (newcls == NULL) {
+		cls = find_listening_socket(conf, &newcls->listen_address);
+		if (cls == NULL) {
 			iv_list_del(lh);
 			iv_list_add_tail(lh, &conf->listening_sockets);
-			if (req->new_listening_socket(cls)) {
+			if (req->new_listening_socket(newcls)) {
 				iv_list_del(lh);
 				iv_list_add_tail(lh, &gc);
 			}
-		}
-		else
+		} else {
 			diff_listen_entries(req, cls, newcls);
+		}
 	}
 
 	iv_list_splice_tail(&gc, &newconf->listening_sockets);
