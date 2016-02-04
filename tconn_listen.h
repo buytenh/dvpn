@@ -22,7 +22,6 @@
 
 #include <gnutls/x509.h>
 #include "conf.h"
-#include "tun.h"
 
 struct tconn_listen_socket {
 	struct sockaddr_storage	listen_address;
@@ -37,19 +36,23 @@ void tconn_listen_socket_unregister(struct tconn_listen_socket *tls);
 
 struct tconn_listen_entry {
 	struct tconn_listen_socket	*tls;
-	char				*tunitf;
 	char				*name;
 	uint8_t				*fingerprint;
 	void				*cookie;
 	void				(*set_state)(void *cookie, int up);
+	void				(*record_received)(void *cookie,
+							   const uint8_t *rec,
+							   int len);
 
 	struct iv_list_head		list;
-	struct tun_interface		tun;
 	struct client_conn		*current;
 };
 
-int tconn_listen_entry_register(struct tconn_listen_entry *tle);
+void tconn_listen_entry_register(struct tconn_listen_entry *tle);
 void tconn_listen_entry_unregister(struct tconn_listen_entry *tle);
+int tconn_listen_entry_get_maxseg(struct tconn_listen_entry *tle);
+void tconn_listen_entry_record_send(struct tconn_listen_entry *tle,
+				    const uint8_t *rec, int len);
 
 
 #endif

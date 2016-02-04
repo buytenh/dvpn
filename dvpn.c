@@ -197,21 +197,91 @@ static void cce_record_received(void *_cce, const uint8_t *rec, int len)
 	tun_interface_send_packet(&cce->tun, rec + 3, rlen);
 }
 
-static void listen_set_state(void *_cle, int up)
+static void cle_tun_got_packet(void *_cle, uint8_t *buf, int len)
 {
 	struct conf_listen_entry *cle = _cle;
+	uint8_t sndbuf[len + 3];
+
+	sndbuf[0] = 0x00;
+	sndbuf[1] = len >> 8;
+	sndbuf[2] = len & 0xff;
+	memcpy(sndbuf + 3, buf, len);
+
+	tconn_listen_entry_record_send(&cle->tle, sndbuf, len + 3);
+}
+
+static void cle_set_state(void *_cle, int up)
+{
+	struct conf_listen_entry *cle = _cle;
+	char *tunitf;
+
+	tunitf = tun_interface_get_name(&cle->tun);
 
 	cle->tconn_up = up;
 
 	if (up) {
+		int maxseg;
+		int mtu;
+		uint8_t id[NODE_ID_LEN];
+		uint8_t addr[16];
+
 		local_add_peer(cle->fingerprint, cle->peer_type);
+
+		maxseg = tconn_listen_entry_get_maxseg(&cle->tle);
+		if (maxseg < 0)
+			abort();
+
+		mtu = maxseg - 5 - 8 - 3 - 16;
+		if (mtu < 1280)
+			mtu = 1280;
+		else if (mtu > 1500)
+			mtu = 1500;
+
+		fprintf(stderr, "%s: setting interface MTU to %d\n",
+			cle->name, mtu);
+		itf_set_mtu(tunitf, mtu);
+
+		itf_set_state(tunitf, 1);
+
+		x509_get_key_id(id, key);
+
+		v6_linklocal_addr_from_key_id(addr, id);
+		itf_add_addr_v6(tunitf, addr, 10);
+
+		v6_global_addr_from_key_id(addr, id);
+		itf_add_addr_v6(tunitf, addr, 128);
+
+		v6_global_addr_from_key_id(addr, cle->fingerprint);
+		itf_add_route_v6_direct(tunitf, addr);
+
 		dgp_listen_socket_register(&cle->dls);
 		dgp_listen_entry_register(&cle->dle);
 	} else {
 		dgp_listen_entry_unregister(&cle->dle);
 		dgp_listen_socket_unregister(&cle->dls);
+
+		itf_set_state(tunitf, 0);
+
 		local_del_peer(cle->fingerprint);
 	}
+}
+
+static void cle_record_received(void *_cle, const uint8_t *rec, int len)
+{
+	struct conf_listen_entry *cle = _cle;
+	int rlen;
+
+	if (len <= 3)
+		return;
+
+	if (rec[0] != 0x00)
+		return;
+
+	rlen = (rec[1] << 8) | rec[2];
+	if (rlen + 3 != len)
+		return;
+
+	tun_interface_send_packet(&cle->tun, rec + 3, rlen);
 }
 
 static int start_conf_connect_entry(struct conf_connect_entry *cce)
@@ -261,19 +331,26 @@ static void stop_conf_connect_entry(struct conf_connect_entry *cce)
 static int start_conf_listen_entry(struct conf_listening_socket *cls,
 				   struct conf_listen_entry *cle)
 {
-	cle->tle.tls = &cls->tls;
-	cle->tle.tunitf = cle->tunitf;
-	cle->tle.name = cle->name;
-	cle->tle.fingerprint = cle->fingerprint;
-	cle->tle.cookie = cle;
-	cle->tle.set_state = listen_set_state;
-	if (tconn_listen_entry_register(&cle->tle))
+	cle->tun.itfname = cle->tunitf;
+	cle->tun.cookie = cle;
+	cle->tun.got_packet = cle_tun_got_packet;
+	if (tun_interface_register(&cle->tun) < 0)
 		return 1;
 
 	cle->registered = 1;
 
+	itf_set_state(tun_interface_get_name(&cle->tun), 0);
+
+	cle->tle.tls = &cls->tls;
+	cle->tle.name = cle->name;
+	cle->tle.fingerprint = cle->fingerprint;
+	cle->tle.cookie = cle;
+	cle->tle.set_state = cle_set_state;
+	cle->tle.record_received = cle_record_received;
+	tconn_listen_entry_register(&cle->tle);
+
 	cle->dls.myid = keyid;
-	cle->dls.ifindex = if_nametoindex(tun_interface_get_name(&cle->tle.tun));
+	cle->dls.ifindex = if_nametoindex(tun_interface_get_name(&cle->tun));
 	cle->dls.loc_rib = &loc_rib;
 	cle->dls.permit_readonly = 0;
 
@@ -286,13 +363,16 @@ static int start_conf_listen_entry(struct conf_listening_socket *cls,
 static void stop_conf_listen_entry(struct conf_listen_entry *cle)
 {
 	cle->registered = 0;
-	tconn_listen_entry_unregister(&cle->tle);
 
 	if (cle->tconn_up) {
 		dgp_listen_entry_unregister(&cle->dle);
 		dgp_listen_socket_unregister(&cle->dls);
 		local_del_peer(cle->fingerprint);
 	}
+
+	tconn_listen_entry_unregister(&cle->tle);
+
+	tun_interface_unregister(&cle->tun);
 }
 
 static int start_conf_listening_socket(struct conf_listening_socket *cls)

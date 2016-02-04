@@ -74,10 +74,11 @@ struct conf_listen_entry {
 	char				*tunitf;
 
 	int				registered;
+	struct tun_interface		tun;
 	struct tconn_listen_entry	tle;
+	int				tconn_up;
 	struct dgp_listen_socket	dls;
 	struct dgp_listen_entry		dle;
-	int				tconn_up;
 };
 
 struct conf *parse_config(const char *file);
