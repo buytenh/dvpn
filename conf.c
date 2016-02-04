@@ -232,6 +232,7 @@ add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 	memcpy(cce->fingerprint, fp, NODE_ID_LEN);
 	cce->peer_type = peer_type;
 	cce->tunitf = strdup(itf ? : "dvpn%d");
+	cce->cost = 1;
 
 	iv_list_add_tail(&cce->list, &lc->conf->connect_entries);
 
@@ -414,6 +415,7 @@ add_listen_peer(struct local_conf *lc, const char *peer, const char *listen,
 	memcpy(cle->fingerprint, fp, NODE_ID_LEN);
 	cle->peer_type = peer_type;
 	cle->tunitf = strdup(itf ? : "dvpn%d");
+	cle->cost = 1;
 
 	return 0;
 }

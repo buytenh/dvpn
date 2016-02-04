@@ -47,6 +47,7 @@ struct conf_connect_entry {
 	uint8_t			fingerprint[NODE_ID_LEN];
 	enum peer_type		peer_type;
 	char			*tunitf;
+	int			cost;
 
 	int			registered;
 	struct tun_interface	tun;
@@ -72,6 +73,7 @@ struct conf_listen_entry {
 	uint8_t				fingerprint[NODE_ID_LEN];
 	enum peer_type			peer_type;
 	char				*tunitf;
+	int				cost;
 
 	int				registered;
 	struct tun_interface		tun;

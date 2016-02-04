@@ -80,14 +80,14 @@ static enum lsa_peer_type peer_type_to_lsa_peer_type(enum peer_type type)
 	}
 }
 
-static void local_add_peer(uint8_t *id, enum peer_type type)
+static void local_add_peer(uint8_t *id, enum peer_type type, int cost)
 {
 	struct lsa *newme;
 	struct lsa_attr_peer data;
 
 	newme = lsa_clone(me);
 
-	data.metric = htons(1);
+	data.metric = htons(cost);
 	data.peer_type = peer_type_to_lsa_peer_type(type);
 	lsa_attr_add(newme, LSA_ATTR_TYPE_PEER, id, NODE_ID_LEN,
 		     &data, sizeof(data));
@@ -140,7 +140,7 @@ static void cce_set_state(void *_cce, int up)
 		uint8_t id[NODE_ID_LEN];
 		uint8_t addr[16];
 
-		local_add_peer(cce->fingerprint, cce->peer_type);
+		local_add_peer(cce->fingerprint, cce->peer_type, cce->cost);
 
 		maxseg = tconn_connect_get_maxseg(&cce->tc);
 		if (maxseg < 0)
@@ -225,7 +225,7 @@ static void cle_set_state(void *_cle, int up)
 		uint8_t id[NODE_ID_LEN];
 		uint8_t addr[16];
 
-		local_add_peer(cle->fingerprint, cle->peer_type);
+		local_add_peer(cle->fingerprint, cle->peer_type, cle->cost);
 
 		maxseg = tconn_listen_entry_get_maxseg(&cle->tle);
 		if (maxseg < 0)
