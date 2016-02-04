@@ -57,10 +57,10 @@ static void print_name(FILE *fp, struct client_conn *cc)
 		fprintf(fp, "conn%d", cc->fd.fd);
 }
 
-static void client_conn_kill(struct client_conn *cc)
+static void client_conn_kill(struct client_conn *cc, int notify)
 {
 	if (cc->tle != NULL) {
-		if (cc->state == STATE_CONNECTED)
+		if (cc->state == STATE_CONNECTED && notify)
 			cc->tle->set_state(cc->tle->cookie, 0);
 		cc->tle->current = NULL;
 	}
@@ -85,7 +85,7 @@ static void rx_timeout(void *_cc)
 	print_name(stderr, cc);
 	fprintf(stderr, ": receive timeout\n");
 
-	client_conn_kill(cc);
+	client_conn_kill(cc, 1);
 }
 
 static int verify_key_id(void *_cc, const uint8_t *id)
@@ -123,7 +123,7 @@ static void send_keepalive(void *_cc)
 	if (tconn_record_send(&cc->tconn, keepalive, 3)) {
 		fprintf(stderr, "%s: error sending keepalive, disconnecting\n", 
 			cc->tle->name);
-		client_conn_kill(cc);
+		client_conn_kill(cc, 1);
 	}
 }
 
@@ -136,7 +136,7 @@ static void handshake_done(void *_cc, char *desc)
 	if (le->current != NULL) {
 		fprintf(stderr, "%s: handshake done, using %s, disconnecting "
 				"previous client\n", le->name, desc);
-		client_conn_kill(le->current);
+		client_conn_kill(le->current, 1);
 	} else {
 		fprintf(stderr, "%s: handshake done, using %s\n",
 			le->name, desc);
@@ -191,7 +191,7 @@ static void connection_lost(void *_cc)
 	print_name(stderr, cc);
 	fprintf(stderr, ": connection lost\n");
 
-	client_conn_kill(cc);
+	client_conn_kill(cc, 1);
 }
 
 static void got_connection(void *_ls)
@@ -320,7 +320,7 @@ void tconn_listen_entry_register(struct tconn_listen_entry *tle)
 void tconn_listen_entry_unregister(struct tconn_listen_entry *tle)
 {
 	if (tle->current != NULL)
-		client_conn_kill(tle->current);
+		client_conn_kill(tle->current, 0);
 
 	iv_list_del(&tle->list);
 }
@@ -363,6 +363,6 @@ void tconn_listen_entry_record_send(struct tconn_listen_entry *tle,
 	if (tconn_record_send(&cc->tconn, rec, len)) {
 		fprintf(stderr, "%s: error sending TLS record, disconnecting\n",
 			tle->name);
-		client_conn_kill(cc);
+		client_conn_kill(cc, 1);
 	}
 }
