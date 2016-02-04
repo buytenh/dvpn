@@ -27,6 +27,7 @@
 #include "dgp_listen.h"
 #include "tconn_connect.h"
 #include "tconn_listen.h"
+#include "tun.h"
 #include "util.h"
 
 struct conf {
@@ -48,6 +49,7 @@ struct conf_connect_entry {
 	char			*tunitf;
 
 	int			registered;
+	struct tun_interface	tun;
 	struct tconn_connect	tc;
 	int			tconn_up;
 	struct dgp_connect	dc;

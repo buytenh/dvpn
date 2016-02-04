@@ -25,11 +25,9 @@
 #include <netdb.h>
 #include "iv_getaddrinfo.h"
 #include "tconn.h"
-#include "tun.h"
 #include "util.h"
 
 struct tconn_connect {
-	char			*tunitf;
 	char			*name;
 	char			*hostname;
 	char			*port;
@@ -37,9 +35,10 @@ struct tconn_connect {
 	uint8_t			*fingerprint;
 	void			*cookie;
 	void			(*set_state)(void *cookie, int up);
+	void			(*record_received)(void *cookie,
+						   const uint8_t *rec, int len);
 
 	int			state;
-	struct tun_interface	tun;
 	struct iv_timer		rx_timeout;
 	union {
 		struct {
@@ -59,8 +58,11 @@ struct tconn_connect {
 	};
 };
 
-int tconn_connect_start(struct tconn_connect *tc);
+void tconn_connect_start(struct tconn_connect *tc);
 void tconn_connect_destroy(struct tconn_connect *tc);
+int tconn_connect_get_maxseg(struct tconn_connect *tc);
+void tconn_connect_record_send(struct tconn_connect *tc,
+			       const uint8_t *rec, int len);
 
 
 #endif

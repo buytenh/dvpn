@@ -36,6 +36,7 @@
 #include "rt_builder.h"
 #include "tconn_connect.h"
 #include "tconn_listen.h"
+#include "tun.h"
 #include "util.h"
 #include "x509.h"
 
@@ -111,19 +112,89 @@ static void local_del_peer(uint8_t *id)
 	me = newme;
 }
 
-static void connect_set_state(void *_cce, int up)
+static void cce_tun_got_packet(void *_cce, uint8_t *buf, int len)
 {
 	struct conf_connect_entry *cce = _cce;
+	uint8_t sndbuf[len + 3];
+
+	sndbuf[0] = 0x00;
+	sndbuf[1] = len >> 8;
+	sndbuf[2] = len & 0xff;
+	memcpy(sndbuf + 3, buf, len);
+
+	tconn_connect_record_send(&cce->tc, sndbuf, len + 3);
+}
+
+static void cce_set_state(void *_cce, int up)
+{
+	struct conf_connect_entry *cce = _cce;
+	char *tunitf;
+
+	tunitf = tun_interface_get_name(&cce->tun);
 
 	cce->tconn_up = up;
 
 	if (up) {
+		int maxseg;
+		int mtu;
+		uint8_t id[NODE_ID_LEN];
+		uint8_t addr[16];
+
 		local_add_peer(cce->fingerprint, cce->peer_type);
+
+		maxseg = tconn_connect_get_maxseg(&cce->tc);
+		if (maxseg < 0)
+			abort();
+
+		mtu = maxseg - 5 - 8 - 3 - 16;
+		if (mtu < 1280)
+			mtu = 1280;
+		else if (mtu > 1500)
+			mtu = 1500;
+
+		fprintf(stderr, "%s: setting interface MTU to %d\n",
+			cce->name, mtu);
+		itf_set_mtu(tunitf, mtu);
+
+		itf_set_state(tunitf, 1);
+
+		x509_get_key_id(id, key);
+
+		v6_linklocal_addr_from_key_id(addr, id);
+		itf_add_addr_v6(tunitf, addr, 10);
+
+		v6_global_addr_from_key_id(addr, id);
+		itf_add_addr_v6(tunitf, addr, 128);
+
+		v6_global_addr_from_key_id(addr, cce->fingerprint);
+		itf_add_route_v6_direct(tunitf, addr);
+
 		dgp_connect_start(&cce->dc);
 	} else {
 		dgp_connect_stop(&cce->dc);
+
+		itf_set_state(tunitf, 0);
+
 		local_del_peer(cce->fingerprint);
 	}
+}
+
+static void cce_record_received(void *_cce, const uint8_t *rec, int len)
+{
+	struct conf_connect_entry *cce = _cce;
+	int rlen;
+
+	if (len <= 3)
+		return;
+
+	if (rec[0] != 0x00)
+		return;
+
+	rlen = (rec[1] << 8) | rec[2];
+	if (rlen + 3 != len)
+		return;
+
+	tun_interface_send_packet(&cce->tun, rec + 3, rlen);
 }
 
 static void listen_set_state(void *_cle, int up)
@@ -145,22 +216,29 @@ static void listen_set_state(void *_cle, int up)
 
 static int start_conf_connect_entry(struct conf_connect_entry *cce)
 {
-	cce->tc.tunitf = cce->tunitf;
+	cce->tun.itfname = cce->tunitf;
+	cce->tun.cookie = cce;
+	cce->tun.got_packet = cce_tun_got_packet;
+	if (tun_interface_register(&cce->tun) < 0)
+		return 1;
+
+	cce->registered = 1;
+
+	itf_set_state(tun_interface_get_name(&cce->tun), 0);
+
 	cce->tc.name = cce->name;
 	cce->tc.hostname = cce->hostname;
 	cce->tc.port = cce->port;
 	cce->tc.key = key;
 	cce->tc.fingerprint = cce->fingerprint;
 	cce->tc.cookie = cce;
-	cce->tc.set_state = connect_set_state;
-	if (tconn_connect_start(&cce->tc))
-		return 1;
-
-	cce->registered = 1;
+	cce->tc.set_state = cce_set_state;
+	cce->tc.record_received = cce_record_received;
+	tconn_connect_start(&cce->tc);
 
 	cce->dc.myid = keyid;
 	cce->dc.remoteid = cce->fingerprint;
-	cce->dc.ifindex = if_nametoindex(tun_interface_get_name(&cce->tc.tun));
+	cce->dc.ifindex = if_nametoindex(tun_interface_get_name(&cce->tun));
 	cce->dc.loc_rib = &loc_rib;
 
 	return 0;
@@ -176,6 +254,8 @@ static void stop_conf_connect_entry(struct conf_connect_entry *cce)
 	}
 
 	tconn_connect_destroy(&cce->tc);
+
+	tun_interface_unregister(&cce->tun);
 }
 
 static int start_conf_listen_entry(struct conf_listening_socket *cls,

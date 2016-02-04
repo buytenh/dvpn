@@ -33,7 +33,6 @@
 #include "iv_getaddrinfo.h"
 #include "tconn.h"
 #include "tconn_connect.h"
-#include "tun.h"
 #include "util.h"
 #include "x509.h"
 
@@ -69,10 +68,8 @@ static int verify_key_id(void *_tc, const uint8_t *id)
 
 static void schedule_retry(struct tconn_connect *tc, int waittime)
 {
-	if (tc->state == STATE_CONNECTED) {
+	if (tc->state == STATE_CONNECTED)
 		tc->set_state(tc->cookie, 0);
-		itf_set_state(tun_interface_get_name(&tc->tun), 0);
-	}
 
 	if (tc->state == STATE_TLS_HANDSHAKE || tc->state == STATE_CONNECTED) {
 		tconn_destroy(&tc->tconn);
@@ -117,9 +114,6 @@ static void handshake_done(void *_tc, char *desc)
 {
 	struct tconn_connect *tc = _tc;
 	int i;
-	socklen_t len;
-	uint8_t id[NODE_ID_LEN];
-	uint8_t addr[16];
 
 	fprintf(stderr, "%s: handshake done, using %s\n", tc->name, desc);
 
@@ -129,21 +123,6 @@ static void handshake_done(void *_tc, char *desc)
 		perror("setsockopt(SOL_TCP, TCP_NODELAY)");
 		abort();
 	}
-
-	len = sizeof(i);
-	if (getsockopt(tc->tconnfd.fd, SOL_TCP, TCP_MAXSEG, &i, &len) < 0) {
-		perror("getsockopt(SOL_TCP, TCP_MAXSEG)");
-		abort();
-	}
-
-	i -= 5 + 8 + 3 + 16;
-	if (i < 1280)
-		i = 1280;
-	else if (i > 1500)
-		i = 1500;
-
-	fprintf(stderr, "%s: setting interface MTU to %d\n", tc->name, i);
-	itf_set_mtu(tun_interface_get_name(&tc->tun), i);
 
 	tc->state = STATE_CONNECTED;
 
@@ -161,26 +140,12 @@ static void handshake_done(void *_tc, char *desc)
 	tc->keepalive_timer.handler = send_keepalive;
 	iv_timer_register(&tc->keepalive_timer);
 
-	itf_set_state(tun_interface_get_name(&tc->tun), 1);
-
-	x509_get_key_id(id, tc->key);
-
-	v6_linklocal_addr_from_key_id(addr, id);
-	itf_add_addr_v6(tun_interface_get_name(&tc->tun), addr, 10);
-
-	v6_global_addr_from_key_id(addr, id);
-	itf_add_addr_v6(tun_interface_get_name(&tc->tun), addr, 128);
-
-	v6_global_addr_from_key_id(addr, tc->fingerprint);
-	itf_add_route_v6_direct(tun_interface_get_name(&tc->tun), addr);
-
 	tc->set_state(tc->cookie, 1);
 }
 
 static void record_received(void *_tc, const uint8_t *rec, int len)
 {
 	struct tconn_connect *tc = _tc;
-	int rlen;
 
 	iv_validate_now();
 
@@ -189,23 +154,7 @@ static void record_received(void *_tc, const uint8_t *rec, int len)
 	tc->rx_timeout.expires.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
 	iv_timer_register(&tc->rx_timeout);
 
-	if (len <= 3)
-		return;
-
-	if (rec[0] != 0x00)
-		return;
-
-	rlen = (rec[1] << 8) | rec[2];
-	if (rlen + 3 != len)
-		return;
-
-	if (tun_interface_send_packet(&tc->tun, rec + 3, rlen) < 0) {
-		fprintf(stderr, "%s: error forwarding received packet "
-				"to tun interface, disconnecting and "
-				"retrying in %d seconds\n",
-			tc->name, SHORT_RETRY_WAIT_TIME);
-		schedule_retry(tc, SHORT_RETRY_WAIT_TIME);
-	}
+	tc->record_received(tc->cookie, rec, len);
 }
 
 static void connection_lost(void *_tc)
@@ -400,34 +349,6 @@ static int start_resolve(struct tconn_connect *tc)
 	return ret;
 }
 
-static void got_packet(void *_tc, uint8_t *buf, int len)
-{
-	struct tconn_connect *tc = _tc;
-	uint8_t sndbuf[len + 3];
-
-	if (tc->state != STATE_CONNECTED)
-		return;
-
-	iv_validate_now();
-
-	iv_timer_unregister(&tc->keepalive_timer);
-	tc->keepalive_timer.expires = iv_now;
-	tc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
-	iv_timer_register(&tc->keepalive_timer);
-
-	sndbuf[0] = 0x00;
-	sndbuf[1] = len >> 8;
-	sndbuf[2] = len & 0xff;
-	memcpy(sndbuf + 3, buf, len);
-
-	if (tconn_record_send(&tc->tconn, sndbuf, len + 3)) {
-		fprintf(stderr, "%s: error sending TLS record, disconnecting "
-				"and retrying in %d seconds\n",
-			tc->name, SHORT_RETRY_WAIT_TIME);
-		schedule_retry(tc, SHORT_RETRY_WAIT_TIME);
-	}
-}
-
 static void rx_timeout_expired(void *_tc)
 {
 	struct tconn_connect *tc = _tc;
@@ -472,7 +393,6 @@ static void rx_timeout_expired(void *_tc)
 		} else if (tc->state == STATE_CONNECTED) {
 			fprintf(stderr, "receive timeout");
 			tc->set_state(tc->cookie, 0);
-			itf_set_state(tun_interface_get_name(&tc->tun), 0);
 			tconn_destroy(&tc->tconn);
 			iv_fd_unregister(&tc->tconnfd);
 			close(tc->tconnfd.fd);
@@ -495,17 +415,9 @@ static void rx_timeout_expired(void *_tc)
 	iv_timer_register(&tc->rx_timeout);
 }
 
-int tconn_connect_start(struct tconn_connect *tc)
+void tconn_connect_start(struct tconn_connect *tc)
 {
 	tc->state = STATE_RESOLVE;
-
-	tc->tun.itfname = tc->tunitf;
-	tc->tun.cookie = tc;
-	tc->tun.got_packet = got_packet;
-	if (tun_interface_register(&tc->tun) < 0)
-		return 1;
-
-	itf_set_state(tun_interface_get_name(&tc->tun), 0);
 
 	IV_TIMER_INIT(&tc->rx_timeout);
 	tc->rx_timeout.cookie = tc;
@@ -516,22 +428,16 @@ int tconn_connect_start(struct tconn_connect *tc)
 				"resolution, retrying in %d seconds\n",
 			tc->name, SHORT_RETRY_WAIT_TIME);
 		schedule_retry(tc, SHORT_RETRY_WAIT_TIME);
-
-		return 0;
 	}
 
 	iv_validate_now();
 	tc->rx_timeout.expires = iv_now;
 	tc->rx_timeout.expires.tv_sec += RESOLVE_TIMEOUT;
 	iv_timer_register(&tc->rx_timeout);
-
-	return 0;
 }
 
 void tconn_connect_destroy(struct tconn_connect *tc)
 {
-	tun_interface_unregister(&tc->tun);
-
 	iv_timer_unregister(&tc->rx_timeout);
 
 	if (tc->state == STATE_RESOLVE) {
@@ -552,5 +458,43 @@ void tconn_connect_destroy(struct tconn_connect *tc)
 	} else if (tc->state == STATE_WAITING_RETRY) {
 	} else {
 		abort();
+	}
+}
+
+int tconn_connect_get_maxseg(struct tconn_connect *tc)
+{
+	int mseg;
+	socklen_t len;
+
+	if (tc->state != STATE_CONNECTED)
+		return -1;
+
+	len = sizeof(mseg);
+	if (getsockopt(tc->tconnfd.fd, SOL_TCP, TCP_MAXSEG, &mseg, &len) < 0) {
+		perror("getsockopt(SOL_TCP, TCP_MAXSEG)");
+		return -1;
+	}
+
+	return mseg;
+}
+
+void tconn_connect_record_send(struct tconn_connect *tc,
+			       const uint8_t *rec, int len)
+{
+	if (tc->state != STATE_CONNECTED)
+		return;
+
+	iv_validate_now();
+
+	iv_timer_unregister(&tc->keepalive_timer);
+	tc->keepalive_timer.expires = iv_now;
+	tc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	iv_timer_register(&tc->keepalive_timer);
+
+	if (tconn_record_send(&tc->tconn, rec, len)) {
+		fprintf(stderr, "%s: error sending TLS record, disconnecting "
+				"and retrying in %d seconds\n",
+			tc->name, SHORT_RETRY_WAIT_TIME);
+		schedule_retry(tc, SHORT_RETRY_WAIT_TIME);
 	}
 }
