@@ -177,7 +177,8 @@ static enum peer_type parse_peer_type(const char *pt)
 
 static int
 add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
-		 const uint8_t *fp, enum peer_type peer_type, const char *itf)
+		 const uint8_t *fp, enum peer_type peer_type, const char *itf,
+		 int cost)
 {
 	struct conf_connect_entry *cce;
 	char *delim;
@@ -223,7 +224,7 @@ add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 	memcpy(cce->fingerprint, fp, NODE_ID_LEN);
 	cce->peer_type = peer_type;
 	cce->tunitf = strdup(itf ? : "dvpn%d");
-	cce->cost = 1;
+	cce->cost = cost;
 
 	iv_list_add_tail(&cce->list, &lc->conf->connect_entries);
 
@@ -377,7 +378,8 @@ get_listening_socket(struct local_conf *lc, const char *listen)
 
 static int
 add_listen_peer(struct local_conf *lc, const char *peer, const char *listen,
-		const uint8_t *fp, enum peer_type peer_type, const char *itf)
+		const uint8_t *fp, enum peer_type peer_type, const char *itf,
+		int cost)
 {
 	struct conf_listening_socket *cls;
 	struct conf_listen_entry *cle;
@@ -397,7 +399,7 @@ add_listen_peer(struct local_conf *lc, const char *peer, const char *listen,
 	memcpy(cle->fingerprint, fp, NODE_ID_LEN);
 	cle->peer_type = peer_type;
 	cle->tunitf = strdup(itf ? : "dvpn%d");
-	cle->cost = 1;
+	cle->cost = cost;
 
 	return 0;
 }
@@ -412,6 +414,9 @@ static int parse_config_peer(struct local_conf *lc,
 	const char *peertype;
 	enum peer_type peer_type;
 	const char *itf;
+	struct value_obj *vo;
+	int ret;
+	int cost;
 
 	connect = get_const_value(co, peer, "Connect");
 	listen = get_const_value(co, peer, "Listen");
@@ -458,10 +463,25 @@ static int parse_config_peer(struct local_conf *lc,
 
 	itf = get_const_value(co, peer, "TunInterface");
 
-	if (connect != NULL)
-		return add_connect_peer(lc, peer, connect, f, peer_type, itf);
-	else
-		return add_listen_peer(lc, peer, listen, f, peer_type, itf);
+	ret = ini_get_config_valueobj(peer, "Cost", co,
+				      INI_GET_FIRST_VALUE, &vo);
+	if (ret == 0 && vo != NULL) {
+		cost = ini_get_int_config_value(vo, 1, 0, &ret);
+		if (ret) {
+			fprintf(stderr, "error retrieving Cost value\n");
+			return -1;
+		}
+	} else {
+		cost = 1;
+	}
+
+	if (connect != NULL) {
+		return add_connect_peer(lc, peer, connect, f,
+					peer_type, itf, cost);
+	} else {
+		return add_listen_peer(lc, peer, listen, f,
+				       peer_type, itf, cost);
+	}
 
 	return 0;
 }
