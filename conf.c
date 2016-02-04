@@ -177,12 +177,11 @@ static enum peer_type parse_peer_type(const char *pt)
 
 static int
 add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
-		 const uint8_t *fp, const char *peertype, const char *itf)
+		 const uint8_t *fp, enum peer_type peer_type, const char *itf)
 {
 	struct conf_connect_entry *cce;
 	char *delim;
 	int port;
-	enum peer_type peer_type;
 
 	delim = strstr(connect, "]:");
 	if (delim != NULL) {
@@ -201,14 +200,6 @@ add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 		}
 	} else {
 		port = lc->default_port;
-	}
-
-	if (peertype != NULL) {
-		peer_type = parse_peer_type(peertype);
-		if (peer_type == PEER_TYPE_INVALID)
-			return -1;
-	} else {
-		peer_type = PEER_TYPE_TRANSIT;
 	}
 
 	cce = calloc(1, sizeof(*cce));
@@ -386,23 +377,14 @@ get_listening_socket(struct local_conf *lc, const char *listen)
 
 static int
 add_listen_peer(struct local_conf *lc, const char *peer, const char *listen,
-		const uint8_t *fp, const char *peertype, const char *itf)
+		const uint8_t *fp, enum peer_type peer_type, const char *itf)
 {
 	struct conf_listening_socket *cls;
 	struct conf_listen_entry *cle;
-	enum peer_type peer_type;
 
 	cls = get_listening_socket(lc, listen);
 	if (cls == NULL)
 		return -1;
-
-	if (peertype != NULL) {
-		peer_type = parse_peer_type(peertype);
-		if (peer_type == PEER_TYPE_INVALID)
-			return -1;
-	} else {
-		peer_type = PEER_TYPE_CUSTOMER;
-	}
 
 	cle = calloc(1, sizeof(*cle));
 	if (cle == NULL) {
@@ -426,9 +408,10 @@ static int parse_config_peer(struct local_conf *lc,
 	const char *connect;
 	const char *listen;
 	const char *fp;
-	const char *peertype;
-	const char *itf;
 	uint8_t f[NODE_ID_LEN];
+	const char *peertype;
+	enum peer_type peer_type;
+	const char *itf;
 
 	connect = get_const_value(co, peer, "Connect");
 	listen = get_const_value(co, peer, "Listen");
@@ -463,12 +446,22 @@ static int parse_config_peer(struct local_conf *lc,
 	}
 
 	peertype = get_const_value(co, peer, "PeerType");
+	if (peertype != NULL) {
+		peer_type = parse_peer_type(peertype);
+		if (peer_type == PEER_TYPE_INVALID)
+			return -1;
+	} else {
+		peer_type = (connect != NULL) ?
+				PEER_TYPE_TRANSIT :
+				PEER_TYPE_CUSTOMER;
+	}
+
 	itf = get_const_value(co, peer, "TunInterface");
 
 	if (connect != NULL)
-		return add_connect_peer(lc, peer, connect, f, peertype, itf);
+		return add_connect_peer(lc, peer, connect, f, peer_type, itf);
 	else
-		return add_listen_peer(lc, peer, listen, f, peertype, itf);
+		return add_listen_peer(lc, peer, listen, f, peer_type, itf);
 
 	return 0;
 }
