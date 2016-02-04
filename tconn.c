@@ -770,7 +770,25 @@ err:
 	return -1;
 }
 
-int tconn_record_send(struct tconn *tc, const uint8_t *record, int len)
+void tconn_destroy(struct tconn *tc)
+{
+	verify_state(tc);
+
+	iv_fd_set_handler_in(tc->fd, NULL);
+	iv_fd_set_handler_out(tc->fd, NULL);
+
+	gnutls_deinit(tc->sess);
+
+	gnutls_certificate_free_credentials(tc->cert);
+
+	if (iv_task_registered(&tc->rx_task))
+		iv_task_unregister(&tc->rx_task);
+
+	if (iv_task_registered(&tc->tx_task))
+		iv_task_unregister(&tc->tx_task);
+}
+
+int tconn_record_send(struct tconn *tc, const uint8_t *rec, int len)
 {
 	int ret;
 
@@ -783,7 +801,7 @@ int tconn_record_send(struct tconn *tc, const uint8_t *record, int len)
 		return -1;
 	}
 
-	ret = gnutls_record_send(tc->sess, record, len);
+	ret = gnutls_record_send(tc->sess, rec, len);
 	if ((ret > 0 || ret == GNUTLS_E_AGAIN) && tconn_tx_flush(tc))
 		ret = gnutls_record_send(tc->sess, NULL, 0);
 
@@ -801,22 +819,4 @@ int tconn_record_send(struct tconn *tc, const uint8_t *record, int len)
 	verify_state(tc);
 
 	return 0;
-}
-
-void tconn_destroy(struct tconn *tc)
-{
-	verify_state(tc);
-
-	iv_fd_set_handler_in(tc->fd, NULL);
-	iv_fd_set_handler_out(tc->fd, NULL);
-
-	gnutls_deinit(tc->sess);
-
-	gnutls_certificate_free_credentials(tc->cert);
-
-	if (iv_task_registered(&tc->rx_task))
-		iv_task_unregister(&tc->rx_task);
-
-	if (iv_task_registered(&tc->tx_task))
-		iv_task_unregister(&tc->tx_task);
 }

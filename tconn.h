@@ -54,9 +54,9 @@ struct tconn {
 #define TCONN_ROLE_SERVER	0
 #define TCONN_ROLE_CLIENT	1
 
-int tconn_start(struct tconn *pc);
-int tconn_record_send(struct tconn *pc, const uint8_t *record, int len);
-void tconn_destroy(struct tconn *pc);
+int tconn_start(struct tconn *tc);
+void tconn_destroy(struct tconn *tc);
+int tconn_record_send(struct tconn *tc, const uint8_t *rec, int len);
 
 
 #endif
