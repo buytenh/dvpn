@@ -34,6 +34,8 @@ enum peer_type {
 	PEER_TYPE_IPEER = 4,
 };
 
+int addrcmp(const struct sockaddr_storage *a,
+	    const struct sockaddr_storage *b);
 void avl_diff(struct iv_avl_tree *a, struct iv_avl_tree *b, void *cookie,
 	      void (*item_add)(void *cookie, struct iv_avl_node *a),
 	      void (*item_mod)(void *cookie, struct iv_avl_node *a,

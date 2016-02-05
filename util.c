@@ -22,6 +22,56 @@
 #include <string.h>
 #include "util.h"
 
+int addrcmp(const struct sockaddr_storage *a, const struct sockaddr_storage *b)
+{
+	if (a->ss_family < b->ss_family)
+		return -1;
+
+	if (a->ss_family > b->ss_family)
+		return 1;
+
+	if (a->ss_family == AF_INET) {
+		const struct sockaddr_in *aa = (const struct sockaddr_in *)a;
+		const struct sockaddr_in *bb = (const struct sockaddr_in *)b;
+		int ret;
+
+		ret = memcmp(&aa->sin_addr, &bb->sin_addr,
+			     sizeof(aa->sin_addr));
+		if (ret)
+			return ret;
+
+		ret = memcmp(&aa->sin_port, &bb->sin_port,
+			     sizeof(aa->sin_port));
+		if (ret)
+			return ret;
+
+		return 0;
+	}
+
+	if (a->ss_family == AF_INET6) {
+		const struct sockaddr_in6 *aa = (const struct sockaddr_in6 *)a;
+		const struct sockaddr_in6 *bb = (const struct sockaddr_in6 *)b;
+		int ret;
+
+		ret = memcmp(&aa->sin6_addr, &bb->sin6_addr,
+			     sizeof(aa->sin6_addr));
+		if (ret)
+			return ret;
+
+		ret = memcmp(&aa->sin6_port, &bb->sin6_port,
+			     sizeof(aa->sin6_port));
+		if (ret)
+			return ret;
+
+		return 0;
+	}
+
+	fprintf(stderr, "error comparing addresses of family %d\n",
+		a->ss_family);
+
+	abort();
+}
+
 void avl_diff(struct iv_avl_tree *a, struct iv_avl_tree *b,
 	      void *cookie,
 	      void (*item_add)(void *cookie, struct iv_avl_node *a),
