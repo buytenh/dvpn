@@ -22,6 +22,47 @@
 #include <string.h>
 #include "util.h"
 
+void avl_diff(struct iv_avl_tree *a, struct iv_avl_tree *b,
+	      void *cookie,
+	      void (*item_add)(void *cookie, struct iv_avl_node *a),
+	      void (*item_mod)(void *cookie, struct iv_avl_node *a,
+			       struct iv_avl_node *b),
+	      void (*item_del)(void *cookie, struct iv_avl_node *a))
+{
+	struct iv_avl_node *an;
+	struct iv_avl_node *bn;
+
+	an = (a != NULL) ? iv_avl_tree_min(a) : NULL;
+	bn = (b != NULL) ? iv_avl_tree_min(b) : NULL;
+
+	while (an != NULL && bn != NULL) {
+		int ret;
+
+		ret = a->compare(an, bn);
+		if (ret < 0) {
+			item_del(cookie, an);
+			an = iv_avl_tree_next(an);
+		} else if (ret > 0) {
+			item_add(cookie, bn);
+			bn = iv_avl_tree_next(bn);
+		} else {
+			item_mod(cookie, an, bn);
+			an = iv_avl_tree_next(an);
+			bn = iv_avl_tree_next(bn);
+		}
+	}
+
+	while (an != NULL) {
+		item_del(cookie, an);
+		an = iv_avl_tree_next(an);
+	}
+
+	while (bn != NULL) {
+		item_add(cookie, bn);
+		bn = iv_avl_tree_next(bn);
+	}
+}
+
 const char *peer_type_name(enum peer_type type)
 {
 	switch (type) {

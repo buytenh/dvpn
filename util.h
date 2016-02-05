@@ -21,6 +21,7 @@
 #define __UTIL_H
 
 #include <arpa/inet.h>
+#include <iv_avl.h>
 #include <stdint.h>
 
 #define NODE_ID_LEN	32
@@ -33,6 +34,11 @@ enum peer_type {
 	PEER_TYPE_IPEER = 4,
 };
 
+void avl_diff(struct iv_avl_tree *a, struct iv_avl_tree *b, void *cookie,
+	      void (*item_add)(void *cookie, struct iv_avl_node *a),
+	      void (*item_mod)(void *cookie, struct iv_avl_node *a,
+			       struct iv_avl_node *b),
+	      void (*item_del)(void *cookie, struct iv_avl_node *a));
 const char *peer_type_name(enum peer_type type);
 void print_address(FILE *fp, const struct sockaddr *addr);
 void printhex(FILE *fp, const uint8_t *a, int len);
