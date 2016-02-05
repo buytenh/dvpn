@@ -61,7 +61,7 @@ static void print_node_name(FILE *fp, struct lsa_attr *attr)
 	}
 }
 
-void lsa_print_id_name(FILE *fp, uint8_t *id, struct loc_rib *name_hints)
+int lsa_print_id_name(FILE *fp, uint8_t *id, struct loc_rib *name_hints)
 {
 	if (name_hints != NULL) {
 		struct loc_rib_id *rid;
@@ -74,12 +74,14 @@ void lsa_print_id_name(FILE *fp, uint8_t *id, struct loc_rib *name_hints)
 					     LSA_ATTR_TYPE_NODE_NAME, NULL, 0);
 			if (attr != NULL) {
 				print_node_name(fp, attr);
-				return;
+				return 1;
 			}
 		}
 	}
 
 	printhex(fp, id, NODE_ID_LEN);
+
+	return 0;
 }
 
 void lsa_attr_print_key(FILE *fp, struct lsa_attr *attr,
