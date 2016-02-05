@@ -33,6 +33,18 @@ struct local_conf {
 	int		default_port;
 };
 
+static int
+compare_connect_entries(struct iv_avl_node *_a, struct iv_avl_node *_b)
+{
+	struct conf_connect_entry *a;
+	struct conf_connect_entry *b;
+
+	a = iv_container_of(_a, struct conf_connect_entry, an);
+	b = iv_container_of(_b, struct conf_connect_entry, an);
+
+	return strcmp(a->name, b->name);
+}
+
 static struct ini_cfgobj *parse_cfgfile(const char *file)
 {
 	struct ini_cfgobj *co;
@@ -210,6 +222,12 @@ add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 	}
 
 	cce->name = strdup(peer);
+	if (iv_avl_tree_insert(&lc->conf->connect_entries, &cce->an) < 0) {
+		fprintf(stderr, "found duplicate connect entry '%s'\n", peer);
+		free(cce->name);
+		return -1;
+	}
+
 	if (connect[0] == '[') {
 		cce->hostname = strdup(connect + 1);
 		delim = strchr(cce->hostname, ']');
@@ -225,8 +243,6 @@ add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 	cce->peer_type = peer_type;
 	cce->tunitf = strdup(itf ? : "dvpn%d");
 	cce->cost = cost;
-
-	iv_list_add_tail(&cce->list, &lc->conf->connect_entries);
 
 	return 0;
 }
@@ -508,7 +524,7 @@ struct conf *parse_config(const char *file)
 
 	conf->private_key = NULL;
 	conf->node_name = NULL;
-	INIT_IV_LIST_HEAD(&conf->connect_entries);
+	INIT_IV_AVL_TREE(&conf->connect_entries, compare_connect_entries);
 	INIT_IV_LIST_HEAD(&conf->listening_sockets);
 
 	co = parse_cfgfile(file);
@@ -552,6 +568,8 @@ struct conf *parse_config(const char *file)
 
 void free_config(struct conf *conf)
 {
+	struct iv_avl_node *an;
+	struct iv_avl_node *an2;
 	struct iv_list_head *lh;
 	struct iv_list_head *lh2;
 
@@ -559,12 +577,12 @@ void free_config(struct conf *conf)
 
 	free(conf->node_name);
 
-	iv_list_for_each_safe (lh, lh2, &conf->connect_entries) {
+	iv_avl_tree_for_each_safe (an, an2, &conf->connect_entries) {
 		struct conf_connect_entry *cce;
 
-		cce = iv_list_entry(lh, struct conf_connect_entry, list);
+		cce = iv_container_of(an, struct conf_connect_entry, an);
 
-		iv_list_del(&cce->list);
+		iv_avl_tree_delete(&conf->connect_entries, &cce->an);
 		free(cce->name);
 		free(cce->hostname);
 		free(cce->port);

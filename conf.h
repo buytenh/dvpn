@@ -20,6 +20,7 @@
 #ifndef __CONF_H
 #define __CONF_H
 
+#include <iv_avl.h>
 #include <iv_list.h>
 #include <stdint.h>
 #include <sys/socket.h>
@@ -34,12 +35,12 @@ struct conf {
 	char			*private_key;
 	char			*node_name;
 
-	struct iv_list_head	connect_entries;
+	struct iv_avl_tree	connect_entries;
 	struct iv_list_head	listening_sockets;
 };
 
 struct conf_connect_entry {
-	struct iv_list_head	list;
+	struct iv_avl_node	an;
 
 	char			*name;
 	char			*hostname;

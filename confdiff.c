@@ -23,71 +23,64 @@
 #include <string.h>
 #include "confdiff.h"
 
-static struct conf_connect_entry *
-find_connect_entry(struct conf *conf, struct conf_connect_entry *_cce)
+static void cce_add(void *_req, struct iv_avl_node *_a)
 {
-	struct iv_list_head *lh;
+	struct confdiff_request *req = _req;
+	struct conf_connect_entry *a;
 
-	iv_list_for_each (lh, &conf->connect_entries) {
-		struct conf_connect_entry *cce;
+	a = iv_container_of(_a, struct conf_connect_entry, an);
 
-		cce = iv_list_entry(lh, struct conf_connect_entry, list);
-
-		if (strcmp(cce->name, _cce->name))
-			continue;
-		if (strcmp(cce->hostname, _cce->hostname))
-			continue;
-		if (strcmp(cce->port, _cce->port))
-			continue;
-		if (memcmp(cce->fingerprint, _cce->fingerprint, NODE_ID_LEN))
-			continue;
-		if (cce->peer_type != _cce->peer_type)
-			continue;
-		if (strcmp(cce->tunitf, _cce->tunitf))
-			continue;
-
-		return cce;
+	iv_avl_tree_delete(&req->newconf->connect_entries, &a->an);
+	iv_avl_tree_insert(&req->conf->connect_entries, &a->an);
+	if (req->new_connect_entry(a)) {
+		iv_avl_tree_delete(&req->conf->connect_entries, &a->an);
+		iv_avl_tree_insert(&req->newconf->connect_entries, &a->an);
 	}
-
-	return NULL;
 }
 
-static void diff_connect_entries(struct confdiff_request *req)
+static void cce_mod(void *_req, struct iv_avl_node *_a, struct iv_avl_node *_b)
 {
-	struct conf *conf = req->conf;
-	struct conf *newconf = req->newconf;
-	struct iv_list_head gc;
-	struct iv_list_head *lh;
-	struct iv_list_head *lh2;
+	struct confdiff_request *req = _req;
+	struct conf_connect_entry *a;
+	struct conf_connect_entry *b;
 
-	INIT_IV_LIST_HEAD(&gc);
+	a = iv_container_of(_a, struct conf_connect_entry, an);
+	b = iv_container_of(_b, struct conf_connect_entry, an);
 
-	iv_list_for_each_safe (lh, lh2, &conf->connect_entries) {
-		struct conf_connect_entry *cce;
-
-		cce = iv_list_entry(lh, struct conf_connect_entry, list);
-		if (find_connect_entry(newconf, cce) == NULL) {
-			iv_list_del_init(lh);
-			req->removed_connect_entry(cce);
-			iv_list_add_tail(lh, &gc);
-		}
+	if (!strcmp(a->hostname, b->hostname) && !strcmp(a->port, b->port) &&
+	    !memcmp(a->fingerprint, b->fingerprint, NODE_ID_LEN) &&
+	    a->peer_type == b->peer_type && !strcmp(a->tunitf, b->tunitf) &&
+	    a->cost == b->cost) {
+		return;
 	}
 
-	iv_list_for_each_safe (lh, lh2, &newconf->connect_entries) {
-		struct conf_connect_entry *cce;
+	iv_avl_tree_delete(&req->conf->connect_entries, &a->an);
+	req->removed_connect_entry(a);
 
-		cce = iv_list_entry(lh, struct conf_connect_entry, list);
-		if (find_connect_entry(conf, cce) == NULL) {
-			iv_list_del(lh);
-			iv_list_add_tail(lh, &conf->connect_entries);
-			if (req->new_connect_entry(cce)) {
-				iv_list_del(lh);
-				iv_list_add_tail(lh, &gc);
-			}
-		}
+	iv_avl_tree_delete(&req->newconf->connect_entries, &b->an);
+	iv_avl_tree_insert(&req->conf->connect_entries, &b->an);
+	if (req->new_connect_entry(b)) {
+		iv_avl_tree_delete(&req->conf->connect_entries, &b->an);
+		iv_avl_tree_insert(&req->newconf->connect_entries, &b->an);
+
+		iv_avl_tree_insert(&req->conf->connect_entries, &a->an);
+		if (req->new_connect_entry(a))
+			abort();
+	} else {
+		iv_avl_tree_insert(&req->newconf->connect_entries, &a->an);
 	}
+}
 
-	iv_list_splice_tail(&gc, &newconf->connect_entries);
+static void cce_del(void *_req, struct iv_avl_node *_a)
+{
+	struct confdiff_request *req = _req;
+	struct conf_connect_entry *a;
+
+	a = iv_container_of(_a, struct conf_connect_entry, an);
+
+	iv_avl_tree_delete(&req->conf->connect_entries, &a->an);
+	req->removed_connect_entry(a);
+	iv_avl_tree_insert(&req->newconf->connect_entries, &a->an);
 }
 
 static struct conf_listening_socket *
@@ -243,6 +236,9 @@ static void diff_listening_sockets(struct confdiff_request *req)
 
 void diff_configs(struct confdiff_request *req)
 {
-	diff_connect_entries(req);
+	avl_diff(&req->conf->connect_entries,
+		 &req->newconf->connect_entries,
+		 req, cce_add, cce_mod, cce_del);
+
 	diff_listening_sockets(req);
 }
