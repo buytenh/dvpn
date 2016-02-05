@@ -471,6 +471,11 @@ static int parse_config_peer(struct local_conf *lc,
 			fprintf(stderr, "error retrieving Cost value\n");
 			return -1;
 		}
+
+		if (cost < 1 || cost > 32767) {
+			fprintf(stderr, "peer Cost must be in [1..32767]\n");
+			return -1;
+		}
 	} else {
 		cost = 1;
 	}
