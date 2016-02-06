@@ -106,7 +106,11 @@ static void got_connection(void *_dls)
 	}
 	addr6 = (struct sockaddr_in6 *)&addr;
 
-	dle = find_entry_by_addr(dls, addr6->sin6_addr.s6_addr);
+	if (addr6->sin6_port == htons(44461))
+		dle = find_entry_by_addr(dls, addr6->sin6_addr.s6_addr);
+	else
+		dle = NULL;
+
 	if (dle == NULL && !dls->permit_readonly) {
 		close(fd);
 		return;
