@@ -24,6 +24,14 @@
 #include "lsa.h"
 #include "lsa_diff.h"
 
+struct lsa_diff_request {
+	int	diffs;
+	void	*cookie;
+	void	(*attr_add)(void *, struct lsa_attr *);
+	void	(*attr_mod)(void *, struct lsa_attr *, struct lsa_attr *);
+	void	(*attr_del)(void *, struct lsa_attr *);
+};
+
 static void dummy_attr_add(void *cookie, struct lsa_attr *attr)
 {
 }
@@ -32,83 +40,69 @@ static void dummy_attr_del(void *cookie, struct lsa_attr *attr)
 {
 }
 
-int lsa_diff(struct lsa *a, struct lsa *b, void *cookie,
+static void add(void *_req, struct iv_avl_node *_a)
+{
+	struct lsa_diff_request *req = _req;
+	struct lsa_attr *a;
+
+	a = iv_container_of(_a, struct lsa_attr, an);
+
+	req->diffs++;
+	req->attr_add(req->cookie, a);
+}
+
+static void mod(void *_req, struct iv_avl_node *_a, struct iv_avl_node *_b)
+{
+	struct lsa_diff_request *req = _req;
+	struct lsa_attr *a;
+	struct lsa_attr *b;
+
+	a = iv_container_of(_a, struct lsa_attr, an);
+	b = iv_container_of(_b, struct lsa_attr, an);
+
+	if (a->datalen != b->datalen ||
+	    memcmp(lsa_attr_data(a), lsa_attr_data(b), a->datalen)) {
+		req->diffs++;
+
+		if (req->attr_mod != NULL) {
+			req->attr_mod(req->cookie, a, b);
+		} else {
+			req->attr_del(req->cookie, a);
+			req->attr_add(req->cookie, b);
+		}
+	}
+}
+
+static void del(void *_req, struct iv_avl_node *_a)
+{
+	struct lsa_diff_request *req = _req;
+	struct lsa_attr *a;
+
+	a = iv_container_of(_a, struct lsa_attr, an);
+
+	req->diffs++;
+	req->attr_del(req->cookie, a);
+}
+
+int lsa_diff(struct lsa *_a, struct lsa *_b, void *cookie,
 	     void (*attr_add)(void *, struct lsa_attr *),
 	     void (*attr_mod)(void *, struct lsa_attr *, struct lsa_attr *),
 	     void (*attr_del)(void *, struct lsa_attr *))
 {
-	struct iv_avl_node *anode;
-	struct iv_avl_node *bnode;
-	int diffs;
+	struct lsa_diff_request req;
+	struct iv_avl_tree *a;
+	struct iv_avl_tree *b;
 
-	if (attr_add == NULL)
-		attr_add = dummy_attr_add;
-	if (attr_del == NULL)
-		attr_del = dummy_attr_del;
+	req.diffs = 0;
+	req.cookie = cookie;
+	req.attr_add = attr_add ? : dummy_attr_add;
+	req.attr_mod = attr_mod;
+	req.attr_del = attr_del ? : dummy_attr_del;
 
-	if (a != NULL)
-		anode = iv_avl_tree_min(&a->attrs);
-	else
-		anode = NULL;
+	a = (_a != NULL) ? &_a->attrs : NULL;
+	b = (_b != NULL) ? &_b->attrs : NULL;
 
-	if (b != NULL)
-		bnode = iv_avl_tree_min(&b->attrs);
-	else
-		bnode = NULL;
+	avl_diff(a, b, &req, add, mod, del);
 
-	diffs = 0;
-
-	while (anode != NULL && bnode != NULL) {
-		struct lsa_attr *aattr;
-		struct lsa_attr *battr;
-		int ret;
-
-		aattr = iv_container_of(anode, struct lsa_attr, an);
-		battr = iv_container_of(bnode, struct lsa_attr, an);
-
-		ret = lsa_attr_compare_keys(aattr, battr);
-
-		if (ret < 0) {
-			diffs++;
-			attr_del(cookie, aattr);
-
-			anode = iv_avl_tree_next(anode);
-		} else if (ret > 0) {
-			diffs++;
-			attr_add(cookie, battr);
-
-			bnode = iv_avl_tree_next(bnode);
-		} else {
-			if (aattr->datalen != battr->datalen ||
-			    memcmp(lsa_attr_data(aattr), lsa_attr_data(battr),
-				   aattr->datalen)) {
-				diffs++;
-				if (attr_mod != NULL) {
-					attr_mod(cookie, aattr, battr);
-				} else {
-					attr_del(cookie, aattr);
-					attr_add(cookie, battr);
-				}
-			}
-
-			anode = iv_avl_tree_next(anode);
-			bnode = iv_avl_tree_next(bnode);
-		}
-	}
-
-	while (anode != NULL) {
-		diffs++;
-		attr_del(cookie, iv_container_of(anode, struct lsa_attr, an));
-
-		anode = iv_avl_tree_next(anode);
-	}
-
-	while (bnode != NULL) {
-		diffs++;
-		attr_add(cookie, iv_container_of(bnode, struct lsa_attr, an));
-
-		bnode = iv_avl_tree_next(bnode);
-	}
-
-	return diffs;
+	return req.diffs;
 }
