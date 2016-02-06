@@ -121,7 +121,7 @@ static void try_connect(struct dgp_connect *dc)
 			v6_linklocal_addr_from_key_id(addr, dc->myid);
 
 		saddr.sin6_family = AF_INET6;
-		saddr.sin6_port = 0;
+		saddr.sin6_port = htons(44461);
 		saddr.sin6_flowinfo = 0;
 		memcpy(&saddr.sin6_addr, addr, 16);
 		saddr.sin6_scope_id = dc->ifindex;
