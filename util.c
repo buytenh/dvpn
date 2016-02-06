@@ -30,7 +30,9 @@ void avl_diff(struct iv_avl_tree *a, struct iv_avl_tree *b,
 	      void (*item_del)(void *cookie, struct iv_avl_node *a))
 {
 	struct iv_avl_node *an;
+	struct iv_avl_node *an2;
 	struct iv_avl_node *bn;
+	struct iv_avl_node *bn2;
 
 	an = (a != NULL) ? iv_avl_tree_min(a) : NULL;
 	bn = (b != NULL) ? iv_avl_tree_min(b) : NULL;
@@ -40,26 +42,32 @@ void avl_diff(struct iv_avl_tree *a, struct iv_avl_tree *b,
 
 		ret = a->compare(an, bn);
 		if (ret < 0) {
+			an2 = iv_avl_tree_next(an);
 			item_del(cookie, an);
-			an = iv_avl_tree_next(an);
+			an = an2;
 		} else if (ret > 0) {
+			bn2 = iv_avl_tree_next(bn);
 			item_add(cookie, bn);
-			bn = iv_avl_tree_next(bn);
+			bn = bn2;
 		} else {
+			an2 = iv_avl_tree_next(an);
+			bn2 = iv_avl_tree_next(bn);
 			item_mod(cookie, an, bn);
-			an = iv_avl_tree_next(an);
-			bn = iv_avl_tree_next(bn);
+			an = an2;
+			bn = bn2;
 		}
 	}
 
 	while (an != NULL) {
+		an2 = iv_avl_tree_next(an);
 		item_del(cookie, an);
-		an = iv_avl_tree_next(an);
+		an = an2;
 	}
 
 	while (bn != NULL) {
+		bn2 = iv_avl_tree_next(bn);
 		item_add(cookie, bn);
-		bn = iv_avl_tree_next(bn);
+		bn = bn2;
 	}
 }
 
