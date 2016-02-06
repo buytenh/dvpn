@@ -41,12 +41,27 @@ static void dst_append(struct dst *dst, uint8_t *buf, int buflen)
 	dst->off += buflen;
 }
 
-static void dst_append_u8(struct dst *dst, int value)
+static void dst_append_int(struct dst *dst, uint64_t value)
 {
-	uint8_t val;
+	uint8_t val[10];
+	int i;
 
-	val = value & 0xff;
-	dst_append(dst, &val, 1);
+	val[0] = 0x80 | ((value >> 63) & 0x1);
+	val[1] = 0x80 | ((value >> 56) & 0x7f);
+	val[2] = 0x80 | ((value >> 49) & 0x7f);
+	val[3] = 0x80 | ((value >> 42) & 0x7f);
+	val[4] = 0x80 | ((value >> 35) & 0x7f);
+	val[5] = 0x80 | ((value >> 28) & 0x7f);
+	val[6] = 0x80 | ((value >> 21) & 0x7f);
+	val[7] = 0x80 | ((value >> 14) & 0x7f);
+	val[8] = 0x80 | ((value >> 7) & 0x7f);
+	val[9] = value & 0x7f;
+
+	i = 0;
+	while (val[i] == 0x80)
+		i++;
+
+	dst_append(dst, val + i, sizeof(val) - i);
 }
 
 static void dst_append_u16(struct dst *dst, int value)
@@ -83,7 +98,7 @@ int lsa_serialise(uint8_t *buf, int buflen, struct lsa *lsa, uint8_t *preid)
 
 		attr = iv_container_of(an, struct lsa_attr, an);
 
-		dst_append_u8(&dst, attr->type);
+		dst_append_int(&dst, attr->type);
 
 		if (attr->keylen) {
 			dst_append_u16(&dst, 0x8000 | attr->keylen);

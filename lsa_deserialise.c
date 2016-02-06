@@ -46,11 +46,18 @@ struct src {
 		(_src)->off += _buflen;					\
 	}
 
-#define SRC_READ_U8(src)			\
-	({					\
-		uint8_t val;			\
-		SRC_READ(src, &val, 1);		\
-		val;				\
+#define SRC_READ_INT(src)				\
+	({						\
+		uint64_t v;				\
+		uint8_t val;				\
+							\
+		v = 0;					\
+		do {					\
+			SRC_READ(src, &val, 1);		\
+			v = (v << 7) | (val & 0x7f);	\
+		} while (val & 0x80);			\
+							\
+		v;					\
 	})
 
 #define SRC_READ_U16(src)			\
@@ -89,7 +96,7 @@ struct lsa *lsa_deserialise(uint8_t *buf, int buflen)
 		int datalen;
 		uint8_t *data;
 
-		type = SRC_READ_U8(&src);
+		type = SRC_READ_INT(&src);
 
 		val = SRC_READ_U16(&src);
 		if (val & 0x8000) {
