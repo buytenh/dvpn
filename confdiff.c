@@ -98,30 +98,68 @@ static void cls_add(void *_req, struct iv_avl_node *_a)
 	}
 }
 
-static struct conf_listen_entry *
-find_listen_entry(struct conf_listening_socket *cls,
-		  struct conf_listen_entry *_cle)
+struct cle_op {
+	struct confdiff_request		*req;
+	struct conf_listening_socket	*cls;
+	struct conf_listening_socket	*newcls;
+};
+
+static void cle_add(void *_op, struct iv_avl_node *_a)
 {
-	struct iv_list_head *lh;
+	struct cle_op *op = _op;
+	struct conf_listen_entry *a;
 
-	iv_list_for_each (lh, &cls->listen_entries) {
-		struct conf_listen_entry *cle;
+	a = iv_container_of(_a, struct conf_listen_entry, an);
 
-		cle = iv_list_entry(lh, struct conf_listen_entry, list);
+	iv_avl_tree_delete(&op->newcls->listen_entries, &a->an);
+	iv_avl_tree_insert(&op->cls->listen_entries, &a->an);
+	if (op->req->new_listen_entry(op->cls, a)) {
+		iv_avl_tree_delete(&op->cls->listen_entries, &a->an);
+		iv_avl_tree_insert(&op->newcls->listen_entries, &a->an);
+	}
+}
 
-		if (strcmp(cle->name, _cle->name))
-			continue;
-		if (memcmp(cle->fingerprint, _cle->fingerprint, NODE_ID_LEN))
-			continue;
-		if (cle->peer_type != _cle->peer_type)
-			continue;
-		if (strcmp(cle->tunitf, _cle->tunitf))
-			continue;
+static void cle_mod(void *_op, struct iv_avl_node *_a, struct iv_avl_node *_b)
+{
+	struct cle_op *op = _op;
+	struct conf_listen_entry *a;
+	struct conf_listen_entry *b;
 
-		return cle;
+	a = iv_container_of(_a, struct conf_listen_entry, an);
+	b = iv_container_of(_b, struct conf_listen_entry, an);
+
+	if (!memcmp(a->fingerprint, b->fingerprint, NODE_ID_LEN) &&
+	    a->peer_type == b->peer_type && !strcmp(a->tunitf, b->tunitf)) {
+		return;
 	}
 
-	return NULL;
+	iv_avl_tree_delete(&op->cls->listen_entries, &a->an);
+	op->req->removed_listen_entry(op->cls, a);
+
+	iv_avl_tree_delete(&op->newcls->listen_entries, &b->an);
+	iv_avl_tree_insert(&op->cls->listen_entries, &b->an);
+	if (op->req->new_listen_entry(op->cls, b)) {
+		iv_avl_tree_delete(&op->cls->listen_entries, &b->an);
+		iv_avl_tree_insert(&op->newcls->listen_entries, &b->an);
+
+		iv_avl_tree_delete(&op->cls->listen_entries, &a->an);
+		if (op->req->new_listen_entry(op->cls, a))
+			abort();
+	} else {
+		iv_avl_tree_insert(&op->newcls->listen_entries, &a->an);
+	}
+}
+
+static void cle_del(void *_op, struct iv_avl_node *_a)
+{
+	struct cle_op *op = _op;
+	struct conf_listen_entry *a;
+
+	a = iv_container_of(_a, struct conf_listen_entry, an);
+
+	iv_avl_tree_delete(&op->cls->listen_entries, &a->an);
+	op->req->removed_listen_entry(op->cls, a);
+	iv_avl_tree_insert(&op->newcls->listen_entries, &a->an);
 }
 
 static void cls_mod(void *_req, struct iv_avl_node *_a, struct iv_avl_node *_b)
@@ -129,41 +167,17 @@ static void cls_mod(void *_req, struct iv_avl_node *_a, struct iv_avl_node *_b)
 	struct confdiff_request *req = _req;
 	struct conf_listening_socket *a;
 	struct conf_listening_socket *b;
-	struct iv_list_head gc;
-	struct iv_list_head *lh;
-	struct iv_list_head *lh2;
+	struct cle_op op;
 
 	a = iv_container_of(_a, struct conf_listening_socket, an);
 	b = iv_container_of(_b, struct conf_listening_socket, an);
 
-	INIT_IV_LIST_HEAD(&gc);
+	op.req = req;
+	op.cls = a;
+	op.newcls = b;
 
-	iv_list_for_each_safe (lh, lh2, &a->listen_entries) {
-		struct conf_listen_entry *cle;
-
-		cle = iv_list_entry(lh, struct conf_listen_entry, list);
-		if (find_listen_entry(b, cle) == NULL) {
-			iv_list_del_init(lh);
-			req->removed_listen_entry(a, cle);
-			iv_list_add_tail(lh, &gc);
-		}
-	}
-
-	iv_list_for_each_safe (lh, lh2, &b->listen_entries) {
-		struct conf_listen_entry *cle;
-
-		cle = iv_list_entry(lh, struct conf_listen_entry, list);
-		if (find_listen_entry(a, cle) == NULL) {
-			iv_list_del(lh);
-			iv_list_add_tail(lh, &a->listen_entries);
-			if (req->new_listen_entry(a, cle)) {
-				iv_list_del(lh);
-				iv_list_add_tail(lh, &gc);
-			}
-		}
-	}
-
-	iv_list_splice_tail(&gc, &b->listen_entries);
+	avl_diff(&a->listen_entries, &b->listen_entries, &op,
+		 cle_add, cle_mod, cle_del);
 }
 
 static void cls_del(void *_req, struct iv_avl_node *_a)

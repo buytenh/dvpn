@@ -21,7 +21,6 @@
 #define __CONF_H
 
 #include <iv_avl.h>
-#include <iv_list.h>
 #include <stdint.h>
 #include <sys/socket.h>
 #include "dgp_connect.h"
@@ -61,14 +60,14 @@ struct conf_listening_socket {
 	struct iv_avl_node		an;
 
 	struct sockaddr_storage		listen_address;
-	struct iv_list_head		listen_entries;
+	struct iv_avl_tree		listen_entries;
 
 	int				registered;
 	struct tconn_listen_socket	tls;
 };
 
 struct conf_listen_entry {
-	struct iv_list_head		list;
+	struct iv_avl_node		an;
 
 	char				*name;
 	uint8_t				fingerprint[NODE_ID_LEN];

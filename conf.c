@@ -324,6 +324,18 @@ static int parse_listen_addr(struct sockaddr_storage *dst,
 	return ret;
 }
 
+static int
+compare_listen_entries(struct iv_avl_node *_a, struct iv_avl_node *_b)
+{
+	struct conf_listen_entry *a;
+	struct conf_listen_entry *b;
+
+	a = iv_container_of(_a, struct conf_listen_entry, an);
+	b = iv_container_of(_b, struct conf_listen_entry, an);
+
+	return strcmp(a->name, b->name);
+}
+
 static struct conf_listening_socket *
 get_listening_socket(struct local_conf *lc, const char *listen)
 {
@@ -360,7 +372,7 @@ get_listening_socket(struct local_conf *lc, const char *listen)
 	if (iv_avl_tree_insert(&lc->conf->listening_sockets, &cls->an) < 0)
 		abort();
 
-	INIT_IV_LIST_HEAD(&cls->listen_entries);
+	INIT_IV_AVL_TREE(&cls->listen_entries, compare_listen_entries);
 
 	return cls;
 }
@@ -383,8 +395,9 @@ add_listen_peer(struct local_conf *lc, const char *peer, const char *listen,
 		return -1;
 	}
 
-	iv_list_add_tail(&cle->list, &cls->listen_entries);
 	cle->name = strdup(peer);
+	iv_avl_tree_insert(&cls->listen_entries, &cle->an);
+
 	memcpy(cle->fingerprint, fp, NODE_ID_LEN);
 	cle->peer_type = peer_type;
 	cle->tunitf = strdup(itf ? : "dvpn%d");
@@ -563,20 +576,19 @@ void free_config(struct conf *conf)
 
 	iv_avl_tree_for_each_safe (an, an2, &conf->listening_sockets) {
 		struct conf_listening_socket *cls;
-		struct iv_list_head *lh;
-		struct iv_list_head *lh2;
+		struct iv_avl_node *bn;
+		struct iv_avl_node *bn2;
 
 		cls = iv_container_of(an, struct conf_listening_socket, an);
 
 		iv_avl_tree_delete(&conf->listening_sockets, &cls->an);
 
-		iv_list_for_each_safe (lh, lh2, &cls->listen_entries) {
+		iv_avl_tree_for_each_safe (bn, bn2, &cls->listen_entries) {
 			struct conf_listen_entry *cle;
 
-			cle = iv_list_entry(lh, struct conf_listen_entry,
-					    list);
+			cle = iv_container_of(bn, struct conf_listen_entry, an);
 
-			iv_list_del(&cle->list);
+			iv_avl_tree_delete(&cls->listen_entries, &cle->an);
 			free(cle->name);
 			free(cle->tunitf);
 			free(cle);

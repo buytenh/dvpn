@@ -377,7 +377,7 @@ static void stop_conf_listen_entry(struct conf_listen_entry *cle)
 
 static int start_conf_listening_socket(struct conf_listening_socket *cls)
 {
-	struct iv_list_head *lh;
+	struct iv_avl_node *an;
 
 	cls->tls.listen_address = cls->listen_address;
 	cls->tls.key = key;
@@ -386,10 +386,10 @@ static int start_conf_listening_socket(struct conf_listening_socket *cls)
 
 	cls->registered = 1;
 
-	iv_list_for_each (lh, &cls->listen_entries) {
+	iv_avl_tree_for_each (an, &cls->listen_entries) {
 		struct conf_listen_entry *cle;
 
-		cle = iv_list_entry(lh, struct conf_listen_entry, list);
+		cle = iv_container_of(an, struct conf_listen_entry, an);
 		if (start_conf_listen_entry(cls, cle))
 			return 1;
 	}
@@ -399,14 +399,14 @@ static int start_conf_listening_socket(struct conf_listening_socket *cls)
 
 static void stop_conf_listening_socket(struct conf_listening_socket *cls)
 {
-	struct iv_list_head *lh;
+	struct iv_avl_node *an;
 
 	cls->registered = 0;
 
-	iv_list_for_each (lh, &cls->listen_entries) {
+	iv_avl_tree_for_each (an, &cls->listen_entries) {
 		struct conf_listen_entry *cle;
 
-		cle = iv_list_entry(lh, struct conf_listen_entry, list);
+		cle = iv_container_of(an, struct conf_listen_entry, an);
 		if (cle->registered)
 			stop_conf_listen_entry(cle);
 	}
