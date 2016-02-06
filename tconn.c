@@ -34,6 +34,7 @@
 #include <gnutls/abstract.h>
 #include <gnutls/x509.h>
 #include <iv.h>
+#include <netinet/tcp.h>
 #include <string.h>
 #include "tconn.h"
 #include "util.h"
@@ -424,6 +425,7 @@ static int tconn_do_handshake(struct tconn *tc, int notify_err)
 {
 	char *desc;
 	int ret;
+	int i;
 
 	ret = gnutls_handshake(tc->sess);
 	if ((!ret || ret == GNUTLS_E_AGAIN) && tconn_tx_flush(tc))
@@ -448,6 +450,12 @@ static int tconn_do_handshake(struct tconn *tc, int notify_err)
 		iv_task_register(&tc->rx_task);
 
 	verify_state(tc);
+
+	i = 1;
+	if (setsockopt(tc->fd->fd, SOL_TCP, TCP_NODELAY, &i, sizeof(i)) < 0) {
+		perror("setsockopt(SOL_TCP, TCP_NODELAY)");
+		abort();
+	}
 
 	desc = gnutls_session_get_desc(tc->sess);
 	tc->handshake_done(tc->cookie, desc);

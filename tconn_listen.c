@@ -131,7 +131,6 @@ static void handshake_done(void *_cc, char *desc)
 {
 	struct client_conn *cc = _cc;
 	struct tconn_listen_entry *le = cc->tle;
-	int i;
 
 	if (le->current != NULL) {
 		fprintf(stderr, "%s: handshake done, using %s, disconnecting "
@@ -143,12 +142,6 @@ static void handshake_done(void *_cc, char *desc)
 	}
 
 	le->current = cc;
-
-	i = 1;
-	if (setsockopt(cc->fd.fd, SOL_TCP, TCP_NODELAY, &i, sizeof(i)) < 0) {
-		perror("setsockopt(SOL_TCP, TCP_NODELAY)");
-		abort();
-	}
 
 	cc->state = STATE_CONNECTED;
 

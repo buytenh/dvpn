@@ -113,16 +113,8 @@ static void send_keepalive(void *_tc)
 static void handshake_done(void *_tc, char *desc)
 {
 	struct tconn_connect *tc = _tc;
-	int i;
 
 	fprintf(stderr, "%s: handshake done, using %s\n", tc->name, desc);
-
-	i = 1;
-	if (setsockopt(tc->tconnfd.fd, SOL_TCP, TCP_NODELAY,
-		       &i, sizeof(i)) < 0) {
-		perror("setsockopt(SOL_TCP, TCP_NODELAY)");
-		abort();
-	}
 
 	tc->state = STATE_CONNECTED;
 
