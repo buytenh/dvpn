@@ -417,7 +417,6 @@ static void stop_conf_listening_socket(struct conf_listening_socket *cls)
 static void stop_config(struct conf *conf)
 {
 	struct iv_avl_node *an;
-	struct iv_list_head *lh;
 
 	iv_avl_tree_for_each (an, &conf->connect_entries) {
 		struct conf_connect_entry *cce;
@@ -427,10 +426,10 @@ static void stop_config(struct conf *conf)
 			stop_conf_connect_entry(cce);
 	}
 
-	iv_list_for_each (lh, &conf->listening_sockets) {
+	iv_avl_tree_for_each (an, &conf->listening_sockets) {
 		struct conf_listening_socket *cls;
 
-		cls = iv_list_entry(lh, struct conf_listening_socket, list);
+		cls = iv_container_of(an, struct conf_listening_socket, an);
 		if (cls->registered)
 			stop_conf_listening_socket(cls);
 	}
@@ -439,7 +438,6 @@ static void stop_config(struct conf *conf)
 static int start_config(struct conf *conf)
 {
 	struct iv_avl_node *an;
-	struct iv_list_head *lh;
 
 	iv_avl_tree_for_each (an, &conf->connect_entries) {
 		struct conf_connect_entry *cce;
@@ -449,10 +447,10 @@ static int start_config(struct conf *conf)
 			goto err;
 	}
 
-	iv_list_for_each (lh, &conf->listening_sockets) {
+	iv_avl_tree_for_each (an, &conf->listening_sockets) {
 		struct conf_listening_socket *cls;
 
-		cls = iv_list_entry(lh, struct conf_listening_socket, list);
+		cls = iv_container_of(an, struct conf_listening_socket, an);
 		if (start_conf_listening_socket(cls))
 			goto err;
 	}

@@ -45,6 +45,18 @@ compare_connect_entries(struct iv_avl_node *_a, struct iv_avl_node *_b)
 	return strcmp(a->name, b->name);
 }
 
+static int
+compare_listening_sockets(struct iv_avl_node *_a, struct iv_avl_node *_b)
+{
+	struct conf_listening_socket *a;
+	struct conf_listening_socket *b;
+
+	a = iv_container_of(_a, struct conf_listening_socket, an);
+	b = iv_container_of(_b, struct conf_listening_socket, an);
+
+	return addrcmp(&a->listen_address, &b->listen_address);
+}
+
 static struct ini_cfgobj *parse_cfgfile(const char *file)
 {
 	struct ini_cfgobj *co;
@@ -316,16 +328,26 @@ static struct conf_listening_socket *
 get_listening_socket(struct local_conf *lc, const char *listen)
 {
 	struct sockaddr_storage addr;
-	struct iv_list_head *lh;
+	struct iv_avl_node *an;
 	struct conf_listening_socket *cls;
 
 	if (parse_listen_addr(&addr, listen, lc->default_port) < 0)
 		return NULL;
 
-	iv_list_for_each (lh, &lc->conf->listening_sockets) {
-		cls = iv_list_entry(lh, struct conf_listening_socket, list);
-		if (addrcmp(&addr, &cls->listen_address) == 0)
+	an = lc->conf->listening_sockets.root;
+	while (an != NULL) {
+		int ret;
+
+		cls = iv_container_of(an, struct conf_listening_socket, an);
+
+		ret = addrcmp(&addr, &cls->listen_address);
+		if (ret == 0)
 			return cls;
+
+		if (ret < 0)
+			an = an->left;
+		else
+			an = an->right;
 	}
 
 	cls = calloc(1, sizeof(*cls));
@@ -334,8 +356,10 @@ get_listening_socket(struct local_conf *lc, const char *listen)
 		return NULL;
 	}
 
-	iv_list_add_tail(&cls->list, &lc->conf->listening_sockets);
 	cls->listen_address = addr;
+	if (iv_avl_tree_insert(&lc->conf->listening_sockets, &cls->an) < 0)
+		abort();
+
 	INIT_IV_LIST_HEAD(&cls->listen_entries);
 
 	return cls;
@@ -474,7 +498,7 @@ struct conf *parse_config(const char *file)
 	conf->private_key = NULL;
 	conf->node_name = NULL;
 	INIT_IV_AVL_TREE(&conf->connect_entries, compare_connect_entries);
-	INIT_IV_LIST_HEAD(&conf->listening_sockets);
+	INIT_IV_AVL_TREE(&conf->listening_sockets, compare_listening_sockets);
 
 	co = parse_cfgfile(file);
 	if (co == NULL) {
@@ -519,8 +543,6 @@ void free_config(struct conf *conf)
 {
 	struct iv_avl_node *an;
 	struct iv_avl_node *an2;
-	struct iv_list_head *lh;
-	struct iv_list_head *lh2;
 
 	free(conf->private_key);
 
@@ -539,19 +561,19 @@ void free_config(struct conf *conf)
 		free(cce);
 	}
 
-	iv_list_for_each_safe (lh, lh2, &conf->listening_sockets) {
+	iv_avl_tree_for_each_safe (an, an2, &conf->listening_sockets) {
 		struct conf_listening_socket *cls;
-		struct iv_list_head *lh3;
-		struct iv_list_head *lh4;
+		struct iv_list_head *lh;
+		struct iv_list_head *lh2;
 
-		cls = iv_list_entry(lh, struct conf_listening_socket, list);
+		cls = iv_container_of(an, struct conf_listening_socket, an);
 
-		iv_list_del(&cls->list);
+		iv_avl_tree_delete(&conf->listening_sockets, &cls->an);
 
-		iv_list_for_each_safe (lh3, lh4, &cls->listen_entries) {
+		iv_list_for_each_safe (lh, lh2, &cls->listen_entries) {
 			struct conf_listen_entry *cle;
 
-			cle = iv_list_entry(lh3, struct conf_listen_entry,
+			cle = iv_list_entry(lh, struct conf_listen_entry,
 					    list);
 
 			iv_list_del(&cle->list);

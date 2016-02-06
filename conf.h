@@ -36,7 +36,7 @@ struct conf {
 	char			*node_name;
 
 	struct iv_avl_tree	connect_entries;
-	struct iv_list_head	listening_sockets;
+	struct iv_avl_tree	listening_sockets;
 };
 
 struct conf_connect_entry {
@@ -58,7 +58,7 @@ struct conf_connect_entry {
 };
 
 struct conf_listening_socket {
-	struct iv_list_head		list;
+	struct iv_avl_node		an;
 
 	struct sockaddr_storage		listen_address;
 	struct iv_list_head		listen_entries;
