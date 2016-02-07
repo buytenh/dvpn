@@ -88,13 +88,20 @@ int lsa_serialise(uint8_t *buf, int buflen, struct lsa *lsa, uint8_t *preid)
 
 	iv_avl_tree_for_each (an, &lsa->attrs) {
 		struct lsa_attr *attr;
+		int flags;
 
 		attr = iv_container_of(an, struct lsa_attr, an);
 
 		dst_append_int(&dst, attr->type);
 
+		flags = 0;
+		if (attr->keylen)
+			flags |= LSA_ATTR_FLAG_HAS_KEY;
+
+		dst_append_int(&dst, flags);
+
 		if (attr->keylen) {
-			dst_append_int(&dst, 0x8000 | attr->keylen);
+			dst_append_int(&dst, attr->keylen);
 			dst_append(&dst, lsa_attr_key(attr), attr->keylen);
 		}
 

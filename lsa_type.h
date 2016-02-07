@@ -26,6 +26,10 @@ enum lsa_attr_type {
 	LSA_ATTR_TYPE_NODE_NAME = 3,
 };
 
+enum lsa_attr_flags {
+	LSA_ATTR_FLAG_HAS_KEY = 1,
+};
+
 struct lsa_attr_peer {
 	uint16_t		metric;
 	uint8_t			peer_type;

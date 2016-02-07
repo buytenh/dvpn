@@ -22,6 +22,7 @@
 #include <iv_list.h>
 #include <string.h>
 #include "lsa_deserialise.h"
+#include "lsa_type.h"
 
 struct src {
 	uint8_t		*src;
@@ -97,7 +98,7 @@ int lsa_deserialise(struct lsa **lsap, uint8_t *buf, int buflen)
 
 	while (src.off < len) {
 		int type;
-		int val;
+		int flags;
 		int keylen;
 		uint8_t *key;
 		int datalen;
@@ -105,17 +106,16 @@ int lsa_deserialise(struct lsa **lsap, uint8_t *buf, int buflen)
 
 		type = SRC_READ_INT(&src);
 
-		val = SRC_READ_INT(&src);
-		if (val & 0x8000) {
-			keylen = val & 0x7fff;
-			key = SRC_GET_PTR(&src, keylen);
+		flags = SRC_READ_INT(&src);
 
-			datalen = SRC_READ_INT(&src) & 0x7fff;
+		if (flags & LSA_ATTR_FLAG_HAS_KEY) {
+			keylen = SRC_READ_INT(&src);
+			key = SRC_GET_PTR(&src, keylen);
 		} else {
 			keylen = 0;
-			datalen = val & 0x7fff;
 		}
 
+		datalen = SRC_READ_INT(&src);
 		data = SRC_GET_PTR(&src, datalen);
 
 		lsa_attr_add(lsa, type, key, keylen, data, datalen);
