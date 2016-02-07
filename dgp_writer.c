@@ -50,7 +50,7 @@ static struct lsa *map(struct dgp_writer *dw, struct lsa *lsa)
 static int
 dgp_writer_output_lsa(struct dgp_writer *dw, struct lsa *old, struct lsa *new)
 {
-	uint8_t buf[LSA_MAX_SIZE];
+	uint8_t buf[lsa_serialised_int_len(LSA_MAX_SIZE) + LSA_MAX_SIZE];
 	int len;
 	struct lsa dummy;
 	struct lsa *lsa;
