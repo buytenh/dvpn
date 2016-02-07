@@ -68,7 +68,7 @@ dgp_writer_output_lsa(struct dgp_writer *dw, struct lsa *old, struct lsa *new)
 	}
 
 	len = lsa_serialise(buf, sizeof(buf), lsa, dw->myid);
-	if (len < 0)
+	if (len > sizeof(buf))
 		abort();
 
 	if (write(dw->fd, buf, len) != len) {
