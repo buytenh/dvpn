@@ -62,7 +62,8 @@ int dgp_reader_read(struct dgp_reader *dr, int fd)
 	int ret;
 
 	do {
-		ret = read(fd, dr->buf + dr->bytes, LSA_MAX_SIZE - dr->bytes);
+		ret = read(fd, dr->buf + dr->bytes,
+			   sizeof(dr->buf) - dr->bytes);
 	} while (ret < 0 && errno == EINTR);
 
 	if (ret <= 0) {

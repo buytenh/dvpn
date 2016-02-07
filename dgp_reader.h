@@ -34,7 +34,7 @@ struct dgp_reader {
 	void			(*io_error)(void *cookie);
 
 	int				bytes;
-	uint8_t				buf[LSA_MAX_SIZE];
+	uint8_t				buf[65536];
 	struct adj_rib_in		adj_rib_in;
 	struct rib_listener_to_loc	to_loc;
 	struct iv_timer			keepalive_timeout;
