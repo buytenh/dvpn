@@ -67,15 +67,6 @@ static void dst_append_int(struct dst *dst, uint64_t value)
 	dst_append(dst, val + i, sizeof(val) - i);
 }
 
-static void dst_append_u16(struct dst *dst, int value)
-{
-	uint8_t val[2];
-
-	val[0] = (value >> 8) & 0xff;
-	val[1] = value & 0xff;
-	dst_append(dst, val, 2);
-}
-
 int lsa_serialise(uint8_t *buf, int buflen, struct lsa *lsa, uint8_t *preid)
 {
 	struct dst dst;
@@ -103,15 +94,15 @@ int lsa_serialise(uint8_t *buf, int buflen, struct lsa *lsa, uint8_t *preid)
 		dst_append_int(&dst, attr->type);
 
 		if (attr->keylen) {
-			dst_append_u16(&dst, 0x8000 | attr->keylen);
+			dst_append_int(&dst, 0x8000 | attr->keylen);
 			dst_append(&dst, lsa_attr_key(attr), attr->keylen);
 		}
 
 		if (attr->type == LSA_ATTR_TYPE_ADV_PATH && preid != NULL) {
-			dst_append_u16(&dst, attr->datalen + NODE_ID_LEN);
+			dst_append_int(&dst, attr->datalen + NODE_ID_LEN);
 			dst_append(&dst, preid, NODE_ID_LEN);
 		} else {
-			dst_append_u16(&dst, attr->datalen);
+			dst_append_int(&dst, attr->datalen);
 		}
 		dst_append(&dst, lsa_attr_data(attr), attr->datalen);
 	}

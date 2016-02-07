@@ -182,9 +182,11 @@ static int lsa_attr_size(struct lsa_attr *attr)
 	int size;
 
 	size = lsa_serialised_int_len(attr->type);
-	if (attr->keylen)
-		size += 2 + attr->keylen;
-	size += 2 + attr->datalen;
+	if (attr->keylen) {
+		size += lsa_serialised_int_len(0x8000 | attr->keylen);
+		size += attr->keylen;
+	}
+	size += lsa_serialised_int_len(attr->datalen) + attr->datalen;
 
 	return size;
 }

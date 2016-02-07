@@ -68,13 +68,6 @@ struct src {
 		v;					\
 	})
 
-#define SRC_READ_U16(src)			\
-	({					\
-		uint8_t val[2];			\
-		SRC_READ(src, val, 2);		\
-		(val[0] << 8) | val[1];		\
-	})
-
 int lsa_deserialise(struct lsa **lsap, uint8_t *buf, int buflen)
 {
 	struct lsa *lsa = NULL;
@@ -112,12 +105,12 @@ int lsa_deserialise(struct lsa **lsap, uint8_t *buf, int buflen)
 
 		type = SRC_READ_INT(&src);
 
-		val = SRC_READ_U16(&src);
+		val = SRC_READ_INT(&src);
 		if (val & 0x8000) {
 			keylen = val & 0x7fff;
 			key = SRC_GET_PTR(&src, keylen);
 
-			datalen = SRC_READ_U16(&src) & 0x7fff;
+			datalen = SRC_READ_INT(&src) & 0x7fff;
 		} else {
 			keylen = 0;
 			datalen = val & 0x7fff;
