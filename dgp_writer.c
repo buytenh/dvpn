@@ -60,7 +60,7 @@ dgp_writer_output_lsa(struct dgp_writer *dw, struct lsa *old, struct lsa *new)
 		if (map(dw, old) == NULL)
 			return 0;
 
-		dummy.size = 2 + NODE_ID_LEN;
+		dummy.size = NODE_ID_LEN;
 		memcpy(&dummy.id, old->id, NODE_ID_LEN);
 		INIT_IV_AVL_TREE(&dummy.attrs, NULL);
 
