@@ -82,20 +82,18 @@ int dgp_reader_read(struct dgp_reader *dr, int fd)
 	dr->keepalive_timeout.expires.tv_sec += KEEPALIVE_TIMEOUT;
 	iv_timer_register(&dr->keepalive_timeout);
 
-	while (dr->bytes >= 2) {
+	while (dr->bytes) {
 		int len;
+		struct lsa *lsa;
 
-		len = ((dr->buf[0] << 8) | dr->buf[1]) + 2;
-		if (dr->bytes < len)
+		len = lsa_deserialise(&lsa, dr->buf, dr->bytes);
+		if (len < 0)
+			return -1;
+
+		if (len == 0)
 			break;
 
-		if (len >= 2 + NODE_ID_LEN) {
-			struct lsa *lsa;
-
-			lsa = lsa_deserialise(dr->buf, len);
-			if (lsa == NULL)
-				return -1;
-
+		if (lsa != NULL) {
 			if (dr->remoteid != NULL)
 				adj_rib_in_add_lsa(&dr->adj_rib_in, lsa);
 

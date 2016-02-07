@@ -22,7 +22,7 @@
 
 #include "lsa.h"
 
-struct lsa *lsa_deserialise(uint8_t *buf, int buflen);
+int lsa_deserialise(struct lsa **lsap, uint8_t *buf, int buflen);
 
 
 #endif

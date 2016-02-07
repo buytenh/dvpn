@@ -75,7 +75,7 @@ struct src {
 		(val[0] << 8) | val[1];		\
 	})
 
-struct lsa *lsa_deserialise(uint8_t *buf, int buflen)
+int lsa_deserialise(struct lsa **lsap, uint8_t *buf, int buflen)
 {
 	struct lsa *lsa = NULL;
 	struct src src;
@@ -87,16 +87,22 @@ struct lsa *lsa_deserialise(uint8_t *buf, int buflen)
 	src.off = 0;
 
 	len = SRC_READ_U16(&src);
-	if (len + 2 != buflen)
-		return NULL;
+	if (len == 0) {
+		*lsap = NULL;
+		return src.off;
+	}
+
+	len += src.off;
+	if (len > buflen)
+		return 0;
 
 	SRC_READ(&src, id, NODE_ID_LEN);
 
 	lsa = lsa_alloc(id);
 	if (lsa == NULL)
-		return NULL;
+		return -1;
 
-	while (src.off < buflen) {
+	while (src.off < len) {
 		int type;
 		int val;
 		int keylen;
@@ -122,17 +128,17 @@ struct lsa *lsa_deserialise(uint8_t *buf, int buflen)
 		lsa_attr_add(lsa, type, key, keylen, data, datalen);
 	}
 
-	if (lsa->size != buflen) {
-		fprintf(stderr, "lsa_deserialise: lsa size %d versus "
-				"buffer size %d\n", lsa->size, buflen);
-	}
+	*lsap = lsa;
 
-	return lsa;
+	return src.off;
 
 short_read:
+	if (lsa == NULL)
+		return 0;
+
 error:
 	if (lsa != NULL)
 		lsa_put(lsa);
 
-	return NULL;
+	return -1;
 }
