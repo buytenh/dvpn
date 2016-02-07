@@ -86,7 +86,7 @@ int lsa_deserialise(struct lsa **lsap, uint8_t *buf, int buflen)
 	src.srclen = buflen;
 	src.off = 0;
 
-	len = SRC_READ_U16(&src);
+	len = SRC_READ_INT(&src);
 	if (len == 0) {
 		*lsap = NULL;
 		return src.off;

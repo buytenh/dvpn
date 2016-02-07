@@ -90,7 +90,7 @@ int lsa_serialise(uint8_t *buf, int buflen, struct lsa *lsa, uint8_t *preid)
 	if (preid != NULL && !iv_avl_tree_empty(&lsa->attrs))
 		size += NODE_ID_LEN;
 
-	dst_append_u16(&dst, size);
+	dst_append_int(&dst, size);
 	size += dst.off;
 
 	dst_append(&dst, lsa->id, NODE_ID_LEN);

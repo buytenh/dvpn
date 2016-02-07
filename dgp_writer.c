@@ -123,12 +123,7 @@ static int dgp_writer_rib_dump(struct dgp_writer *dw)
 
 static void dgp_writer_send_keepalive(struct dgp_writer *dw)
 {
-	uint8_t buf[2];
-
-	buf[0] = 0x00;
-	buf[1] = 0x00;
-
-	if (write(dw->fd, buf, 2) != 2)
+	if (write(dw->fd, "", 1) != 1)
 		dw->io_error(dw->cookie);
 }
 
