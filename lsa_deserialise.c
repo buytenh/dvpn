@@ -29,13 +29,13 @@ struct src {
 	int		off;
 };
 
-#define SRC_GET_PTR(_src, _buflen)				\
-	({							\
-		int off = (_src)->off;				\
-		if ((_src)->srclen - off < _buflen)		\
-			goto short_read;			\
-		(_src)->off += _buflen;				\
-		(_src)->src + off;				\
+#define SRC_GET_PTR(_src, _buflen)			\
+	({						\
+		int off = (_src)->off;			\
+		if ((_src)->srclen - off < _buflen)	\
+			goto short_read;		\
+		(_src)->off += _buflen;			\
+		(_src)->src + off;			\
 	})
 
 #define SRC_READ(_src, _buf, _buflen)					\
@@ -48,14 +48,22 @@ struct src {
 
 #define SRC_READ_INT(src)				\
 	({						\
-		uint64_t v;				\
 		uint8_t val;				\
+		int cnt;				\
+		uint64_t v;				\
 							\
-		v = 0;					\
-		do {					\
+		SRC_READ(src, &val, 1);			\
+		if (val == 0x80)			\
+			goto error;			\
+							\
+		cnt = 0;				\
+		v = val & 0x7f;				\
+		while (val & 0x80) {			\
+			if (++cnt == 10)		\
+				goto error;		\
 			SRC_READ(src, &val, 1);		\
 			v = (v << 7) | (val & 0x7f);	\
-		} while (val & 0x80);			\
+		}					\
 							\
 		v;					\
 	})
@@ -122,6 +130,7 @@ struct lsa *lsa_deserialise(uint8_t *buf, int buflen)
 	return lsa;
 
 short_read:
+error:
 	if (lsa != NULL)
 		lsa_put(lsa);
 
