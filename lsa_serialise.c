@@ -124,3 +124,16 @@ int lsa_serialise(uint8_t *buf, int buflen, struct lsa *lsa, uint8_t *preid)
 
 	return dst.off;
 }
+
+int lsa_serialised_int_len(uint64_t value)
+{
+	int i;
+
+	for (i = 1; i <= 10; i++) {
+		value >>= 7;
+		if (!value)
+			return i;
+	}
+
+	abort();
+}

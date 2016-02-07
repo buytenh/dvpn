@@ -22,6 +22,7 @@
 #include <iv_list.h>
 #include <string.h>
 #include "lsa.h"
+#include "lsa_serialise.h"
 
 static int compare_attr_keys(struct iv_avl_node *_a, struct iv_avl_node *_b)
 {
@@ -180,7 +181,7 @@ static int lsa_attr_size(struct lsa_attr *attr)
 {
 	int size;
 
-	size = 1;
+	size = lsa_serialised_int_len(attr->type);
 	if (attr->keylen)
 		size += 2 + attr->keylen;
 	size += 2 + attr->datalen;
