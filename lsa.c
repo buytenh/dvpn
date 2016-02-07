@@ -149,13 +149,15 @@ struct lsa_attr *lsa_attr_find(struct lsa *lsa, int type,
 {
 	struct {
 		struct lsa_attr		skey;
-		uint8_t			kkey[keylen];
-	} s;
+		uint8_t			kkey[0];
+	} *s;
 	struct iv_avl_node *an;
 
-	s.skey.type = type;
-	s.skey.keylen = keylen;
-	memcpy(lsa_attr_key(&s.skey), key, keylen);
+	s = alloca(sizeof(*s) + keylen);
+
+	s->skey.type = type;
+	s->skey.keylen = keylen;
+	memcpy(lsa_attr_key(&s->skey), key, keylen);
 
 	an = lsa->attrs.root;
 	while (an != NULL) {
@@ -164,7 +166,7 @@ struct lsa_attr *lsa_attr_find(struct lsa *lsa, int type,
 
 		attr = iv_container_of(an, struct lsa_attr, an);
 
-		ret = lsa_attr_compare_keys(&s.skey, attr);
+		ret = lsa_attr_compare_keys(&s->skey, attr);
 		if (ret == 0)
 			return attr;
 
