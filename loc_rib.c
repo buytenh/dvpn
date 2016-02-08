@@ -218,7 +218,10 @@ void loc_rib_add_lsa(struct loc_rib *rib, struct lsa *lsa)
 		abort();
 
 	ref->lsa = lsa_get(lsa);
-	iv_avl_tree_insert(&rid->lsas, &ref->an);
+	if (iv_avl_tree_insert(&rid->lsas, &ref->an) < 0) {
+		fprintf(stderr, "loc_rib_add_lsa: duplicate LSA inserted!\n");
+		abort();
+	}
 
 	if (rid->best == NULL || lsa_better(lsa, rid->best))
 		set_newbest(rib, rid, lsa);
