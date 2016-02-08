@@ -74,6 +74,54 @@ int x509_read_privkey(gnutls_x509_privkey_t *privkey, const char *file)
 	return 0;
 }
 
+int x509_privkey_to_der_pubkey(uint8_t *buf, int buflen,
+                               gnutls_x509_privkey_t x509_privkey)
+{
+	gnutls_privkey_t privkey;
+	int ret;
+	gnutls_pubkey_t pubkey;
+	size_t len;
+
+	ret = gnutls_privkey_init(&privkey);
+	if (ret < 0)
+		goto err;
+
+	ret = gnutls_privkey_import_x509(privkey, x509_privkey, 0);
+	if (ret < 0)
+		goto err_free_priv;
+
+	ret = gnutls_pubkey_init(&pubkey);
+	if (ret < 0)
+		goto err_free_priv;
+
+	ret = gnutls_pubkey_import_privkey(pubkey, privkey, 0, 0);
+	if (ret < 0)
+		goto err_free_pub;
+
+	len = buflen;
+
+	ret = gnutls_pubkey_export(pubkey, GNUTLS_X509_FMT_DER, buf, &len);
+	if (ret < 0)
+		goto err_free_pub;
+
+	gnutls_pubkey_deinit(pubkey);
+	gnutls_privkey_deinit(privkey);
+
+	return len;
+
+err_free_pub:
+	gnutls_pubkey_deinit(pubkey);
+
+err_free_priv:
+	gnutls_privkey_deinit(privkey);
+
+err:
+	fprintf(stderr, "x509_privkey_to_der_pubkey: ");
+	gnutls_perror(ret);
+
+	return -1;
+}
+
 int get_pubkey_id(uint8_t *id, gnutls_pubkey_t pubkey)
 {
 	uint8_t buf[65536];
