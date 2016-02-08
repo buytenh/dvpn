@@ -126,10 +126,39 @@ static struct loc_rib_id *get_id(struct loc_rib *rib, uint8_t *id)
 	return rid;
 }
 
+static uint64_t lsa_get_version(struct lsa *lsa)
+{
+	struct lsa_attr *attr;
+	uint32_t *data;
+	uint64_t version;
+
+	attr = lsa_attr_find(lsa, LSA_ATTR_TYPE_VERSION, NULL, 0);
+	if (attr == NULL || attr->datalen != 8)
+		return 0;
+
+	data = lsa_attr_data(attr);
+
+	version = ntohl(data[0]);
+	version <<= 32;
+	version |= ntohl(data[1]);
+
+	return version;
+}
+
 static int lsa_better(struct lsa *a, struct lsa *b)
 {
+	uint64_t aver;
+	uint64_t bver;
 	struct lsa_attr *aattr;
 	struct lsa_attr *battr;
+
+	aver = lsa_get_version(a);
+	bver = lsa_get_version(b);
+
+	if (aver > bver)
+		return 1;
+	if (aver < bver)
+		return 0;
 
 	aattr = lsa_attr_find(a, LSA_ATTR_TYPE_ADV_PATH, NULL, 0);
 	if (aattr == NULL)
