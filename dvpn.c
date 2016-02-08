@@ -185,7 +185,6 @@ static void cce_set_state(void *_cce, int up)
 	if (up) {
 		int maxseg;
 		int mtu;
-		uint8_t id[NODE_ID_LEN];
 		uint8_t addr[16];
 
 		local_add_peer(cce->fingerprint, cce->peer_type, cce->cost);
@@ -206,12 +205,10 @@ static void cce_set_state(void *_cce, int up)
 
 		itf_set_state(tunitf, 1);
 
-		x509_get_key_id(id, key);
-
-		v6_linklocal_addr_from_key_id(addr, id);
+		v6_linklocal_addr_from_key_id(addr, keyid);
 		itf_add_addr_v6(tunitf, addr, 10);
 
-		v6_global_addr_from_key_id(addr, id);
+		v6_global_addr_from_key_id(addr, keyid);
 		itf_add_addr_v6(tunitf, addr, 128);
 
 		v6_global_addr_from_key_id(addr, cce->fingerprint);
@@ -270,7 +267,6 @@ static void cle_set_state(void *_cle, int up)
 	if (up) {
 		int maxseg;
 		int mtu;
-		uint8_t id[NODE_ID_LEN];
 		uint8_t addr[16];
 
 		local_add_peer(cle->fingerprint, cle->peer_type, cle->cost);
@@ -291,12 +287,10 @@ static void cle_set_state(void *_cle, int up)
 
 		itf_set_state(tunitf, 1);
 
-		x509_get_key_id(id, key);
-
-		v6_linklocal_addr_from_key_id(addr, id);
+		v6_linklocal_addr_from_key_id(addr, keyid);
 		itf_add_addr_v6(tunitf, addr, 10);
 
-		v6_global_addr_from_key_id(addr, id);
+		v6_global_addr_from_key_id(addr, keyid);
 		itf_add_addr_v6(tunitf, addr, 128);
 
 		v6_global_addr_from_key_id(addr, cle->fingerprint);
