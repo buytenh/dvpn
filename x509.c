@@ -74,7 +74,7 @@ int x509_read_privkey(gnutls_x509_privkey_t *privkey, const char *file)
 	return 0;
 }
 
-int get_sha256_pubkey_id(uint8_t *id, gnutls_pubkey_t pubkey)
+int get_pubkey_id(uint8_t *id, gnutls_pubkey_t pubkey)
 {
 	uint8_t buf[65536];
 	size_t len;
@@ -116,7 +116,7 @@ int x509_get_privkey_id(uint8_t *id, gnutls_x509_privkey_t x509_privkey)
 	if (ret < 0)
 		goto err_free_pub;
 
-	ret = get_sha256_pubkey_id(id, pubkey);
+	ret = get_pubkey_id(id, pubkey);
 	if (ret < 0)
 		goto err_free_pub;
 

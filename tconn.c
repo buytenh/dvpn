@@ -617,9 +617,9 @@ static int tconn_verify_cert(gnutls_session_t sess)
 		goto err_free_key;
 	}
 
-	ret = get_sha256_pubkey_id(peerid, peerkey);
+	ret = get_pubkey_id(peerid, peerkey);
 	if (ret) {
-		gtls_perror("gnutls_pubkey_get_key_id", ret);
+		gtls_perror("get_pubkey_id", ret);
 		goto err_free_key;
 	}
 
