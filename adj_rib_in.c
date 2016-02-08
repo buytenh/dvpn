@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <iv_avl.h>
 #include <iv_list.h>
+#include <nettle/sha2.h>
 #include <string.h>
 #include "adj_rib_in.h"
 #include "lsa_diff.h"
@@ -78,15 +79,20 @@ adj_rib_in_find_ref(struct adj_rib_in *rib, uint8_t *id)
 static struct lsa *map(struct adj_rib_in *rib, struct lsa *lsa)
 {
 	struct lsa_attr *attr;
+	struct sha256_ctx ctx;
+	uint8_t id[NODE_ID_LEN];
 
 	if (lsa == NULL)
+		return NULL;
+
+	if (lsa->size + NODE_ID_LEN > LSA_MAX_SIZE)
 		return NULL;
 
 	attr = lsa_attr_find(lsa, LSA_ATTR_TYPE_ADV_PATH, NULL, 0);
 	if (attr == NULL)
 		return NULL;
 
-	if (attr->datalen < NODE_ID_LEN)
+	if (attr->datalen < NODE_ID_LEN || (attr->datalen % NODE_ID_LEN) != 0)
 		return NULL;
 
 	if (rib->remoteid == NULL ||
@@ -96,7 +102,15 @@ static struct lsa *map(struct adj_rib_in *rib, struct lsa *lsa)
 	if (rib->myid != NULL && lsa_path_contains(attr, rib->myid))
 		return NULL;
 
-	if (lsa->size + NODE_ID_LEN > LSA_MAX_SIZE)
+	attr = lsa_attr_find(lsa, LSA_ATTR_TYPE_PUBKEY, NULL, 0);
+	if (attr == NULL)
+		return NULL;
+
+	sha256_init(&ctx);
+	sha256_update(&ctx, attr->datalen, lsa_attr_data(attr));
+	sha256_digest(&ctx, SHA256_DIGEST_SIZE, id);
+
+	if (memcmp(lsa->id, id, NODE_ID_LEN))
 		return NULL;
 
 	return lsa;
