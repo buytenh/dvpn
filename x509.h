@@ -22,10 +22,10 @@
 
 #include <gnutls/gnutls.h>
 
-int x509_read_privkey(gnutls_x509_privkey_t *key, const char *file);
+int x509_read_privkey(gnutls_x509_privkey_t *privkey, const char *file);
 int get_sha256_pubkey_id(uint8_t *id, gnutls_pubkey_t pubkey);
-int x509_get_key_id(uint8_t *id, gnutls_x509_privkey_t key);
-int x509_generate_cert(gnutls_x509_crt_t *crt, gnutls_x509_privkey_t key);
+int x509_get_privkey_id(uint8_t *id, gnutls_x509_privkey_t privkey);
+int x509_generate_cert(gnutls_x509_crt_t *crt, gnutls_x509_privkey_t privkey);
 
 
 #endif

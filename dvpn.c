@@ -40,7 +40,7 @@
 #include "util.h"
 #include "x509.h"
 
-static gnutls_x509_privkey_t key;
+static gnutls_x509_privkey_t privkey;
 static uint8_t keyid[NODE_ID_LEN];
 static struct loc_rib loc_rib;
 static struct rt_builder rb;
@@ -341,7 +341,7 @@ static int start_conf_connect_entry(struct conf_connect_entry *cce)
 	cce->tc.name = cce->name;
 	cce->tc.hostname = cce->hostname;
 	cce->tc.port = cce->port;
-	cce->tc.key = key;
+	cce->tc.privkey = privkey;
 	cce->tc.fingerprint = cce->fingerprint;
 	cce->tc.cookie = cce;
 	cce->tc.set_state = cce_set_state;
@@ -422,7 +422,7 @@ static int start_conf_listening_socket(struct conf_listening_socket *cls)
 	struct iv_avl_node *an;
 
 	cls->tls.listen_address = cls->listen_address;
-	cls->tls.key = key;
+	cls->tls.privkey = privkey;
 	if (tconn_listen_socket_register(&cls->tls))
 		return 1;
 
@@ -595,19 +595,18 @@ static void usage(const char *me)
 
 static int show_key_id(const char *file)
 {
-	gnutls_x509_privkey_t key;
 	int ret;
 
 	gnutls_global_init();
 
-	ret = x509_read_privkey(&key, file);
+	ret = x509_read_privkey(&privkey, file);
 	if (ret == 0) {
-		ret = x509_get_key_id(keyid, key);
+		ret = x509_get_privkey_id(keyid, privkey);
 		if (ret == 0) {
 			printhex(stdout, keyid, NODE_ID_LEN);
 			printf("\n");
 		}
-		gnutls_x509_privkey_deinit(key);
+		gnutls_x509_privkey_deinit(privkey);
 	}
 
 	gnutls_global_deinit();
@@ -653,10 +652,10 @@ int main(int argc, char *argv[])
 
 	gnutls_global_init();
 
-	if (x509_read_privkey(&key, conf->private_key) < 0)
+	if (x509_read_privkey(&privkey, conf->private_key) < 0)
 		return 1;
 
-	if (x509_get_key_id(keyid, key) < 0)
+	if (x509_get_privkey_id(keyid, privkey) < 0)
 		return 1;
 
 	fprintf(stderr, "dvpn: using key ID ");
@@ -727,7 +726,7 @@ int main(int argc, char *argv[])
 
 	rt_builder_deinit(&rb);
 
-	gnutls_x509_privkey_deinit(key);
+	gnutls_x509_privkey_deinit(privkey);
 
 	gnutls_global_deinit();
 

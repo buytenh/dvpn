@@ -29,7 +29,7 @@
 #include <unistd.h>
 #include "x509.h"
 
-int x509_read_privkey(gnutls_x509_privkey_t *key, const char *file)
+int x509_read_privkey(gnutls_x509_privkey_t *privkey, const char *file)
 {
 	int fd;
 	uint8_t buf[65536];
@@ -53,7 +53,7 @@ int x509_read_privkey(gnutls_x509_privkey_t *key, const char *file)
 
 	close(fd);
 
-	ret = gnutls_x509_privkey_init(key);
+	ret = gnutls_x509_privkey_init(privkey);
 	if (ret) {
 		fprintf(stderr, "x509_read_privkey: ");
 		gnutls_perror(ret);
@@ -63,11 +63,11 @@ int x509_read_privkey(gnutls_x509_privkey_t *key, const char *file)
 	datum.data = buf;
 	datum.size = size;
 
-	ret = gnutls_x509_privkey_import(*key, &datum, GNUTLS_X509_FMT_PEM);
+	ret = gnutls_x509_privkey_import(*privkey, &datum, GNUTLS_X509_FMT_PEM);
 	if (ret) {
 		fprintf(stderr, "x509_read_privkey: ");
 		gnutls_perror(ret);
-		gnutls_x509_privkey_deinit(*key);
+		gnutls_x509_privkey_deinit(*privkey);
 		return -1;
 	}
 
@@ -94,7 +94,7 @@ int get_sha256_pubkey_id(uint8_t *id, gnutls_pubkey_t pubkey)
 	return 0;
 }
 
-int x509_get_key_id(uint8_t *id, gnutls_x509_privkey_t key)
+int x509_get_privkey_id(uint8_t *id, gnutls_x509_privkey_t x509_privkey)
 {
 	gnutls_privkey_t privkey;
 	int ret;
@@ -104,7 +104,7 @@ int x509_get_key_id(uint8_t *id, gnutls_x509_privkey_t key)
 	if (ret < 0)
 		goto err;
 
-	ret = gnutls_privkey_import_x509(privkey, key, 0);
+	ret = gnutls_privkey_import_x509(privkey, x509_privkey, 0);
 	if (ret < 0)
 		goto err_free_priv;
 
@@ -132,13 +132,14 @@ err_free_priv:
 	gnutls_privkey_deinit(privkey);
 
 err:
-	fprintf(stderr, "x509_get_key_id: ");
+	fprintf(stderr, "x509_get_privkey_id: ");
 	gnutls_perror(ret);
 
 	return -1;
 }
 
-int x509_generate_cert(gnutls_x509_crt_t *crt, gnutls_x509_privkey_t key)
+int
+x509_generate_cert(gnutls_x509_crt_t *crt, gnutls_x509_privkey_t x509_privkey)
 {
 	int ret;
 	gnutls_privkey_t privkey;
@@ -157,7 +158,7 @@ int x509_generate_cert(gnutls_x509_crt_t *crt, gnutls_x509_privkey_t key)
 	if (ret < 0)
 		goto err_free_crt;
 
-	ret = gnutls_privkey_import_x509(privkey, key, 0);
+	ret = gnutls_privkey_import_x509(privkey, x509_privkey, 0);
 	if (ret < 0)
 		goto err_free_priv;
 

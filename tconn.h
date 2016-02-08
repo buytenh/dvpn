@@ -27,7 +27,7 @@
 struct tconn {
 	struct iv_fd		*fd;
 	int			role;
-	gnutls_x509_privkey_t	key;
+	gnutls_x509_privkey_t	privkey;
 	void			*cookie;
 	int			(*verify_key_id)(void *cookie,
 						 const uint8_t *id);

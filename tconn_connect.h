@@ -31,7 +31,7 @@ struct tconn_connect {
 	char			*name;
 	char			*hostname;
 	char			*port;
-	gnutls_x509_privkey_t	key;
+	gnutls_x509_privkey_t	privkey;
 	uint8_t			*fingerprint;
 	void			*cookie;
 	void			(*set_state)(void *cookie, int up);

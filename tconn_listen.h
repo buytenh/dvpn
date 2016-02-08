@@ -25,7 +25,7 @@
 
 struct tconn_listen_socket {
 	struct sockaddr_storage	listen_address;
-	gnutls_x509_privkey_t	key;
+	gnutls_x509_privkey_t	privkey;
 
 	struct iv_fd		listen_fd;
 	struct iv_list_head	listen_entries;

@@ -667,11 +667,11 @@ static int tconn_start_handshake(struct tconn *tc)
 
 	gnutls_certificate_set_verify_function(tc->cert, tconn_verify_cert);
 
-	ret = x509_generate_cert(&cert, tc->key);
+	ret = x509_generate_cert(&cert, tc->privkey);
 	if (ret)
 		goto err_free;
 
-	ret = gnutls_certificate_set_x509_key(tc->cert, &cert, 1, tc->key);
+	ret = gnutls_certificate_set_x509_key(tc->cert, &cert, 1, tc->privkey);
 	gnutls_x509_crt_deinit(cert);
 
 	if (ret) {

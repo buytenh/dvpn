@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
 	};
 	const char *config = "/etc/dvpn.ini";
 	struct conf *conf;
-	gnutls_x509_privkey_t key;
+	gnutls_x509_privkey_t privkey;
 
 	while (1) {
 		int c;
@@ -91,14 +91,14 @@ int main(int argc, char *argv[])
 
 	gnutls_global_init();
 
-	if (x509_read_privkey(&key, conf->private_key) < 0)
+	if (x509_read_privkey(&privkey, conf->private_key) < 0)
 		return 1;
 
 	free_config(conf);
 
-	x509_get_key_id(myid, key);
+	x509_get_privkey_id(myid, privkey);
 
-	gnutls_x509_privkey_deinit(key);
+	gnutls_x509_privkey_deinit(privkey);
 
 	gnutls_global_deinit();
 

@@ -236,7 +236,7 @@ static void got_connection(void *_ls)
 
 	cc->tconn.fd = &cc->fd;
 	cc->tconn.role = TCONN_ROLE_SERVER;
-	cc->tconn.key = ls->key;
+	cc->tconn.privkey = ls->privkey;
 	cc->tconn.cookie = cc;
 	cc->tconn.verify_key_id = verify_key_id;
 	cc->tconn.handshake_done = handshake_done;
