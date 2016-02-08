@@ -94,15 +94,79 @@ struct loc_rib_id *loc_rib_find_id(struct loc_rib *rib, uint8_t *id)
 	return NULL;
 }
 
+static uint64_t lsa_get_version(struct lsa *lsa)
+{
+	struct lsa_attr *attr;
+	uint32_t *data;
+	uint64_t version;
+
+	attr = lsa_attr_find(lsa, LSA_ATTR_TYPE_VERSION, NULL, 0);
+	if (attr == NULL || attr->datalen != 8)
+		return 0;
+
+	data = lsa_attr_data(attr);
+
+	version = ntohl(data[0]);
+	version <<= 32;
+	version |= ntohl(data[1]);
+
+	return version;
+}
+
+static int compare_lsas(struct lsa *a, struct lsa *b)
+{
+	uint64_t aver;
+	uint64_t bver;
+	struct lsa_attr *aattr;
+	struct lsa_attr *battr;
+	int ret;
+
+	aver = lsa_get_version(a);
+	bver = lsa_get_version(b);
+	if (aver < bver)
+		return -1;
+	if (aver > bver)
+		return 1;
+
+	aattr = lsa_attr_find(a, LSA_ATTR_TYPE_ADV_PATH, NULL, 0);
+	if (aattr == NULL)
+		abort();
+
+	battr = lsa_attr_find(b, LSA_ATTR_TYPE_ADV_PATH, NULL, 0);
+	if (battr == NULL)
+		abort();
+
+	if (aattr->datalen < battr->datalen)
+		return 1;
+	if (aattr->datalen > battr->datalen)
+		return 0;
+
+	ret = memcmp(lsa_attr_data(aattr), lsa_attr_data(battr),
+		     aattr->datalen);
+	if (ret < 0)
+		return -1;
+	if (ret > 0)
+		return 1;
+
+	return 0;
+}
+
 static int compare_lsa_refs(struct iv_avl_node *_a, struct iv_avl_node *_b)
 {
-	struct loc_rib_lsa_ref *a;
-	struct loc_rib_lsa_ref *b;
+	struct lsa *a;
+	struct lsa *b;
+	int ret;
 
-	a = iv_container_of(_a, struct loc_rib_lsa_ref, an);
-	b = iv_container_of(_b, struct loc_rib_lsa_ref, an);
+	a = iv_container_of(_a, struct loc_rib_lsa_ref, an)->lsa;
+	b = iv_container_of(_b, struct loc_rib_lsa_ref, an)->lsa;
 
-	return memcmp(&a->lsa, &b->lsa, sizeof(a->lsa));
+	ret = compare_lsas(a, b);
+	if (ret == 0) {
+		fprintf(stderr, "compare_lsa_refs: found equal LSAs!\n");
+		abort();
+	}
+
+	return ret;
 }
 
 static struct loc_rib_id *get_id(struct loc_rib *rib, uint8_t *id)
@@ -124,57 +188,6 @@ static struct loc_rib_id *get_id(struct loc_rib *rib, uint8_t *id)
 	iv_avl_tree_insert(&rib->ids, &rid->an);
 
 	return rid;
-}
-
-static uint64_t lsa_get_version(struct lsa *lsa)
-{
-	struct lsa_attr *attr;
-	uint32_t *data;
-	uint64_t version;
-
-	attr = lsa_attr_find(lsa, LSA_ATTR_TYPE_VERSION, NULL, 0);
-	if (attr == NULL || attr->datalen != 8)
-		return 0;
-
-	data = lsa_attr_data(attr);
-
-	version = ntohl(data[0]);
-	version <<= 32;
-	version |= ntohl(data[1]);
-
-	return version;
-}
-
-static int lsa_better(struct lsa *a, struct lsa *b)
-{
-	uint64_t aver;
-	uint64_t bver;
-	struct lsa_attr *aattr;
-	struct lsa_attr *battr;
-
-	aver = lsa_get_version(a);
-	bver = lsa_get_version(b);
-
-	if (aver > bver)
-		return 1;
-	if (aver < bver)
-		return 0;
-
-	aattr = lsa_attr_find(a, LSA_ATTR_TYPE_ADV_PATH, NULL, 0);
-	if (aattr == NULL)
-		abort();
-
-	battr = lsa_attr_find(b, LSA_ATTR_TYPE_ADV_PATH, NULL, 0);
-	if (battr == NULL)
-		abort();
-
-	if (aattr->datalen < battr->datalen)
-		return 1;
-	if (aattr->datalen > battr->datalen)
-		return 0;
-
-	return !!(memcmp(lsa_attr_data(aattr), lsa_attr_data(battr),
-			 aattr->datalen) < 0);
 }
 
 static void
@@ -223,7 +236,7 @@ void loc_rib_add_lsa(struct loc_rib *rib, struct lsa *lsa)
 		abort();
 	}
 
-	if (rid->best == NULL || lsa_better(lsa, rid->best))
+	if (rid->best == NULL || compare_lsas(lsa, rid->best) > 0)
 		set_newbest(rib, rid, lsa);
 }
 
@@ -239,7 +252,7 @@ find_lsa_ref(struct loc_rib_id *rid, struct lsa *lsa)
 
 		ref = iv_container_of(an, struct loc_rib_lsa_ref, an);
 
-		ret = memcmp(&lsa, &ref->lsa, sizeof(ref->lsa));
+		ret = compare_lsas(lsa, ref->lsa);
 		if (ret == 0)
 			return ref;
 
@@ -262,7 +275,7 @@ static void recompute_best_lsa(struct loc_rib *rib, struct loc_rib_id *rid)
 		struct loc_rib_lsa_ref *ref;
 
 		ref = iv_container_of(an, struct loc_rib_lsa_ref, an);
-		if (best == NULL || lsa_better(ref->lsa, best))
+		if (best == NULL || compare_lsas(ref->lsa, best) > 0)
 			best = ref->lsa;
 	}
 
@@ -288,7 +301,7 @@ void loc_rib_mod_lsa(struct loc_rib *rib, struct lsa *old, struct lsa *new)
 
 	if (rid->best == old) {
 		recompute_best_lsa(rib, rid);
-	} else if (lsa_better(new, rid->best)) {
+	} else if (compare_lsas(new, rid->best) > 0) {
 		set_newbest(rib, rid, new);
 	}
 
