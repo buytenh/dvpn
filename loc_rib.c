@@ -271,13 +271,10 @@ static void recompute_best_lsa(struct loc_rib *rib, struct loc_rib_id *rid)
 	struct iv_avl_node *an;
 
 	best = NULL;
-	iv_avl_tree_for_each (an, &rid->lsas) {
-		struct loc_rib_lsa_ref *ref;
 
-		ref = iv_container_of(an, struct loc_rib_lsa_ref, an);
-		if (best == NULL || compare_lsas(ref->lsa, best) > 0)
-			best = ref->lsa;
-	}
+	an = iv_avl_tree_max(&rid->lsas);
+	if (an != NULL)
+		best = iv_container_of(an, struct loc_rib_lsa_ref, an)->lsa;
 
 	set_newbest(rib, rid, best);
 }
