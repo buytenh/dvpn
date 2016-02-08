@@ -24,6 +24,7 @@ enum lsa_attr_type {
 	LSA_ATTR_TYPE_ADV_PATH = 1,
 	LSA_ATTR_TYPE_PEER = 2,
 	LSA_ATTR_TYPE_NODE_NAME = 3,
+	LSA_ATTR_TYPE_VERSION = 4,
 };
 
 enum lsa_attr_flags {

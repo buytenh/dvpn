@@ -35,6 +35,8 @@ static char *lsa_attr_type_name(int type, char *buf, int bufsize)
 		return "PEER";
 	case LSA_ATTR_TYPE_NODE_NAME:
 		return "NODE_NAME";
+	case LSA_ATTR_TYPE_VERSION:
+		return "VERSION";
 	default:
 		snprintf(buf, bufsize, "type-%d", type);
 		return buf;
@@ -127,6 +129,8 @@ void lsa_attr_print_data(FILE *fp, struct lsa_attr *attr,
 			fprintf(fp, "%d", peer->peer_type);
 	} else if (attr->type == LSA_ATTR_TYPE_NODE_NAME) {
 		print_node_name(fp, attr);
+	} else if (attr->type == LSA_ATTR_TYPE_VERSION) {
+		printhex(fp, lsa_attr_data(attr), attr->datalen);
 	} else {
 		printhex(fp, lsa_attr_data(attr), attr->datalen);
 	}
