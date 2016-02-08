@@ -183,6 +183,7 @@ static struct loc_rib_id *get_id(struct loc_rib *rib, uint8_t *id)
 
 	memcpy(rid->id, id, NODE_ID_LEN);
 	INIT_IV_AVL_TREE(&rid->lsas, compare_lsa_refs);
+	rid->highest_version_seen = 0;
 	rid->best = NULL;
 
 	iv_avl_tree_insert(&rib->ids, &rid->an);
@@ -190,28 +191,45 @@ static struct loc_rib_id *get_id(struct loc_rib *rib, uint8_t *id)
 	return rid;
 }
 
-static void
-set_newbest(struct loc_rib *rib, struct loc_rib_id *rid, struct lsa *lsa)
+static void recompute_best_lsa(struct loc_rib *rib, struct loc_rib_id *rid)
 {
 	struct lsa *oldbest;
+	struct lsa *best;
+	struct iv_avl_node *an;
 	struct iv_list_head *ilh;
 	struct iv_list_head *ilh2;
 	struct rib_listener *rl;
 
 	oldbest = rid->best;
-	rid->best = lsa;
 
-	if (oldbest == NULL && lsa != NULL) {
+	best = NULL;
+
+	an = iv_avl_tree_max(&rid->lsas);
+	if (an != NULL) {
+		best = iv_container_of(an, struct loc_rib_lsa_ref, an)->lsa;
+		if (lsa_get_version(best) < rid->highest_version_seen)
+			best = NULL;
+	}
+
+	if (best == oldbest)
+		return;
+
+	if (best != NULL)
+		rid->highest_version_seen = lsa_get_version(best);
+
+	rid->best = best;
+
+	if (oldbest == NULL && best != NULL) {
 		iv_list_for_each_safe (ilh, ilh2, &rib->listeners) {
 			rl = iv_container_of(ilh, struct rib_listener, list);
-			rl->lsa_add(rl->cookie, lsa);
+			rl->lsa_add(rl->cookie, best);
 		}
-	} else if (oldbest != NULL && lsa != NULL) {
+	} else if (oldbest != NULL && best != NULL) {
 		iv_list_for_each_safe (ilh, ilh2, &rib->listeners) {
 			rl = iv_container_of(ilh, struct rib_listener, list);
-			rl->lsa_mod(rl->cookie, oldbest, lsa);
+			rl->lsa_mod(rl->cookie, oldbest, best);
 		}
-	} else if (oldbest != NULL && lsa == NULL) {
+	} else if (oldbest != NULL && best == NULL) {
 		iv_list_for_each_safe (ilh, ilh2, &rib->listeners) {
 			rl = iv_container_of(ilh, struct rib_listener, list);
 			rl->lsa_del(rl->cookie, oldbest);
@@ -236,8 +254,8 @@ void loc_rib_add_lsa(struct loc_rib *rib, struct lsa *lsa)
 		abort();
 	}
 
-	if (rid->best == NULL || compare_lsas(lsa, rid->best) > 0)
-		set_newbest(rib, rid, lsa);
+	if (iv_avl_tree_next(&ref->an) == NULL)
+		recompute_best_lsa(rib, rid);
 }
 
 static struct loc_rib_lsa_ref *
@@ -265,20 +283,6 @@ find_lsa_ref(struct loc_rib_id *rid, struct lsa *lsa)
 	return NULL;
 }
 
-static void recompute_best_lsa(struct loc_rib *rib, struct loc_rib_id *rid)
-{
-	struct lsa *best;
-	struct iv_avl_node *an;
-
-	best = NULL;
-
-	an = iv_avl_tree_max(&rid->lsas);
-	if (an != NULL)
-		best = iv_container_of(an, struct loc_rib_lsa_ref, an)->lsa;
-
-	set_newbest(rib, rid, best);
-}
-
 void loc_rib_mod_lsa(struct loc_rib *rib, struct lsa *old, struct lsa *new)
 {
 	struct loc_rib_id *rid;
@@ -296,11 +300,8 @@ void loc_rib_mod_lsa(struct loc_rib *rib, struct lsa *old, struct lsa *new)
 	ref->lsa = lsa_get(new);
 	iv_avl_tree_insert(&rid->lsas, &ref->an);
 
-	if (rid->best == old) {
+	if (rid->best == old || iv_avl_tree_next(&ref->an) == NULL)
 		recompute_best_lsa(rib, rid);
-	} else if (compare_lsas(new, rid->best) > 0) {
-		set_newbest(rib, rid, new);
-	}
 
 	lsa_put(old);
 }

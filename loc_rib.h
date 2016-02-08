@@ -34,6 +34,7 @@ struct loc_rib_id {
 	struct iv_avl_node	an;
 	uint8_t			id[NODE_ID_LEN];
 	struct iv_avl_tree	lsas;
+	uint64_t		highest_version_seen;
 	struct lsa		*best;
 };
 
