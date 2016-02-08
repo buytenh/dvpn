@@ -51,7 +51,7 @@ void loc_rib_deinit(struct loc_rib *rib)
 	while (!iv_avl_tree_empty(&rib->ids)) {
 		struct loc_rib_id *rid;
 
-                an = iv_avl_tree_min(&rib->ids);
+		an = iv_avl_tree_min(&rib->ids);
 		rid = iv_container_of(an, struct loc_rib_id, an);
 
 		while (!iv_avl_tree_empty(&rid->lsas)) {

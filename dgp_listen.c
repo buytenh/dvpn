@@ -244,7 +244,7 @@ void dgp_listen_socket_unregister(struct dgp_listen_socket *dls)
 void dgp_listen_entry_register(struct dgp_listen_entry *dle)
 {
 	iv_list_add_tail(&dle->list, &dle->dls->listen_entries);
-        dle->current = NULL;
+	dle->current = NULL;
 }
 
 void dgp_listen_entry_unregister(struct dgp_listen_entry *dle)
