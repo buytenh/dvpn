@@ -80,6 +80,50 @@ static enum lsa_peer_type peer_type_to_lsa_peer_type(enum peer_type type)
 	}
 }
 
+static void lsa_add_version(struct lsa *lsa, uint64_t version)
+{
+	uint32_t t32[2];
+
+	t32[0] = htonl((version >> 32) & 0xffffffff);
+	t32[1] = htonl(version & 0xffffffff);
+	lsa_attr_add(lsa, LSA_ATTR_TYPE_VERSION, NULL, 0, t32, sizeof(t32));
+}
+
+static void lsa_update_version(struct lsa *lsa)
+{
+	struct lsa_attr *attr;
+	uint32_t *data;
+	uint64_t curver;
+	uint64_t t64;
+
+	attr = lsa_attr_find(lsa, LSA_ATTR_TYPE_VERSION, NULL, 0);
+	if (attr == NULL)
+		abort();
+
+	data = lsa_attr_data(attr);
+
+	curver = ntohl(data[0]);
+	curver <<= 32;
+	curver |= ntohl(data[1]);
+
+	lsa_attr_del(lsa, attr);
+
+	t64 = time(NULL);
+	t64 <<= 8;
+	if (t64 <= curver)
+		t64 = curver + 1;
+
+	lsa_add_version(lsa, t64);
+}
+
+static void lsa_initial_version(struct lsa *lsa)
+{
+	uint64_t t64;
+
+	t64 = time(NULL);
+	lsa_add_version(lsa, (t64 + 1) << 8);
+}
+
 static void local_add_peer(uint8_t *id, enum peer_type type, int cost)
 {
 	struct lsa *newme;
@@ -91,6 +135,8 @@ static void local_add_peer(uint8_t *id, enum peer_type type, int cost)
 	data.peer_type = peer_type_to_lsa_peer_type(type);
 	lsa_attr_add(newme, LSA_ATTR_TYPE_PEER, id, NODE_ID_LEN,
 		     &data, sizeof(data));
+
+	lsa_update_version(newme);
 
 	loc_rib_mod_lsa(&loc_rib, me, newme);
 
@@ -105,6 +151,8 @@ static void local_del_peer(uint8_t *id)
 	newme = lsa_clone(me);
 
 	lsa_attr_del_key(newme, LSA_ATTR_TYPE_PEER, id, NODE_ID_LEN);
+
+	lsa_update_version(newme);
 
 	loc_rib_mod_lsa(&loc_rib, me, newme);
 
@@ -647,6 +695,7 @@ int main(int argc, char *argv[])
 		lsa_attr_add(me, LSA_ATTR_TYPE_NODE_NAME, NULL, 0,
 			     conf->node_name, strlen(conf->node_name));
 	}
+	lsa_initial_version(me);
 	loc_rib_add_lsa(&loc_rib, me);
 
 	if (start_config(conf))
