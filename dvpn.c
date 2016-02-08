@@ -124,6 +124,19 @@ static void lsa_initial_version(struct lsa *lsa)
 	lsa_add_version(lsa, (t64 + 1) << 8);
 }
 
+static void
+lsa_add_pubkey_from_privkey(struct lsa *lsa, gnutls_x509_privkey_t privkey)
+{
+	uint8_t buf[65536];
+	int len;
+
+	len = x509_privkey_to_der_pubkey(buf, sizeof(buf), privkey);
+	if (len < 0)
+		abort();
+
+	lsa_attr_add(lsa, LSA_ATTR_TYPE_PUBKEY, NULL, 0, buf, len);
+}
+
 static void local_add_peer(uint8_t *id, enum peer_type type, int cost)
 {
 	struct lsa *newme;
@@ -689,6 +702,7 @@ int main(int argc, char *argv[])
 			     conf->node_name, strlen(conf->node_name));
 	}
 	lsa_initial_version(me);
+	lsa_add_pubkey_from_privkey(me, privkey);
 	loc_rib_add_lsa(&loc_rib, me);
 
 	if (start_config(conf))
