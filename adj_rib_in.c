@@ -22,6 +22,7 @@
 #include <iv_avl.h>
 #include <iv_list.h>
 #include <nettle/sha2.h>
+#include <gnutls/abstract.h>
 #include <string.h>
 #include "adj_rib_in.h"
 #include "lsa_diff.h"
@@ -76,6 +77,33 @@ adj_rib_in_find_ref(struct adj_rib_in *rib, uint8_t *id)
 	return NULL;
 }
 
+static int check_valid_pubkey(void *data, int len)
+{
+	gnutls_pubkey_t pubkey;
+	int ret;
+	gnutls_datum_t datum;
+
+	ret = gnutls_pubkey_init(&pubkey);
+	if (ret < 0) {
+		gnutls_perror(ret);
+		return -1;
+	}
+
+	datum.data = data;
+	datum.size = len;
+
+	ret = gnutls_pubkey_import(pubkey, &datum, GNUTLS_X509_FMT_DER);
+	if (ret < 0) {
+		gnutls_perror(ret);
+		gnutls_pubkey_deinit(pubkey);
+		return -1;
+	}
+
+	gnutls_pubkey_deinit(pubkey);
+
+	return 0;
+}
+
 static struct lsa *map(struct adj_rib_in *rib, struct lsa *lsa)
 {
 	struct lsa_attr *attr;
@@ -111,6 +139,9 @@ static struct lsa *map(struct adj_rib_in *rib, struct lsa *lsa)
 	sha256_digest(&ctx, SHA256_DIGEST_SIZE, id);
 
 	if (memcmp(lsa->id, id, NODE_ID_LEN))
+		return NULL;
+
+	if (check_valid_pubkey(lsa_attr_data(attr), attr->datalen) < 0)
 		return NULL;
 
 	return lsa;
