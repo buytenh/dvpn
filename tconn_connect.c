@@ -323,6 +323,7 @@ static int start_resolve(struct tconn_connect *tc)
 	if (tc->state != STATE_RESOLVE)
 		abort();
 
+	memset(&tc->hints, 0, sizeof(tc->hints));
 	tc->hints.ai_family = PF_UNSPEC;
 	tc->hints.ai_socktype = SOCK_STREAM;
 	tc->hints.ai_protocol = 0;
