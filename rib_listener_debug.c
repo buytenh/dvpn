@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include "lsa_diff.h"
 #include "lsa_print.h"
 #include "rib_listener.h"
@@ -77,10 +78,29 @@ static void attr_del(void *cookie, struct lsa_attr *attr)
 	printf("\n");
 }
 
+static void print_timestamp(void)
+{
+	time_t now;
+	struct tm tm;
+	char buf[64];
+	int len;
+
+	now = time(NULL);
+	gmtime_r(&now, &tm);
+	asctime_r(&tm, buf);
+
+	len = strlen(buf);
+	if (len)
+		buf[len - 1] = 0;
+
+	printf("===== %s UTC =====\n", buf);
+}
+
 static void lsa_add(void *cookie, struct lsa *a)
 {
 	struct rib_listener_debug *rl = cookie;
 
+	print_timestamp();
 	print_listener_name(rl);
 	printf("lsa add: [");
 	if (lsa_print_id_name(stdout, a->id, rl->name_hints)) {
@@ -99,6 +119,7 @@ static void lsa_mod(void *cookie, struct lsa *a, struct lsa *b)
 {
 	struct rib_listener_debug *rl = cookie;
 
+	print_timestamp();
 	print_listener_name(rl);
 	printf("lsa mod: [");
 	if (lsa_print_id_name(stdout, a->id, rl->name_hints)) {
@@ -117,6 +138,7 @@ static void lsa_del(void *cookie, struct lsa *a)
 {
 	struct rib_listener_debug *rl = cookie;
 
+	print_timestamp();
 	print_listener_name(rl);
 	printf("lsa del: [");
 	if (lsa_print_id_name(stdout, a->id, rl->name_hints)) {
