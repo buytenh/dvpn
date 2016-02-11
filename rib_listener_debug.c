@@ -26,11 +26,18 @@
 #include "rib_listener_debug.h"
 #include "util.h"
 
+static void print_listener_name(struct rib_listener_debug *rl)
+{
+	if (rl->name != NULL)
+		printf("%s: ", rl->name);
+}
+
 static void attr_add(void *cookie, struct lsa_attr *attr)
 {
 	struct rib_listener_debug *rl = cookie;
 
-	printf("%s: attr add: ", rl->name);
+	print_listener_name(rl);
+	printf("attr add: ");
 	lsa_attr_print_type_name(stdout, attr);
 	if (attr->keylen)
 		lsa_attr_print_key(stdout, attr, rl->name_hints);
@@ -44,7 +51,8 @@ attr_mod(void *cookie, struct lsa_attr *aattr, struct lsa_attr *battr)
 {
 	struct rib_listener_debug *rl = cookie;
 
-	printf("%s: attr mod: ", rl->name);
+	print_listener_name(rl);
+	printf("attr mod: ");
 	lsa_attr_print_type_name(stdout, aattr);
 	if (aattr->keylen)
 		lsa_attr_print_key(stdout, aattr, rl->name_hints);
@@ -59,7 +67,8 @@ static void attr_del(void *cookie, struct lsa_attr *attr)
 {
 	struct rib_listener_debug *rl = cookie;
 
-	printf("%s: attr del: ", rl->name);
+	print_listener_name(rl);
+	printf("attr del: ");
 	lsa_attr_print_type_name(stdout, attr);
 	if (attr->keylen)
 		lsa_attr_print_key(stdout, attr, rl->name_hints);
@@ -72,7 +81,8 @@ static void lsa_add(void *cookie, struct lsa *a)
 {
 	struct rib_listener_debug *rl = cookie;
 
-	printf("%s: lsa add [", rl->name);
+	print_listener_name(rl);
+	printf("lsa add: [");
 	if (lsa_print_id_name(stdout, a->id, rl->name_hints)) {
 		printf("(");
 		printhex(stdout, a->id, NODE_ID_LEN);
@@ -89,7 +99,8 @@ static void lsa_mod(void *cookie, struct lsa *a, struct lsa *b)
 {
 	struct rib_listener_debug *rl = cookie;
 
-	printf("%s: lsa mod [", rl->name);
+	print_listener_name(rl);
+	printf("lsa mod: [");
 	if (lsa_print_id_name(stdout, a->id, rl->name_hints)) {
 		printf("(");
 		printhex(stdout, a->id, NODE_ID_LEN);
@@ -106,7 +117,8 @@ static void lsa_del(void *cookie, struct lsa *a)
 {
 	struct rib_listener_debug *rl = cookie;
 
-	printf("%s: lsa del [", rl->name);
+	print_listener_name(rl);
+	printf("lsa del: [");
 	if (lsa_print_id_name(stdout, a->id, rl->name_hints)) {
 		printf("(");
 		printhex(stdout, a->id, NODE_ID_LEN);
