@@ -121,7 +121,7 @@ static void send_keepalive(void *_cc)
 	iv_timer_register(&cc->keepalive_timer);
 
 	if (tconn_record_send(&cc->tconn, keepalive, 3)) {
-		fprintf(stderr, "%s: error sending keepalive, disconnecting\n", 
+		fprintf(stderr, "%s: error sending keepalive, disconnecting\n",
 			cc->tle->name);
 		client_conn_kill(cc, 1);
 	}
