@@ -117,7 +117,7 @@ struct lsa *lsa_clone(struct lsa *lsa)
 
 		attr = iv_container_of(an, struct lsa_attr, an);
 
-		lsa_attr_add(newlsa, attr->type,
+		lsa_add_attr(newlsa, attr->type,
 			     lsa_attr_key(attr), attr->keylen,
 			     lsa_attr_data(attr), attr->datalen);
 	}
@@ -191,13 +191,13 @@ static int lsa_attr_size(struct lsa_attr *attr)
 	return size;
 }
 
-void lsa_attr_add(struct lsa *lsa, int type, void *key, int keylen,
+void lsa_add_attr(struct lsa *lsa, int type, void *key, int keylen,
 		  void *data, int datalen)
 {
 	struct lsa_attr *attr;
 
 	if (lsa->refcount != 1) {
-		fprintf(stderr, "lsa_attr_add: called on an LSA with "
+		fprintf(stderr, "lsa_add_attr: called on an LSA with "
 				"refcount %d\n", lsa->refcount);
 		abort();
 	}

@@ -86,7 +86,7 @@ static void lsa_add_version(struct lsa *lsa, uint64_t version)
 
 	t32[0] = htonl((version >> 32) & 0xffffffff);
 	t32[1] = htonl(version & 0xffffffff);
-	lsa_attr_add(lsa, LSA_ATTR_TYPE_VERSION, NULL, 0, t32, sizeof(t32));
+	lsa_add_attr(lsa, LSA_ATTR_TYPE_VERSION, NULL, 0, t32, sizeof(t32));
 }
 
 static void lsa_update_version(struct lsa *lsa)
@@ -134,7 +134,7 @@ lsa_add_pubkey_from_privkey(struct lsa *lsa, gnutls_x509_privkey_t privkey)
 	if (len < 0)
 		abort();
 
-	lsa_attr_add(lsa, LSA_ATTR_TYPE_PUBKEY, NULL, 0, buf, len);
+	lsa_add_attr(lsa, LSA_ATTR_TYPE_PUBKEY, NULL, 0, buf, len);
 }
 
 static void local_add_peer(uint8_t *id, enum peer_type type, int cost)
@@ -146,7 +146,7 @@ static void local_add_peer(uint8_t *id, enum peer_type type, int cost)
 
 	data.metric = htons(cost);
 	data.peer_type = peer_type_to_lsa_peer_type(type);
-	lsa_attr_add(newme, LSA_ATTR_TYPE_PEER, id, NODE_ID_LEN,
+	lsa_add_attr(newme, LSA_ATTR_TYPE_PEER, id, NODE_ID_LEN,
 		     &data, sizeof(data));
 
 	lsa_update_version(newme);
@@ -696,9 +696,9 @@ int main(int argc, char *argv[])
 	dgp_listen_socket_register(&dls);
 
 	me = lsa_alloc(keyid);
-	lsa_attr_add(me, LSA_ATTR_TYPE_ADV_PATH, NULL, 0, NULL, 0);
+	lsa_add_attr(me, LSA_ATTR_TYPE_ADV_PATH, NULL, 0, NULL, 0);
 	if (conf->node_name != NULL) {
-		lsa_attr_add(me, LSA_ATTR_TYPE_NODE_NAME, NULL, 0,
+		lsa_add_attr(me, LSA_ATTR_TYPE_NODE_NAME, NULL, 0,
 			     conf->node_name, strlen(conf->node_name));
 	}
 	lsa_initial_version(me);

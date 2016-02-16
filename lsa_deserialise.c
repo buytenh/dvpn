@@ -118,7 +118,7 @@ int lsa_deserialise(struct lsa **lsap, uint8_t *buf, int buflen)
 		datalen = SRC_READ_INT(&src);
 		data = SRC_GET_PTR(&src, datalen);
 
-		lsa_attr_add(lsa, type, key, keylen, data, datalen);
+		lsa_add_attr(lsa, type, key, keylen, data, datalen);
 	}
 
 	*lsap = lsa;
