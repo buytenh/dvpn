@@ -22,10 +22,11 @@
 
 #include "lsa.h"
 
+#define MAX_SERIALISED_INT_LEN		10
+
 int lsa_serialise_length(struct lsa *lsa, uint8_t *preid);
 int lsa_serialise(uint8_t *buf, int buflen, int serlen,
 		  struct lsa *lsa, uint8_t *preid);
-int lsa_serialised_int_len(uint64_t value);
 
 
 #endif

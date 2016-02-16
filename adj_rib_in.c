@@ -113,7 +113,7 @@ static struct lsa *map(struct adj_rib_in *rib, struct lsa *lsa)
 	if (lsa == NULL)
 		return NULL;
 
-	if (lsa->size + NODE_ID_LEN > LSA_MAX_SIZE)
+	if (lsa->bytes + NODE_ID_LEN > LSA_MAX_BYTES)
 		return NULL;
 
 	attr = lsa_attr_find(lsa, LSA_ATTR_TYPE_ADV_PATH, NULL, 0);
@@ -157,9 +157,9 @@ static void notify(struct adj_rib_in *rib, struct lsa *old, struct lsa *new)
 	new = map(rib, new);
 
 	if (old != NULL)
-		rib->size -= old->size;
+		rib->size -= old->bytes;
 	if (new != NULL)
-		rib->size += new->size;
+		rib->size += new->bytes;
 
 	if (old == NULL && new != NULL) {
 		iv_list_for_each_safe (ilh, ilh2, &rib->listeners) {
@@ -203,7 +203,7 @@ int adj_rib_in_add_lsa(struct adj_rib_in *rib, struct lsa *lsa)
 		return 0;
 	}
 
-	if (rib->size + lsa->size > ADJ_RIB_IN_MAX_SIZE) {
+	if (rib->size + lsa->bytes > ADJ_RIB_IN_MAX_BYTES) {
 		fprintf(stderr, "adj_rib_in_add_lsa: dropping LSA "
 				"received from peer ");
 		printhex(stderr, rib->remoteid, NODE_ID_LEN);

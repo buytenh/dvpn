@@ -41,9 +41,6 @@ static struct lsa *map(struct dgp_writer *dw, struct lsa *lsa)
 	if (dw->remoteid != NULL && lsa_path_contains(attr, dw->remoteid))
 		return NULL;
 
-	if (lsa->size + 2 * NODE_ID_LEN > LSA_MAX_SIZE)
-		return NULL;
-
 	return lsa;
 }
 

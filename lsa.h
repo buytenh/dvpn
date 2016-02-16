@@ -23,11 +23,9 @@
 #include <iv_avl.h>
 #include "util.h"
 
-#define LSA_MAX_SIZE	32767
-
 struct lsa {
 	int			refcount;
-	int			size;
+	int			bytes;
 	uint8_t			id[NODE_ID_LEN];
 	struct iv_avl_tree	attrs;
 };

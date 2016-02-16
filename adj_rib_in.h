@@ -25,7 +25,8 @@
 #include "lsa.h"
 #include "rib_listener.h"
 
-#define ADJ_RIB_IN_MAX_SIZE	1048576
+#define ADJ_RIB_IN_MAX_BYTES	1048576
+#define LSA_MAX_BYTES		32768
 
 struct adj_rib_in {
 	uint8_t			*myid;
