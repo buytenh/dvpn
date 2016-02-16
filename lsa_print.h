@@ -23,11 +23,11 @@
 #include "loc_rib.h"
 #include "lsa.h"
 
-void lsa_attr_print_type_name(FILE *fp, struct lsa_attr *attr);
+void lsa_attr_print_type_name(FILE *fp, int parent_type, struct lsa_attr *attr);
 int lsa_print_id_name(FILE *fp, uint8_t *id, struct loc_rib *name_hints);
-void lsa_attr_print_key(FILE *fp, struct lsa_attr *attr,
+void lsa_attr_print_key(FILE *fp, int parent_type, struct lsa_attr *attr,
 			struct loc_rib *name_hints);
-void lsa_attr_print_data(FILE *fp, struct lsa_attr *attr,
+void lsa_attr_print_data(FILE *fp, int parent_type, struct lsa_attr *attr,
 			 struct loc_rib *name_hints);
 void lsa_print(FILE *fp, struct lsa *lsa, struct loc_rib *name_hints);
 

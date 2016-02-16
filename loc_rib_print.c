@@ -34,11 +34,11 @@ static void loc_rib_print_attr_add(void *_info, struct lsa_attr *a)
 	struct loc_rib_print_info *info = _info;
 
 	fprintf(info->fp, "+ ");
-	lsa_attr_print_type_name(info->fp, a);
+	lsa_attr_print_type_name(info->fp, 0, a);
 	if (a->keylen)
-		lsa_attr_print_key(info->fp, a, info->name_hints);
+		lsa_attr_print_key(info->fp, 0, a, info->name_hints);
 	fprintf(info->fp, " = ");
-	lsa_attr_print_data(info->fp, a, info->name_hints);
+	lsa_attr_print_data(info->fp, 0, a, info->name_hints);
 	fprintf(info->fp, "\n");
 }
 
@@ -48,13 +48,13 @@ loc_rib_print_attr_mod(void *_info, struct lsa_attr *a, struct lsa_attr *b)
 	struct loc_rib_print_info *info = _info;
 
 	fprintf(info->fp, "| ");
-	lsa_attr_print_type_name(info->fp, a);
+	lsa_attr_print_type_name(info->fp, 0, a);
 	if (a->keylen)
-		lsa_attr_print_key(info->fp, a, info->name_hints);
+		lsa_attr_print_key(info->fp, 0, a, info->name_hints);
 	fprintf(info->fp, " = ");
-	lsa_attr_print_data(info->fp, a, info->name_hints);
+	lsa_attr_print_data(info->fp, 0, a, info->name_hints);
 	fprintf(info->fp, " -> ");
-	lsa_attr_print_data(info->fp, b, info->name_hints);
+	lsa_attr_print_data(info->fp, 0, b, info->name_hints);
 	fprintf(info->fp, "\n");
 }
 
@@ -63,11 +63,11 @@ static void loc_rib_print_attr_del(void *_info, struct lsa_attr *a)
 	struct loc_rib_print_info *info = _info;
 
 	fprintf(info->fp, "- ");
-	lsa_attr_print_type_name(info->fp, a);
+	lsa_attr_print_type_name(info->fp, 0, a);
 	if (a->keylen)
-		lsa_attr_print_key(info->fp, a, info->name_hints);
+		lsa_attr_print_key(info->fp, 0, a, info->name_hints);
 	fprintf(info->fp, " = ");
-	lsa_attr_print_data(info->fp, a, info->name_hints);
+	lsa_attr_print_data(info->fp, 0, a, info->name_hints);
 	fprintf(info->fp, "\n");
 }
 
