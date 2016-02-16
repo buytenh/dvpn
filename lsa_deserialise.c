@@ -69,7 +69,8 @@ struct src {
 		v;					\
 	})
 
-static int lsa_deserialise_attrs(struct lsa *lsa, struct src *src)
+static int lsa_deserialise_attr_set(struct lsa *lsa, struct lsa_attr_set *dst,
+				    struct src *src)
 {
 	while (src->off < src->srclen) {
 		int type;
@@ -93,7 +94,22 @@ static int lsa_deserialise_attrs(struct lsa *lsa, struct src *src)
 		datalen = SRC_READ_INT(src);
 		data = SRC_GET_PTR(src, datalen);
 
-		lsa_add_attr(lsa, type, key, keylen, data, datalen);
+		if (flags & LSA_ATTR_FLAG_DATA_IS_TLV) {
+			struct lsa_attr_set *set;
+			struct src srcdata;
+
+			set = lsa_attr_set_add_attr_set(lsa, dst, type,
+							key, keylen);
+
+			srcdata.src = data;
+			srcdata.srclen = datalen;
+			srcdata.off = 0;
+			if (lsa_deserialise_attr_set(lsa, set, &srcdata) < 0)
+				return -1;
+		} else {
+			lsa_attr_set_add_attr(lsa, dst, type, key, keylen,
+					      data, datalen);
+		}
 	}
 
 	return 0;
@@ -132,7 +148,7 @@ int lsa_deserialise(struct lsa **lsap, uint8_t *buf, int buflen)
 	if (lsa == NULL)
 		return -1;
 
-	if (lsa_deserialise_attrs(lsa, &src) < 0)
+	if (lsa_deserialise_attr_set(lsa, &lsa->root, &src) < 0)
 		goto error;
 
 	*lsap = lsa;
