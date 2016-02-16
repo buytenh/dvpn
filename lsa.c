@@ -147,6 +147,12 @@ void *lsa_attr_data(struct lsa_attr *attr)
 struct lsa_attr *lsa_find_attr(struct lsa *lsa, int type,
 			       void *key, int keylen)
 {
+	return lsa_attr_set_find_attr(&lsa->root, type, key, keylen);
+}
+
+struct lsa_attr *lsa_attr_set_find_attr(struct lsa_attr_set *set,
+					int type, void *key, int keylen)
+{
 	struct {
 		struct lsa_attr		skey;
 		uint8_t			kkey[0];
@@ -159,7 +165,7 @@ struct lsa_attr *lsa_find_attr(struct lsa *lsa, int type,
 	s->skey.keylen = keylen;
 	memcpy(lsa_attr_key(&s->skey), key, keylen);
 
-	an = lsa->root.attrs.root;
+	an = set->attrs.root;
 	while (an != NULL) {
 		struct lsa_attr *attr;
 		int ret;
@@ -194,15 +200,28 @@ static int lsa_attr_size(struct lsa_attr *attr)
 void lsa_add_attr(struct lsa *lsa, int type, void *key, int keylen,
 		  void *data, int datalen)
 {
-	struct lsa_attr *attr;
-
 	if (lsa->refcount != 1) {
 		fprintf(stderr, "lsa_add_attr: called on an LSA with "
 				"refcount %d\n", lsa->refcount);
 		abort();
 	}
 
-	attr = lsa_find_attr(lsa, type, key, keylen);
+	lsa_attr_set_add_attr(lsa, &lsa->root, type, key, keylen,
+			      data, datalen);
+}
+
+void lsa_attr_set_add_attr(struct lsa *lsa, struct lsa_attr_set *set, int type,
+			   void *key, int keylen, void *data, int datalen)
+{
+	struct lsa_attr *attr;
+
+	if (lsa->refcount != 1) {
+		fprintf(stderr, "lsa_attr_set_add_attr: called on an LSA "
+				"with refcount %d\n", lsa->refcount);
+		abort();
+	}
+
+	attr = lsa_attr_set_find_attr(set, type, key, keylen);
 	if (attr != NULL)
 		abort();
 
@@ -219,7 +238,7 @@ void lsa_add_attr(struct lsa *lsa, int type, void *key, int keylen,
 		memcpy(lsa_attr_data(attr), data, datalen);
 
 	lsa->bytes += lsa_attr_size(attr);
-	iv_avl_tree_insert(&lsa->root.attrs, &attr->an);
+	iv_avl_tree_insert(&set->attrs, &attr->an);
 }
 
 void lsa_del_attr(struct lsa *lsa, struct lsa_attr *attr)

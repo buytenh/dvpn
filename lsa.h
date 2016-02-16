@@ -53,9 +53,16 @@ void *lsa_attr_data(struct lsa_attr *attr);
 
 struct lsa_attr *lsa_find_attr(struct lsa *lsa, int type,
 			       void *key, int keylen);
+struct lsa_attr *lsa_attr_set_find_attr(struct lsa_attr_set *set,
+					int type, void *key, int keylen);
+
 void lsa_add_attr(struct lsa *lsa, int type, void *key, int keylen,
 		  void *data, int datalen);
+void lsa_attr_set_add_attr(struct lsa *lsa, struct lsa_attr_set *set, int type,
+			   void *key, int keylen, void *data, int datalen);
+
 void lsa_del_attr(struct lsa *lsa, struct lsa_attr *attr);
+
 void lsa_del_attr_bykey(struct lsa *lsa, int type, void *key, int keylen);
 
 
