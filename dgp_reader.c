@@ -60,6 +60,7 @@ void dgp_reader_register(struct dgp_reader *dr)
 int dgp_reader_read(struct dgp_reader *dr, int fd)
 {
 	int ret;
+	int off;
 
 	do {
 		ret = read(fd, dr->buf + dr->bytes,
@@ -83,16 +84,17 @@ int dgp_reader_read(struct dgp_reader *dr, int fd)
 	dr->keepalive_timeout.expires.tv_sec += KEEPALIVE_TIMEOUT;
 	iv_timer_register(&dr->keepalive_timeout);
 
-	while (dr->bytes) {
+	off = 0;
+	while (off < dr->bytes) {
 		int len;
 		struct lsa *lsa;
 
-		len = lsa_deserialise(&lsa, dr->buf, dr->bytes);
+		len = lsa_deserialise(&lsa, dr->buf + off, dr->bytes - off);
 		if (len < 0)
 			return -1;
 
 		if (len == 0) {
-			if (dr->bytes == sizeof(dr->buf)
+			if (off == 0 && dr->bytes == sizeof(dr->buf))
 				return -1;
 			break;
 		}
@@ -104,9 +106,11 @@ int dgp_reader_read(struct dgp_reader *dr, int fd)
 			lsa_put(lsa);
 		}
 
-		dr->bytes -= len;
-		memmove(dr->buf, dr->buf + len, dr->bytes);
+		off += len;
 	}
+
+	dr->bytes -= off;
+	memmove(dr->buf, dr->buf + off, dr->bytes);
 
 	return 0;
 }
