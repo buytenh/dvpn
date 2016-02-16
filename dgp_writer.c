@@ -50,7 +50,9 @@ static struct lsa *map(struct dgp_writer *dw, struct lsa *lsa)
 static int
 dgp_writer_output_lsa(struct dgp_writer *dw, struct lsa *old, struct lsa *new)
 {
-	uint8_t buf[lsa_serialised_int_len(LSA_MAX_SIZE) + LSA_MAX_SIZE];
+	int serlen;
+	int buflen;
+	uint8_t *buf;
 	int len;
 	struct lsa dummy;
 	struct lsa *lsa;
@@ -60,15 +62,19 @@ dgp_writer_output_lsa(struct dgp_writer *dw, struct lsa *old, struct lsa *new)
 		if (map(dw, old) == NULL)
 			return 0;
 
-		dummy.size = NODE_ID_LEN;
 		memcpy(&dummy.id, old->id, NODE_ID_LEN);
 		INIT_IV_AVL_TREE(&dummy.attrs, NULL);
 
 		lsa = &dummy;
 	}
 
-	len = lsa_serialise(buf, sizeof(buf), lsa, dw->myid);
-	if (len > sizeof(buf))
+	serlen = lsa_serialise_length(lsa, dw->myid);
+
+	buflen = serlen + 128;
+	buf = alloca(buflen);
+
+	len = lsa_serialise(buf, buflen, serlen, lsa, dw->myid);
+	if (len > buflen)
 		abort();
 
 	if (write(dw->fd, buf, len) != len) {

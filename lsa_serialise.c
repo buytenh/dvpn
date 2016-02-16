@@ -67,56 +67,84 @@ static void dst_append_int(struct dst *dst, uint64_t value)
 	dst_append(dst, val + i, sizeof(val) - i);
 }
 
-int lsa_serialise(uint8_t *buf, int buflen, struct lsa *lsa, uint8_t *preid)
+static void
+lsa_attr_serialise(struct dst *dst, struct lsa_attr *attr, uint8_t *preid)
+{
+	int flags;
+
+	dst_append_int(dst, attr->type);
+
+	flags = 0;
+	if (attr->keylen)
+		flags |= LSA_ATTR_FLAG_HAS_KEY;
+
+	dst_append_int(dst, flags);
+
+	if (attr->keylen) {
+		dst_append_int(dst, attr->keylen);
+		dst_append(dst, lsa_attr_key(attr), attr->keylen);
+	}
+
+	if (preid != NULL) {
+		dst_append_int(dst, attr->datalen + NODE_ID_LEN);
+		dst_append(dst, preid, NODE_ID_LEN);
+	} else {
+		dst_append_int(dst, attr->datalen);
+	}
+	dst_append(dst, lsa_attr_data(attr), attr->datalen);
+}
+
+static void
+lsa_attrs_serialise(struct dst *dst, struct iv_avl_tree *attrs, uint8_t *preid)
+{
+	struct iv_avl_node *an;
+
+	iv_avl_tree_for_each (an, attrs) {
+		struct lsa_attr *attr;
+
+		attr = iv_container_of(an, struct lsa_attr, an);
+
+		if (attr->type == LSA_ATTR_TYPE_ADV_PATH)
+			lsa_attr_serialise(dst, attr, preid);
+		else
+			lsa_attr_serialise(dst, attr, NULL);
+	}
+}
+
+int lsa_serialise_length(struct lsa *lsa, uint8_t *preid)
 {
 	struct dst dst;
-	int size;
-	struct iv_avl_node *an;
+
+	dst.dst = NULL;
+	dst.dstlen = 0;
+	dst.off = 0;
+
+	dst_append(&dst, lsa->id, NODE_ID_LEN);
+
+	lsa_attrs_serialise(&dst, &lsa->attrs, preid);
+
+	return dst.off;
+}
+
+int lsa_serialise(uint8_t *buf, int buflen, int serlen,
+		  struct lsa *lsa, uint8_t *preid)
+{
+	struct dst dst;
 
 	dst.dst = buf;
 	dst.dstlen = buflen;
 	dst.off = 0;
 
-	size = lsa->size;
-	if (preid != NULL && !iv_avl_tree_empty(&lsa->attrs))
-		size += NODE_ID_LEN;
-
-	dst_append_int(&dst, size);
-	size += dst.off;
+	dst_append_int(&dst, serlen);
+	serlen += dst.off;
 
 	dst_append(&dst, lsa->id, NODE_ID_LEN);
 
-	iv_avl_tree_for_each (an, &lsa->attrs) {
-		struct lsa_attr *attr;
-		int flags;
+	lsa_attrs_serialise(&dst, &lsa->attrs, preid);
 
-		attr = iv_container_of(an, struct lsa_attr, an);
-
-		dst_append_int(&dst, attr->type);
-
-		flags = 0;
-		if (attr->keylen)
-			flags |= LSA_ATTR_FLAG_HAS_KEY;
-
-		dst_append_int(&dst, flags);
-
-		if (attr->keylen) {
-			dst_append_int(&dst, attr->keylen);
-			dst_append(&dst, lsa_attr_key(attr), attr->keylen);
-		}
-
-		if (attr->type == LSA_ATTR_TYPE_ADV_PATH && preid != NULL) {
-			dst_append_int(&dst, attr->datalen + NODE_ID_LEN);
-			dst_append(&dst, preid, NODE_ID_LEN);
-		} else {
-			dst_append_int(&dst, attr->datalen);
-		}
-		dst_append(&dst, lsa_attr_data(attr), attr->datalen);
-	}
-
-	if (size != dst.off) {
+	if (serlen != dst.off) {
 		fprintf(stderr, "lsa_serialise: lsa size %d versus "
-				"buffer size %d\n", size, dst.off);
+				"buffer size %d\n", serlen, dst.off);
 		abort();
 	}
 
