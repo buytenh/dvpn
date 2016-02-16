@@ -76,7 +76,7 @@ int lsa_print_id_name(FILE *fp, uint8_t *id, struct loc_rib *name_hints)
 		if (rid != NULL && rid->best != NULL) {
 			struct lsa_attr *attr;
 
-			attr = lsa_attr_find(rid->best,
+			attr = lsa_find_attr(rid->best,
 					     LSA_ATTR_TYPE_NODE_NAME, NULL, 0);
 			if (attr != NULL) {
 				print_node_name(fp, attr);

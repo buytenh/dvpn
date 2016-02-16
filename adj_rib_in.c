@@ -116,7 +116,7 @@ static struct lsa *map(struct adj_rib_in *rib, struct lsa *lsa)
 	if (lsa->bytes + NODE_ID_LEN > LSA_MAX_BYTES)
 		return NULL;
 
-	attr = lsa_attr_find(lsa, LSA_ATTR_TYPE_ADV_PATH, NULL, 0);
+	attr = lsa_find_attr(lsa, LSA_ATTR_TYPE_ADV_PATH, NULL, 0);
 	if (attr == NULL)
 		return NULL;
 
@@ -130,7 +130,7 @@ static struct lsa *map(struct adj_rib_in *rib, struct lsa *lsa)
 	if (rib->myid != NULL && lsa_path_contains(attr, rib->myid))
 		return NULL;
 
-	attr = lsa_attr_find(lsa, LSA_ATTR_TYPE_PUBKEY, NULL, 0);
+	attr = lsa_find_attr(lsa, LSA_ATTR_TYPE_PUBKEY, NULL, 0);
 	if (attr == NULL)
 		return NULL;
 

@@ -100,7 +100,7 @@ static uint64_t lsa_get_version(struct lsa *lsa)
 	uint32_t *data;
 	uint64_t version;
 
-	attr = lsa_attr_find(lsa, LSA_ATTR_TYPE_VERSION, NULL, 0);
+	attr = lsa_find_attr(lsa, LSA_ATTR_TYPE_VERSION, NULL, 0);
 	if (attr == NULL || attr->datalen != 8)
 		return 0;
 
@@ -128,11 +128,11 @@ static int compare_lsas(struct lsa *a, struct lsa *b)
 	if (aver > bver)
 		return 1;
 
-	aattr = lsa_attr_find(a, LSA_ATTR_TYPE_ADV_PATH, NULL, 0);
+	aattr = lsa_find_attr(a, LSA_ATTR_TYPE_ADV_PATH, NULL, 0);
 	if (aattr == NULL)
 		abort();
 
-	battr = lsa_attr_find(b, LSA_ATTR_TYPE_ADV_PATH, NULL, 0);
+	battr = lsa_find_attr(b, LSA_ATTR_TYPE_ADV_PATH, NULL, 0);
 	if (battr == NULL)
 		abort();
 

@@ -34,7 +34,7 @@ static struct lsa *map(struct dgp_writer *dw, struct lsa *lsa)
 	if (lsa == NULL)
 		return NULL;
 
-	attr = lsa_attr_find(lsa, LSA_ATTR_TYPE_ADV_PATH, NULL, 0);
+	attr = lsa_find_attr(lsa, LSA_ATTR_TYPE_ADV_PATH, NULL, 0);
 	if (attr == NULL)
 		return NULL;
 

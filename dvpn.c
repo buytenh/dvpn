@@ -96,7 +96,7 @@ static void lsa_update_version(struct lsa *lsa)
 	uint64_t curver;
 	uint64_t t64;
 
-	attr = lsa_attr_find(lsa, LSA_ATTR_TYPE_VERSION, NULL, 0);
+	attr = lsa_find_attr(lsa, LSA_ATTR_TYPE_VERSION, NULL, 0);
 	if (attr == NULL)
 		abort();
 

@@ -144,7 +144,7 @@ void *lsa_attr_data(struct lsa_attr *attr)
 	return NULL;
 }
 
-struct lsa_attr *lsa_attr_find(struct lsa *lsa, int type,
+struct lsa_attr *lsa_find_attr(struct lsa *lsa, int type,
 			       void *key, int keylen)
 {
 	struct {
@@ -202,7 +202,7 @@ void lsa_attr_add(struct lsa *lsa, int type, void *key, int keylen,
 		abort();
 	}
 
-	attr = lsa_attr_find(lsa, type, key, keylen);
+	attr = lsa_find_attr(lsa, type, key, keylen);
 	if (attr != NULL)
 		abort();
 
@@ -246,7 +246,7 @@ void lsa_attr_del_key(struct lsa *lsa, int type, void *key, int keylen)
 		abort();
 	}
 
-	attr = lsa_attr_find(lsa, type, key, keylen);
+	attr = lsa_find_attr(lsa, type, key, keylen);
 	if (attr == NULL)
 		abort();
 

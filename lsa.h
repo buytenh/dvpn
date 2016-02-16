@@ -35,6 +35,7 @@ struct lsa *lsa_get(struct lsa *lsa);
 void lsa_put(struct lsa *lsa);
 struct lsa *lsa_clone(struct lsa *lsa);
 
+
 struct lsa_attr {
 	struct iv_avl_node	an;
 	int			type;
@@ -45,7 +46,8 @@ struct lsa_attr {
 
 void *lsa_attr_key(struct lsa_attr *attr);
 void *lsa_attr_data(struct lsa_attr *attr);
-struct lsa_attr *lsa_attr_find(struct lsa *lsa, int type,
+
+struct lsa_attr *lsa_find_attr(struct lsa *lsa, int type,
 			       void *key, int keylen);
 void lsa_attr_add(struct lsa *lsa, int type, void *key, int keylen,
 		  void *data, int datalen);
