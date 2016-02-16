@@ -91,8 +91,11 @@ int dgp_reader_read(struct dgp_reader *dr, int fd)
 		if (len < 0)
 			return -1;
 
-		if (len == 0)
+		if (len == 0) {
+			if (dr->bytes == sizeof(dr->buf)
+				return -1;
 			break;
+		}
 
 		if (lsa != NULL) {
 			if (dr->remoteid != NULL)
