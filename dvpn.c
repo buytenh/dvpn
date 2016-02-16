@@ -106,7 +106,7 @@ static void lsa_update_version(struct lsa *lsa)
 	curver <<= 32;
 	curver |= ntohl(data[1]);
 
-	lsa_attr_del(lsa, attr);
+	lsa_del_attr(lsa, attr);
 
 	t64 = time(NULL);
 	t64 <<= 8;

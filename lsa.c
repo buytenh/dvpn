@@ -222,10 +222,10 @@ void lsa_add_attr(struct lsa *lsa, int type, void *key, int keylen,
 	iv_avl_tree_insert(&lsa->attrs, &attr->an);
 }
 
-void lsa_attr_del(struct lsa *lsa, struct lsa_attr *attr)
+void lsa_del_attr(struct lsa *lsa, struct lsa_attr *attr)
 {
 	if (lsa->refcount != 1) {
-		fprintf(stderr, "lsa_attr_del: called on an LSA with "
+		fprintf(stderr, "lsa_del_attr: called on an LSA with "
 				"refcount %d\n", lsa->refcount);
 		abort();
 	}
@@ -250,5 +250,5 @@ void lsa_attr_del_key(struct lsa *lsa, int type, void *key, int keylen)
 	if (attr == NULL)
 		abort();
 
-	lsa_attr_del(lsa, attr);
+	lsa_del_attr(lsa, attr);
 }
