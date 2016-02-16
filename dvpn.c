@@ -140,14 +140,21 @@ lsa_add_pubkey_from_privkey(struct lsa *lsa, gnutls_x509_privkey_t privkey)
 static void local_add_peer(uint8_t *id, enum peer_type type, int cost)
 {
 	struct lsa *newme;
-	struct lsa_attr_peer data;
+	struct lsa_attr_set *set;
+	uint16_t metric;
+	uint8_t peer_type;
 
 	newme = lsa_clone(me);
 
-	data.metric = htons(cost);
-	data.peer_type = peer_type_to_lsa_peer_type(type);
-	lsa_add_attr(newme, LSA_ATTR_TYPE_PEER, id, NODE_ID_LEN,
-		     &data, sizeof(data));
+	set = lsa_add_attr_set(newme, LSA_ATTR_TYPE_PEER, id, NODE_ID_LEN);
+
+	metric = htons(cost);
+	lsa_attr_set_add_attr(newme, set, LSA_PEER_ATTR_TYPE_METRIC,
+			      NULL, 0, &metric, sizeof(metric));
+
+	peer_type = peer_type_to_lsa_peer_type(type);
+	lsa_attr_set_add_attr(newme, set, LSA_PEER_ATTR_TYPE_PEER_TYPE,
+			      NULL, 0, &peer_type, sizeof(peer_type));
 
 	lsa_update_version(newme);
 

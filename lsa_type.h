@@ -33,10 +33,10 @@ enum lsa_attr_flags {
 	LSA_ATTR_FLAG_DATA_IS_TLV = 2,
 };
 
-struct lsa_attr_peer {
-	uint16_t		metric;
-	uint8_t			peer_type;
-} __attribute__((packed));
+enum lsa_peer_attr_type {
+	LSA_PEER_ATTR_TYPE_METRIC = 1,
+	LSA_PEER_ATTR_TYPE_PEER_TYPE = 2,
+};
 
 enum lsa_peer_type {
 	LSA_PEER_TYPE_EPEER = 0,

@@ -245,23 +245,39 @@ static void attr_add(void *_cb, struct lsa_attr *attr)
 	struct rt_builder *rb = cb->rb;
 	struct node *node = cb->node;
 
-	if (attr->type == LSA_ATTR_TYPE_PEER && attr->keylen == NODE_ID_LEN &&
-	    attr->datalen == sizeof(struct lsa_attr_peer)) {
+	if (attr->type == LSA_ATTR_TYPE_PEER && attr->keylen == NODE_ID_LEN) {
 		uint8_t *to;
-		struct lsa_attr_peer *peer;
+		struct lsa_attr_set *set;
+		struct lsa_attr *attr2;
 		int metric;
+		int peer_type;
 
 		to = lsa_attr_key(attr);
-		peer = lsa_attr_data(attr);
-		metric = ntohs(peer->metric);
 
-		if (peer->peer_type == LSA_PEER_TYPE_EPEER)
+		if (!attr->data_is_attr_set)
+			return;
+		set = lsa_attr_data(attr);
+
+		attr2 = lsa_attr_set_find_attr(set, LSA_PEER_ATTR_TYPE_METRIC,
+					       NULL, 0);
+		if (attr2 == NULL || attr2->datalen != 2)
+			return;
+		metric = ntohs(*((uint16_t *)lsa_attr_data(attr2)));
+
+		attr2 = lsa_attr_set_find_attr(set,
+					       LSA_PEER_ATTR_TYPE_PEER_TYPE,
+					       NULL, 0);
+		if (attr2 == NULL || attr2->datalen != 1)
+			return;
+		peer_type = *((uint8_t *)lsa_attr_data(attr2));
+
+		if (peer_type == LSA_PEER_TYPE_EPEER)
 			add_edge(rb, node, to, metric, PEER_TYPE_EPEER);
-		else if (peer->peer_type == LSA_PEER_TYPE_CUSTOMER)
+		else if (peer_type == LSA_PEER_TYPE_CUSTOMER)
 			add_edge(rb, node, to, metric, PEER_TYPE_CUSTOMER);
-		else if (peer->peer_type == LSA_PEER_TYPE_TRANSIT)
+		else if (peer_type == LSA_PEER_TYPE_TRANSIT)
 			add_edge(rb, node, to, metric, PEER_TYPE_TRANSIT);
-		else if (peer->peer_type == LSA_PEER_TYPE_IPEER)
+		else if (peer_type == LSA_PEER_TYPE_IPEER)
 			add_edge(rb, node, to, metric, PEER_TYPE_IPEER);
 	}
 }
