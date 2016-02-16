@@ -215,21 +215,23 @@ static void put_node(struct rt_builder *rb, struct node *node)
 static void del_edge(struct rt_builder *rb, struct node *from, uint8_t *to)
 {
 	struct edge *edge;
-	struct edge *edge2;
 
 	edge = find_edge(from, to);
+	if (edge != NULL) {
+		struct edge *edge2;
 
-	edge2 = find_edge(edge->to, from->id);
-	if (edge2 != NULL) {
-		unregister_edge(rb, from, edge, edge2);
-		unregister_edge(rb, edge->to, edge2, edge);
+		edge2 = find_edge(edge->to, from->id);
+		if (edge2 != NULL) {
+			unregister_edge(rb, from, edge, edge2);
+			unregister_edge(rb, edge->to, edge2, edge);
+		}
+
+		iv_avl_tree_delete(&from->edges, &edge->an);
+		put_node(rb, from);
+		put_node(rb, edge->to);
+
+		free(edge);
 	}
-
-	iv_avl_tree_delete(&from->edges, &edge->an);
-	put_node(rb, from);
-	put_node(rb, edge->to);
-
-	free(edge);
 }
 
 struct attr_cb_data {
