@@ -163,7 +163,7 @@ static void local_del_peer(uint8_t *id)
 
 	newme = lsa_clone(me);
 
-	lsa_attr_del_key(newme, LSA_ATTR_TYPE_PEER, id, NODE_ID_LEN);
+	lsa_del_attr_bykey(newme, LSA_ATTR_TYPE_PEER, id, NODE_ID_LEN);
 
 	lsa_update_version(newme);
 

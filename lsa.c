@@ -236,12 +236,12 @@ void lsa_del_attr(struct lsa *lsa, struct lsa_attr *attr)
 	free(attr);
 }
 
-void lsa_attr_del_key(struct lsa *lsa, int type, void *key, int keylen)
+void lsa_del_attr_bykey(struct lsa *lsa, int type, void *key, int keylen)
 {
 	struct lsa_attr *attr;
 
 	if (lsa->refcount != 1) {
-		fprintf(stderr, "lsa_attr_del_key: called on an LSA with "
+		fprintf(stderr, "lsa_del_attr_bykey: called on an LSA with "
 				"refcount %d\n", lsa->refcount);
 		abort();
 	}
