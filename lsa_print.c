@@ -156,7 +156,9 @@ void lsa_attr_print_data(FILE *fp, struct lsa_attr *attr,
 			 struct loc_rib *name_hints)
 {
 	fprintf(fp, "[");
-	if (attr->type == LSA_ATTR_TYPE_ADV_PATH &&
+	if (attr->data_is_attr_set) {
+		fprintf(fp, "attr-set");
+	} else if (attr->type == LSA_ATTR_TYPE_ADV_PATH &&
 	    (attr->datalen % NODE_ID_LEN) == 0) {
 		uint8_t *data = lsa_attr_data(attr);
 		int i;

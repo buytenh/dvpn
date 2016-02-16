@@ -24,6 +24,8 @@
 #include "lsa.h"
 #include "lsa_serialise.h"
 
+static int lsa_attr_size(struct lsa_attr *attr);
+
 static int lsa_attr_compare_keys(struct lsa_attr *a, struct lsa_attr *b)
 {
 	int len;
@@ -83,44 +85,73 @@ struct lsa *lsa_get(struct lsa *lsa)
 	return lsa;
 }
 
-static void attr_tree_free(struct iv_avl_node *root)
+static void attr_tree_free(struct lsa *lsa, struct iv_avl_node *root)
 {
-	if (root->left != NULL)
-		attr_tree_free(root->left);
+	struct lsa_attr *attr = iv_container_of(root, struct lsa_attr, an);
 
-	if (root->right != NULL)
-		attr_tree_free(root->right);
+	lsa->bytes -= lsa_attr_size(attr);
 
-	free(iv_container_of(root, struct lsa_attr, an));
+	if (attr->an.left != NULL)
+		attr_tree_free(lsa, attr->an.left);
+
+	if (attr->an.right != NULL)
+		attr_tree_free(lsa, attr->an.right);
+
+	if (attr->data_is_attr_set) {
+		struct lsa_attr_set *set;
+
+		set = lsa_attr_data(attr);
+		attr_tree_free(lsa, set->attrs.root);
+	}
+
+	free(attr);
 }
 
 void lsa_put(struct lsa *lsa)
 {
 	if (!--lsa->refcount) {
 		if (!iv_avl_tree_empty(&lsa->root.attrs))
-			attr_tree_free(lsa->root.attrs.root);
+			attr_tree_free(lsa, lsa->root.attrs.root);
 		free(lsa);
+	}
+}
+
+static void lsa_attr_set_clone(struct lsa *lsa, struct lsa_attr_set *dst,
+			       struct lsa_attr_set *src)
+{
+	struct iv_avl_node *an;
+
+	iv_avl_tree_for_each (an, &src->attrs) {
+		struct lsa_attr *attr;
+
+		attr = iv_container_of(an, struct lsa_attr, an);
+
+		if (attr->data_is_attr_set) {
+			struct lsa_attr_set *s;
+			struct lsa_attr_set *d;
+
+			s = lsa_attr_data(attr);
+			d = lsa_attr_set_add_attr_set(lsa, dst, attr->type,
+					lsa_attr_key(attr), attr->keylen);
+
+			lsa_attr_set_clone(lsa, d, s);
+		} else {
+			lsa_attr_set_add_attr(lsa, dst, attr->type,
+					lsa_attr_key(attr), attr->keylen,
+					lsa_attr_data(attr), attr->datalen);
+		}
 	}
 }
 
 struct lsa *lsa_clone(struct lsa *lsa)
 {
 	struct lsa *newlsa;
-	struct iv_avl_node *an;
 
 	newlsa = lsa_alloc(lsa->id);
 	if (newlsa == NULL)
 		return NULL;
 
-	iv_avl_tree_for_each (an, &lsa->root.attrs) {
-		struct lsa_attr *attr;
-
-		attr = iv_container_of(an, struct lsa_attr, an);
-
-		lsa_add_attr(newlsa, attr->type,
-			     lsa_attr_key(attr), attr->keylen,
-			     lsa_attr_data(attr), attr->datalen);
-	}
+	lsa_attr_set_clone(newlsa, &newlsa->root, &lsa->root);
 
 	return newlsa;
 }
@@ -190,9 +221,13 @@ static int lsa_attr_size(struct lsa_attr *attr)
 	int size;
 
 	size = 2 * MAX_SERIALISED_INT_LEN;
+
 	if (attr->keylen)
 		size += MAX_SERIALISED_INT_LEN + attr->keylen;
-	size += MAX_SERIALISED_INT_LEN + attr->datalen;
+
+	size += MAX_SERIALISED_INT_LEN;
+	if (!attr->data_is_attr_set)
+		size += attr->datalen;
 
 	return size;
 }
@@ -210,6 +245,22 @@ void lsa_add_attr(struct lsa *lsa, int type, void *key, int keylen,
 			      data, datalen);
 }
 
+static struct lsa_attr *attr_alloc(int type, int keylen, int datalen)
+{
+	struct lsa_attr *attr;
+
+	attr = malloc(sizeof(*attr) + ROUND_UP(keylen) + datalen);
+	if (attr == NULL)
+		abort();
+
+	attr->type = type;
+	attr->data_is_attr_set = 0;
+	attr->keylen = keylen;
+	attr->datalen = datalen;
+
+	return attr;
+}
+
 void lsa_attr_set_add_attr(struct lsa *lsa, struct lsa_attr_set *set, int type,
 			   void *key, int keylen, void *data, int datalen)
 {
@@ -225,20 +276,58 @@ void lsa_attr_set_add_attr(struct lsa *lsa, struct lsa_attr_set *set, int type,
 	if (attr != NULL)
 		abort();
 
-	attr = malloc(sizeof(*attr) + ROUND_UP(keylen) + datalen);
-	if (attr == NULL)
-		abort();
+	attr = attr_alloc(type, keylen, datalen);
 
-	attr->type = type;
-	attr->keylen = keylen;
 	if (keylen)
 		memcpy(lsa_attr_key(attr), key, keylen);
-	attr->datalen = datalen;
 	if (datalen)
 		memcpy(lsa_attr_data(attr), data, datalen);
 
 	lsa->bytes += lsa_attr_size(attr);
 	iv_avl_tree_insert(&set->attrs, &attr->an);
+}
+
+struct lsa_attr_set *lsa_add_attr_set(struct lsa *lsa, int type,
+				      void *key, int keylen)
+{
+	if (lsa->refcount != 1) {
+		fprintf(stderr, "lsa_add_attr_set: called on an LSA "
+				"with refcount %d\n", lsa->refcount);
+		abort();
+	}
+
+	return lsa_attr_set_add_attr_set(lsa, &lsa->root, type, key, keylen);
+}
+
+struct lsa_attr_set *
+lsa_attr_set_add_attr_set(struct lsa *lsa, struct lsa_attr_set *set,
+			  int type, void *key, int keylen)
+{
+	struct lsa_attr *attr;
+	struct lsa_attr_set *child;
+
+	if (lsa->refcount != 1) {
+		fprintf(stderr, "lsa_attr_set_add_attr_set: called on an "
+				"LSA with refcount %d\n", lsa->refcount);
+		abort();
+	}
+
+	attr = lsa_attr_set_find_attr(set, type, key, keylen);
+	if (attr != NULL)
+		abort();
+
+	attr = attr_alloc(type, keylen, sizeof(struct lsa_attr_set));
+	attr->data_is_attr_set = 1;
+	if (keylen)
+		memcpy(lsa_attr_key(attr), key, keylen);
+
+	lsa->bytes += lsa_attr_size(attr);
+	iv_avl_tree_insert(&set->attrs, &attr->an);
+
+	child = lsa_attr_data(attr);
+	INIT_IV_AVL_TREE(&child->attrs, compare_attr_keys);
+
+	return child;
 }
 
 void lsa_del_attr(struct lsa *lsa, struct lsa_attr *attr)
@@ -251,6 +340,14 @@ void lsa_del_attr(struct lsa *lsa, struct lsa_attr *attr)
 
 	lsa->bytes -= lsa_attr_size(attr);
 	iv_avl_tree_delete(&lsa->root.attrs, &attr->an);
+
+	if (attr->data_is_attr_set) {
+		struct lsa_attr_set *set;
+
+		set = lsa_attr_data(attr);
+		if (!iv_avl_tree_empty(&set->attrs))
+			attr_tree_free(lsa, set->attrs.root);
+	}
 
 	free(attr);
 }

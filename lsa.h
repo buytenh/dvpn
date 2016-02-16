@@ -43,6 +43,7 @@ struct lsa *lsa_clone(struct lsa *lsa);
 struct lsa_attr {
 	struct iv_avl_node	an;
 	int			type;
+	unsigned		data_is_attr_set:1;
 	int			keylen;
 	int			datalen;
 	uint8_t			buf[0];
@@ -60,6 +61,12 @@ void lsa_add_attr(struct lsa *lsa, int type, void *key, int keylen,
 		  void *data, int datalen);
 void lsa_attr_set_add_attr(struct lsa *lsa, struct lsa_attr_set *set, int type,
 			   void *key, int keylen, void *data, int datalen);
+
+struct lsa_attr_set *lsa_add_attr_set(struct lsa *lsa, int type,
+				      void *key, int keylen);
+struct lsa_attr_set *lsa_attr_set_add_attr_set(struct lsa *lsa,
+					       struct lsa_attr_set *set,
+					       int type, void *key, int keylen);
 
 void lsa_del_attr(struct lsa *lsa, struct lsa_attr *attr);
 
