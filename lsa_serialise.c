@@ -67,6 +67,9 @@ static void dst_append_int(struct dst *dst, uint64_t value)
 	dst_append(dst, val + i, sizeof(val) - i);
 }
 
+static int
+lsa_attr_set_serialise_length(struct lsa_attr_set *set, uint8_t *preid);
+
 static void
 lsa_attr_serialise(struct dst *dst, struct lsa_attr *attr, uint8_t *preid)
 {
@@ -77,6 +80,8 @@ lsa_attr_serialise(struct dst *dst, struct lsa_attr *attr, uint8_t *preid)
 	flags = 0;
 	if (attr->keylen)
 		flags |= LSA_ATTR_FLAG_HAS_KEY;
+	if (attr->data_is_attr_set)
+		flags |= LSA_ATTR_FLAG_DATA_IS_TLV;
 
 	dst_append_int(dst, flags);
 
@@ -85,13 +90,28 @@ lsa_attr_serialise(struct dst *dst, struct lsa_attr *attr, uint8_t *preid)
 		dst_append(dst, lsa_attr_key(attr), attr->keylen);
 	}
 
-	if (preid != NULL) {
+	if (attr->data_is_attr_set) {
+		struct lsa_attr_set *set;
+		struct iv_avl_node *an;
+
+		set = lsa_attr_data(attr);
+
+		dst_append_int(dst, lsa_attr_set_serialise_length(set, NULL));
+
+		iv_avl_tree_for_each (an, &set->attrs) {
+			struct lsa_attr *attr2;
+
+			attr2 = iv_container_of(an, struct lsa_attr, an);
+			lsa_attr_serialise(dst, attr2, NULL);
+		}
+	} else if (preid != NULL) {
 		dst_append_int(dst, attr->datalen + NODE_ID_LEN);
 		dst_append(dst, preid, NODE_ID_LEN);
+		dst_append(dst, lsa_attr_data(attr), attr->datalen);
 	} else {
 		dst_append_int(dst, attr->datalen);
+		dst_append(dst, lsa_attr_data(attr), attr->datalen);
 	}
-	dst_append(dst, lsa_attr_data(attr), attr->datalen);
 }
 
 static void
@@ -111,7 +131,8 @@ lsa_attrs_serialise(struct dst *dst, struct iv_avl_tree *attrs, uint8_t *preid)
 	}
 }
 
-int lsa_serialise_length(struct lsa *lsa, uint8_t *preid)
+static int
+lsa_attr_set_serialise_length(struct lsa_attr_set *set, uint8_t *preid)
 {
 	struct dst dst;
 
@@ -119,11 +140,14 @@ int lsa_serialise_length(struct lsa *lsa, uint8_t *preid)
 	dst.dstlen = 0;
 	dst.off = 0;
 
-	dst_append(&dst, lsa->id, NODE_ID_LEN);
-
-	lsa_attrs_serialise(&dst, &lsa->root.attrs, preid);
+	lsa_attrs_serialise(&dst, &set->attrs, preid);
 
 	return dst.off;
+}
+
+int lsa_serialise_length(struct lsa *lsa, uint8_t *preid)
+{
+	return NODE_ID_LEN + lsa_attr_set_serialise_length(&lsa->root, preid);
 }
 
 int lsa_serialise(uint8_t *buf, int buflen, int serlen,
