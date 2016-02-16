@@ -203,7 +203,7 @@ void lsa_print(FILE *fp, struct lsa *lsa, struct loc_rib *name_hints)
 	printhex(fp, lsa->id + (NODE_ID_LEN / 2), NODE_ID_LEN / 2);
 	fprintf(fp, "]\n");
 
-	iv_avl_tree_for_each (an, &lsa->attrs) {
+	iv_avl_tree_for_each (an, &lsa->root.attrs) {
 		struct lsa_attr *attr;
 
 		attr = iv_container_of(an, struct lsa_attr, an);

@@ -121,7 +121,7 @@ int lsa_serialise_length(struct lsa *lsa, uint8_t *preid)
 
 	dst_append(&dst, lsa->id, NODE_ID_LEN);
 
-	lsa_attrs_serialise(&dst, &lsa->attrs, preid);
+	lsa_attrs_serialise(&dst, &lsa->root.attrs, preid);
 
 	return dst.off;
 }
@@ -140,7 +140,7 @@ int lsa_serialise(uint8_t *buf, int buflen, int serlen,
 
 	dst_append(&dst, lsa->id, NODE_ID_LEN);
 
-	lsa_attrs_serialise(&dst, &lsa->attrs, preid);
+	lsa_attrs_serialise(&dst, &lsa->root.attrs, preid);
 
 	if (serlen != dst.off) {
 		fprintf(stderr, "lsa_serialise: lsa size %d versus "

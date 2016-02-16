@@ -99,8 +99,8 @@ int lsa_diff(struct lsa *_a, struct lsa *_b, void *cookie,
 	req.attr_mod = attr_mod;
 	req.attr_del = attr_del ? : dummy_attr_del;
 
-	a = (_a != NULL) ? &_a->attrs : NULL;
-	b = (_b != NULL) ? &_b->attrs : NULL;
+	a = (_a != NULL) ? &_a->root.attrs : NULL;
+	b = (_b != NULL) ? &_b->root.attrs : NULL;
 
 	avl_diff(a, b, &req, add, mod, del);
 

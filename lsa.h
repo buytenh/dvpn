@@ -23,11 +23,15 @@
 #include <iv_avl.h>
 #include "util.h"
 
+struct lsa_attr_set {
+	struct iv_avl_tree	attrs;
+};
+
 struct lsa {
 	int			refcount;
 	int			bytes;
 	uint8_t			id[NODE_ID_LEN];
-	struct iv_avl_tree	attrs;
+	struct lsa_attr_set	root;
 };
 
 struct lsa *lsa_alloc(uint8_t *id);

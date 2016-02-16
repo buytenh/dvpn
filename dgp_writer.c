@@ -60,7 +60,7 @@ dgp_writer_output_lsa(struct dgp_writer *dw, struct lsa *old, struct lsa *new)
 			return 0;
 
 		memcpy(&dummy.id, old->id, NODE_ID_LEN);
-		INIT_IV_AVL_TREE(&dummy.attrs, NULL);
+		INIT_IV_AVL_TREE(&dummy.root.attrs, NULL);
 
 		lsa = &dummy;
 	}

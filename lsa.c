@@ -71,7 +71,7 @@ struct lsa *lsa_alloc(uint8_t *id)
 	lsa->refcount = 1;
 	lsa->bytes = MAX_SERIALISED_INT_LEN + NODE_ID_LEN;
 	memcpy(lsa->id, id, NODE_ID_LEN);
-	INIT_IV_AVL_TREE(&lsa->attrs, compare_attr_keys);
+	INIT_IV_AVL_TREE(&lsa->root.attrs, compare_attr_keys);
 
 	return lsa;
 }
@@ -97,8 +97,8 @@ static void attr_tree_free(struct iv_avl_node *root)
 void lsa_put(struct lsa *lsa)
 {
 	if (!--lsa->refcount) {
-		if (lsa->attrs.root != NULL)
-			attr_tree_free(lsa->attrs.root);
+		if (!iv_avl_tree_empty(&lsa->root.attrs))
+			attr_tree_free(lsa->root.attrs.root);
 		free(lsa);
 	}
 }
@@ -112,7 +112,7 @@ struct lsa *lsa_clone(struct lsa *lsa)
 	if (newlsa == NULL)
 		return NULL;
 
-	iv_avl_tree_for_each (an, &lsa->attrs) {
+	iv_avl_tree_for_each (an, &lsa->root.attrs) {
 		struct lsa_attr *attr;
 
 		attr = iv_container_of(an, struct lsa_attr, an);
@@ -159,7 +159,7 @@ struct lsa_attr *lsa_find_attr(struct lsa *lsa, int type,
 	s->skey.keylen = keylen;
 	memcpy(lsa_attr_key(&s->skey), key, keylen);
 
-	an = lsa->attrs.root;
+	an = lsa->root.attrs.root;
 	while (an != NULL) {
 		struct lsa_attr *attr;
 		int ret;
@@ -219,7 +219,7 @@ void lsa_add_attr(struct lsa *lsa, int type, void *key, int keylen,
 		memcpy(lsa_attr_data(attr), data, datalen);
 
 	lsa->bytes += lsa_attr_size(attr);
-	iv_avl_tree_insert(&lsa->attrs, &attr->an);
+	iv_avl_tree_insert(&lsa->root.attrs, &attr->an);
 }
 
 void lsa_del_attr(struct lsa *lsa, struct lsa_attr *attr)
@@ -231,7 +231,7 @@ void lsa_del_attr(struct lsa *lsa, struct lsa_attr *attr)
 	}
 
 	lsa->bytes -= lsa_attr_size(attr);
-	iv_avl_tree_delete(&lsa->attrs, &attr->an);
+	iv_avl_tree_delete(&lsa->root.attrs, &attr->an);
 
 	free(attr);
 }

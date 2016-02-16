@@ -195,7 +195,7 @@ int adj_rib_in_add_lsa(struct adj_rib_in *rib, struct lsa *lsa)
 
 	ref = adj_rib_in_find_ref(rib, lsa->id);
 
-	if (iv_avl_tree_empty(&lsa->attrs)) {
+	if (iv_avl_tree_empty(&lsa->root.attrs)) {
 		if (ref == NULL)
 			return -1;
 
