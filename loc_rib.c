@@ -139,7 +139,7 @@ static int compare_lsas(struct lsa *a, struct lsa *b)
 	if (aattr->datalen < battr->datalen)
 		return 1;
 	if (aattr->datalen > battr->datalen)
-		return 0;
+		return -1;
 
 	ret = memcmp(lsa_attr_data(aattr), lsa_attr_data(battr),
 		     aattr->datalen);
