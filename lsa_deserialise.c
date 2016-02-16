@@ -69,6 +69,40 @@ struct src {
 		v;					\
 	})
 
+static int lsa_deserialise_attrs(struct lsa *lsa, struct src *src)
+{
+	while (src->off < src->srclen) {
+		int type;
+		int flags;
+		int keylen;
+		uint8_t *key;
+		int datalen;
+		uint8_t *data;
+
+		type = SRC_READ_INT(src);
+
+		flags = SRC_READ_INT(src);
+
+		if (flags & LSA_ATTR_FLAG_HAS_KEY) {
+			keylen = SRC_READ_INT(src);
+			key = SRC_GET_PTR(src, keylen);
+		} else {
+			keylen = 0;
+		}
+
+		datalen = SRC_READ_INT(src);
+		data = SRC_GET_PTR(src, datalen);
+
+		lsa_add_attr(lsa, type, key, keylen, data, datalen);
+	}
+
+	return 0;
+
+short_read:
+error:
+	return -1;
+}
+
 int lsa_deserialise(struct lsa **lsap, uint8_t *buf, int buflen)
 {
 	struct lsa *lsa = NULL;
@@ -98,38 +132,15 @@ int lsa_deserialise(struct lsa **lsap, uint8_t *buf, int buflen)
 	if (lsa == NULL)
 		return -1;
 
-	while (src.off < len) {
-		int type;
-		int flags;
-		int keylen;
-		uint8_t *key;
-		int datalen;
-		uint8_t *data;
-
-		type = SRC_READ_INT(&src);
-
-		flags = SRC_READ_INT(&src);
-
-		if (flags & LSA_ATTR_FLAG_HAS_KEY) {
-			keylen = SRC_READ_INT(&src);
-			key = SRC_GET_PTR(&src, keylen);
-		} else {
-			keylen = 0;
-		}
-
-		datalen = SRC_READ_INT(&src);
-		data = SRC_GET_PTR(&src, datalen);
-
-		lsa_add_attr(lsa, type, key, keylen, data, datalen);
-	}
+	if (lsa_deserialise_attrs(lsa, &src) < 0)
+		goto error;
 
 	*lsap = lsa;
 
 	return src.off;
 
 short_read:
-	if (lsa == NULL)
-		return 0;
+	return 0;
 
 error:
 	if (lsa != NULL)
