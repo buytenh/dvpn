@@ -24,6 +24,34 @@
 #include "lsa.h"
 #include "lsa_serialise.h"
 
+static int lsa_attr_compare_keys(struct lsa_attr *a, struct lsa_attr *b)
+{
+	int len;
+	int ret;
+
+	if (a->type < b->type)
+		return -1;
+	if (a->type > b->type)
+		return 1;
+
+	len = a->keylen;
+	if (len > b->keylen)
+		len = b->keylen;
+
+	ret = memcmp(lsa_attr_key(a), lsa_attr_key(b), len);
+	if (ret < 0)
+		return -1;
+	if (ret > 0)
+		return 1;
+
+	if (a->keylen < b->keylen)
+		return -1;
+	if (a->keylen > b->keylen)
+		return 1;
+
+	return 0;
+}
+
 static int compare_attr_keys(struct iv_avl_node *_a, struct iv_avl_node *_b)
 {
 	struct lsa_attr *a = iv_container_of(_a, struct lsa_attr, an);
@@ -114,34 +142,6 @@ void *lsa_attr_data(struct lsa_attr *attr)
 		return attr->buf + ROUND_UP(attr->keylen);
 
 	return NULL;
-}
-
-int lsa_attr_compare_keys(struct lsa_attr *a, struct lsa_attr *b)
-{
-	int len;
-	int ret;
-
-	if (a->type < b->type)
-		return -1;
-	if (a->type > b->type)
-		return 1;
-
-	len = a->keylen;
-	if (len > b->keylen)
-		len = b->keylen;
-
-	ret = memcmp(lsa_attr_key(a), lsa_attr_key(b), len);
-	if (ret < 0)
-		return -1;
-	if (ret > 0)
-		return 1;
-
-	if (a->keylen < b->keylen)
-		return -1;
-	if (a->keylen > b->keylen)
-		return 1;
-
-	return 0;
 }
 
 struct lsa_attr *lsa_attr_find(struct lsa *lsa, int type,
