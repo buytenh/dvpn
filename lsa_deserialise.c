@@ -90,6 +90,8 @@ int lsa_deserialise(struct lsa **lsap, uint8_t *buf, int buflen)
 	if (len > buflen)
 		return 0;
 
+	src.srclen = len;
+
 	SRC_READ(&src, id, NODE_ID_LEN);
 
 	lsa = lsa_alloc(id);
