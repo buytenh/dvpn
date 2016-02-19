@@ -169,7 +169,9 @@ static void print_der_pubkey(FILE *fp, void *data, int len)
 void lsa_attr_print_data(FILE *fp, int parent_type, struct lsa_attr *attr,
 			 struct loc_rib *name_hints)
 {
-	fprintf(fp, "[");
+	if (parent_type == 0 || attr->data_is_attr_set)
+		fprintf(fp, "[");
+
 	if (attr->data_is_attr_set) {
 		int type;
 		struct lsa_attr_set *set;
@@ -237,7 +239,9 @@ void lsa_attr_print_data(FILE *fp, int parent_type, struct lsa_attr *attr,
 	} else {
 		printhex(fp, lsa_attr_data(attr), attr->datalen);
 	}
-	fprintf(fp, "]");
+
+	if (parent_type == 0 || attr->data_is_attr_set)
+		fprintf(fp, "]");
 }
 
 void lsa_print(FILE *fp, struct lsa *lsa, struct loc_rib *name_hints)
