@@ -23,6 +23,7 @@
 #include <string.h>
 #include "lsa.h"
 #include "lsa_diff.h"
+#include "lsa_serialise.h"
 
 struct lsa_diff_request {
 	int	diffs;
@@ -51,6 +52,37 @@ static void add(void *_req, struct iv_avl_node *_a)
 	req->attr_add(req->cookie, a);
 }
 
+static int attr_cmp(struct lsa_attr *a, struct lsa_attr *b)
+{
+	if (a->data_is_attr_set != b->data_is_attr_set)
+		return 1;
+
+	if (!a->data_is_attr_set) {
+		if (a->datalen != b->datalen)
+			return 1;
+
+		return memcmp(lsa_attr_data(a), lsa_attr_data(b), a->datalen);
+	} else {
+		int alen;
+		int blen;
+		uint8_t *abuf;
+		uint8_t *bbuf;
+
+		alen = lsa_attr_serialise_length(a);
+		blen = lsa_attr_serialise_length(b);
+		if (alen != blen)
+			return 1;
+
+		abuf = alloca(alen + 16);
+		lsa_attr_serialise(abuf, alen + 16, a);
+
+		bbuf = alloca(blen + 16);
+		lsa_attr_serialise(bbuf, blen + 16, b);
+
+		return memcmp(abuf, bbuf, alen);
+	}
+}
+
 static void mod(void *_req, struct iv_avl_node *_a, struct iv_avl_node *_b)
 {
 	struct lsa_diff_request *req = _req;
@@ -60,8 +92,7 @@ static void mod(void *_req, struct iv_avl_node *_a, struct iv_avl_node *_b)
 	a = iv_container_of(_a, struct lsa_attr, an);
 	b = iv_container_of(_b, struct lsa_attr, an);
 
-	if (a->datalen != b->datalen ||
-	    memcmp(lsa_attr_data(a), lsa_attr_data(b), a->datalen)) {
+	if (attr_cmp(a, b)) {
 		req->diffs++;
 
 		if (req->attr_mod != NULL) {
