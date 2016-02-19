@@ -711,7 +711,8 @@ int main(int argc, char *argv[])
 	dls.ifindex = 0;
 	dls.loc_rib = &loc_rib;
 	dls.permit_readonly = 1;
-	dgp_listen_socket_register(&dls);
+	if (dgp_listen_socket_register(&dls))
+		return 1;
 
 	me = lsa_alloc(keyid);
 	lsa_add_attr(me, LSA_ATTR_TYPE_ADV_PATH, NULL, 0, NULL, 0);
