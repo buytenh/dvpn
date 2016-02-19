@@ -533,11 +533,16 @@ static struct iv_signal sigusr1;
 
 static int new_connect_entry(struct conf_connect_entry *cce)
 {
+	fprintf(stderr, "new peer %s, connect to %s:%s\n", cce->name,
+		cce->hostname, cce->port);
+
 	return start_conf_connect_entry(cce);
 }
 
 static void removed_connect_entry(struct conf_connect_entry *cce)
 {
+	fprintf(stderr, "deleted peer %s\n", cce->name);
+
 	stop_conf_connect_entry(cce);
 }
 
@@ -554,12 +559,18 @@ static void removed_listening_socket(struct conf_listening_socket *cls)
 static int new_listen_entry(struct conf_listening_socket *cls,
 			    struct conf_listen_entry *cle)
 {
+	fprintf(stderr, "new peer %s, listen on ", cle->name);
+	print_address(stderr, (const struct sockaddr *)&cls->listen_address);
+	fprintf(stderr, "\n");
+
 	return start_conf_listen_entry(cls, cle);
 }
 
 static void removed_listen_entry(struct conf_listening_socket *cls,
 				 struct conf_listen_entry *cle)
 {
+	fprintf(stderr, "deleted peer %s\n", cle->name);
+
 	stop_conf_listen_entry(cle);
 }
 
