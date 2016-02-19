@@ -27,6 +27,8 @@
 int lsa_serialise_length(struct lsa *lsa, uint8_t *preid);
 int lsa_serialise(uint8_t *buf, int buflen, int serlen,
 		  struct lsa *lsa, uint8_t *preid);
+int lsa_attr_serialise_length(struct lsa_attr *attr);
+int lsa_attr_serialise(uint8_t *buf, int buflen, struct lsa_attr *attr);
 
 
 #endif

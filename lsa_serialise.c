@@ -71,7 +71,7 @@ static int
 lsa_attr_set_serialise_length(struct lsa_attr_set *set, uint8_t *preid);
 
 static void
-lsa_attr_serialise(struct dst *dst, struct lsa_attr *attr, uint8_t *preid)
+__lsa_attr_serialise(struct dst *dst, struct lsa_attr *attr, uint8_t *preid)
 {
 	int flags;
 
@@ -102,7 +102,7 @@ lsa_attr_serialise(struct dst *dst, struct lsa_attr *attr, uint8_t *preid)
 			struct lsa_attr *attr2;
 
 			attr2 = iv_container_of(an, struct lsa_attr, an);
-			lsa_attr_serialise(dst, attr2, NULL);
+			__lsa_attr_serialise(dst, attr2, NULL);
 		}
 	} else if (preid != NULL) {
 		dst_append_int(dst, attr->datalen + NODE_ID_LEN);
@@ -125,9 +125,9 @@ lsa_attrs_serialise(struct dst *dst, struct iv_avl_tree *attrs, uint8_t *preid)
 		attr = iv_container_of(an, struct lsa_attr, an);
 
 		if (attr->type == LSA_ATTR_TYPE_ADV_PATH)
-			lsa_attr_serialise(dst, attr, preid);
+			__lsa_attr_serialise(dst, attr, preid);
 		else
-			lsa_attr_serialise(dst, attr, NULL);
+			__lsa_attr_serialise(dst, attr, NULL);
 	}
 }
 
@@ -171,6 +171,24 @@ int lsa_serialise(uint8_t *buf, int buflen, int serlen,
 				"buffer size %d\n", serlen, dst.off);
 		abort();
 	}
+
+	return dst.off;
+}
+
+int lsa_attr_serialise_length(struct lsa_attr *attr)
+{
+	return lsa_attr_serialise(NULL, 0, attr);
+}
+
+int lsa_attr_serialise(uint8_t *buf, int buflen, struct lsa_attr *attr)
+{
+	struct dst dst;
+
+	dst.dst = buf;
+	dst.dstlen = buflen;
+	dst.off = 0;
+
+	__lsa_attr_serialise(&dst, attr, NULL);
 
 	return dst.off;
 }
