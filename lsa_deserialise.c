@@ -100,6 +100,8 @@ static int lsa_deserialise_attr_set(struct lsa *lsa, struct lsa_attr_set *dst,
 
 			set = lsa_attr_set_add_attr_set(lsa, dst, type,
 							key, keylen);
+			if (set == NULL)
+				return -1;
 
 			srcdata.src = data;
 			srcdata.srclen = datalen;
@@ -107,8 +109,10 @@ static int lsa_deserialise_attr_set(struct lsa *lsa, struct lsa_attr_set *dst,
 			if (lsa_deserialise_attr_set(lsa, set, &srcdata) < 0)
 				return -1;
 		} else {
-			lsa_attr_set_add_attr(lsa, dst, type, key, keylen,
-					      data, datalen);
+			if (lsa_attr_set_add_attr(lsa, dst, type, key, keylen,
+						  data, datalen) < 0) {
+				return -1;
+			}
 		}
 	}
 
