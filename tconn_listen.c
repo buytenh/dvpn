@@ -91,20 +91,29 @@ static void rx_timeout(void *_cc)
 static int verify_key_id(void *_cc, const uint8_t *id)
 {
 	struct client_conn *cc = _cc;
-	struct iv_list_head *lh;
+	struct iv_avl_node *an;
 
 	fprintf(stderr, "conn%d: peer key ID ", cc->fd.fd);
 	printhex(stderr, id, NODE_ID_LEN);
 
-	iv_list_for_each (lh, &cc->tls->listen_entries) {
+	an = cc->tls->listen_entries.root;
+	while (an != NULL) {
 		struct tconn_listen_entry *le;
+		int ret;
 
-		le = iv_list_entry(lh, struct tconn_listen_entry, list);
-		if (!memcmp(le->fingerprint, id, NODE_ID_LEN)) {
+		le = iv_container_of(an, struct tconn_listen_entry, an);
+
+		ret = memcmp(id, le->fingerprint, NODE_ID_LEN);
+		if (ret == 0) {
 			fprintf(stderr, " - matches '%s'\n", le->name);
 			cc->tle = le;
 			return 0;
 		}
+
+		if (ret < 0)
+			an = an->left;
+		else
+			an = an->right;
 	}
 
 	fprintf(stderr, " - no matches\n");
@@ -245,6 +254,18 @@ static void got_connection(void *_ls)
 	tconn_start(&cc->tconn);
 }
 
+static int
+compare_listen_entries(struct iv_avl_node *_a, struct iv_avl_node *_b)
+{
+	struct tconn_listen_entry *a;
+	struct tconn_listen_entry *b;
+
+	a = iv_container_of(_a, struct tconn_listen_entry, an);
+	b = iv_container_of(_b, struct tconn_listen_entry, an);
+
+	return memcmp(a->fingerprint, b->fingerprint, NODE_ID_LEN);
+}
+
 int tconn_listen_socket_register(struct tconn_listen_socket *tls)
 {
 	int fd;
@@ -282,32 +303,35 @@ int tconn_listen_socket_register(struct tconn_listen_socket *tls)
 	tls->listen_fd.handler_in = got_connection;
 	iv_fd_register(&tls->listen_fd);
 
-	INIT_IV_LIST_HEAD(&tls->listen_entries);
+	INIT_IV_AVL_TREE(&tls->listen_entries, compare_listen_entries);
 
 	return 0;
 }
 
 void tconn_listen_socket_unregister(struct tconn_listen_socket *tls)
 {
-	struct iv_list_head *lh;
-	struct iv_list_head *lh2;
+	struct iv_avl_node *an;
+	struct iv_avl_node *an2;
 
 	iv_fd_unregister(&tls->listen_fd);
 	close(tls->listen_fd.fd);
 
-	iv_list_for_each_safe (lh, lh2, &tls->listen_entries) {
+	iv_avl_tree_for_each_safe (an, an2, &tls->listen_entries) {
 		struct tconn_listen_entry *le;
 
-		le = iv_list_entry(lh, struct tconn_listen_entry, list);
+		le = iv_container_of(an, struct tconn_listen_entry, an);
 		tconn_listen_entry_unregister(le);
 	}
 }
 
-void tconn_listen_entry_register(struct tconn_listen_entry *tle)
+int tconn_listen_entry_register(struct tconn_listen_entry *tle)
 {
-	iv_list_add_tail(&tle->list, &tle->tls->listen_entries);
+	if (iv_avl_tree_insert(&tle->tls->listen_entries, &tle->an))
+		return -1;
 
 	tle->current = NULL;
+
+	return 0;
 }
 
 void tconn_listen_entry_unregister(struct tconn_listen_entry *tle)
@@ -315,7 +339,7 @@ void tconn_listen_entry_unregister(struct tconn_listen_entry *tle)
 	if (tle->current != NULL)
 		client_conn_kill(tle->current, 0);
 
-	iv_list_del(&tle->list);
+	iv_avl_tree_delete(&tle->tls->listen_entries, &tle->an);
 }
 
 int tconn_listen_entry_get_maxseg(struct tconn_listen_entry *tle)

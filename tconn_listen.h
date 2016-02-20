@@ -28,7 +28,7 @@ struct tconn_listen_socket {
 	gnutls_x509_privkey_t	privkey;
 
 	struct iv_fd		listen_fd;
-	struct iv_list_head	listen_entries;
+	struct iv_avl_tree	listen_entries;
 };
 
 int tconn_listen_socket_register(struct tconn_listen_socket *tls);
@@ -44,11 +44,11 @@ struct tconn_listen_entry {
 							   const uint8_t *rec,
 							   int len);
 
-	struct iv_list_head		list;
+	struct iv_avl_node		an;
 	struct client_conn		*current;
 };
 
-void tconn_listen_entry_register(struct tconn_listen_entry *tle);
+int tconn_listen_entry_register(struct tconn_listen_entry *tle);
 void tconn_listen_entry_unregister(struct tconn_listen_entry *tle);
 int tconn_listen_entry_get_maxseg(struct tconn_listen_entry *tle);
 void tconn_listen_entry_record_send(struct tconn_listen_entry *tle,
