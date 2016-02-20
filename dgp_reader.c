@@ -118,7 +118,7 @@ int dgp_reader_read(struct dgp_reader *dr, int fd)
 void dgp_reader_unregister(struct dgp_reader *dr)
 {
 	if (dr->remoteid != NULL) {
-		adj_rib_in_flush(&dr->adj_rib_in);
+		adj_rib_in_truncate(&dr->adj_rib_in);
 		rib_listener_to_loc_deinit(&dr->to_loc);
 	}
 

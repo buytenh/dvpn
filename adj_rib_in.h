@@ -39,7 +39,7 @@ struct adj_rib_in {
 
 void adj_rib_in_init(struct adj_rib_in *rib);
 int adj_rib_in_add_lsa(struct adj_rib_in *rib, struct lsa *lsa);
-void adj_rib_in_flush(struct adj_rib_in *rib);
+void adj_rib_in_truncate(struct adj_rib_in *rib);
 
 void adj_rib_in_listener_register(struct adj_rib_in *rib,
 				  struct rib_listener *rl);

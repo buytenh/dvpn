@@ -237,7 +237,7 @@ int adj_rib_in_add_lsa(struct adj_rib_in *rib, struct lsa *lsa)
 	return 0;
 }
 
-void adj_rib_in_flush(struct adj_rib_in *rib)
+void adj_rib_in_truncate(struct adj_rib_in *rib)
 {
 	while (rib->lsas.root != NULL) {
 		struct adj_rib_in_lsa_ref *ref;
