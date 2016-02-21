@@ -89,16 +89,16 @@ void loc_rib_print(FILE *fp, struct loc_rib *rib)
 		struct iv_avl_node *an2;
 
 		id = iv_container_of(an, struct loc_rib_id, an);
-		if (id->best == NULL)
-			continue;
 
 		if (count++)
 			fprintf(fp, "\n");
 
-		fprintf(fp, "--------------------------------------"
-			    "-----------------------------------\n");
-
-		lsa_print(fp, id->best, rib);
+		if (id->best != NULL) {
+			fprintf(fp, "----- BEST ---------------------------"
+				    "-----------------------------------\n");
+			fprintf(fp, "cost: %u\n", id->bestcost);
+			lsa_print(fp, id->best, rib);
+		}
 
 		iv_avl_tree_for_each (an2, &id->lsas) {
 			struct loc_rib_lsa_ref *ref;
@@ -107,13 +107,21 @@ void loc_rib_print(FILE *fp, struct loc_rib *rib)
 			if (ref->lsa == id->best)
 				continue;
 
-			fprintf(fp, "--------------------------------------"
+			fprintf(fp, "----- ALT ----------------------------"
 				    "-----------------------------------\n");
 
-			lsa_diff(id->best, ref->lsa, &info,
-				 loc_rib_print_attr_add,
-				 loc_rib_print_attr_mod,
-				 loc_rib_print_attr_del);
+			if (id->best != NULL) {
+				fprintf(fp, "cost: %u -> %u\n",
+					id->bestcost, ref->cost);
+
+				lsa_diff(id->best, ref->lsa, &info,
+					 loc_rib_print_attr_add,
+					 loc_rib_print_attr_mod,
+					 loc_rib_print_attr_del);
+			} else {
+				fprintf(fp, "cost: %u\n", ref->cost);
+				lsa_print(fp, ref->lsa, rib);
+			}
 		}
 
 		fprintf(fp, "--------------------------------------"
