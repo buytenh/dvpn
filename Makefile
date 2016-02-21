@@ -7,6 +7,7 @@ clean:
 		rm -f client2.ini
 		rm -f client2.key
 		rm -f dvpn
+		rm -f hostmon
 		rm -f rtmon
 		rm -f server.ini
 		rm -f server.key
