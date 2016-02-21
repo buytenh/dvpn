@@ -140,6 +140,7 @@ int main(int argc, char *argv[])
 
 	iv_init();
 
+	loc_rib.myid = NULL;
 	loc_rib_init(&loc_rib);
 
 	rib_listener.lsa_add = lsa_add;

@@ -104,6 +104,7 @@ int main(int argc, char *argv[])
 
 	iv_init();
 
+	loc_rib.myid = NULL;
 	loc_rib_init(&loc_rib);
 
 	debug_listener.name = NULL;

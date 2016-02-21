@@ -20,27 +20,36 @@
 #ifndef __LOC_RIB_H
 #define __LOC_RIB_H
 
+#include <iv.h>
 #include <iv_avl.h>
 #include <iv_list.h>
 #include "lsa.h"
 #include "rib_listener.h"
 
+#define LOC_RIB_COST_UNREACHABLE	0xfffffffe
+#define LOC_RIB_COST_INELIGIBLE		0xffffffff
+
 struct loc_rib {
+	uint8_t			*myid;
+
 	struct iv_avl_tree	ids;
+	struct iv_task		recompute;
 	struct iv_list_head	listeners;
 };
 
 struct loc_rib_id {
 	struct iv_avl_node	an;
 	uint8_t			id[NODE_ID_LEN];
-	struct iv_avl_tree	lsas;
 	uint64_t		highest_version_seen;
+	struct iv_avl_tree	lsas;
 	struct lsa		*best;
+	uint32_t		bestcost;
 };
 
 struct loc_rib_lsa_ref {
 	struct iv_avl_node	an;
 	struct lsa		*lsa;
+	uint32_t		cost;
 };
 
 void loc_rib_init(struct loc_rib *rib);
