@@ -751,14 +751,14 @@ int main(int argc, char *argv[])
 
 	iv_main();
 
-	iv_deinit();
-
 	loc_rib_del_lsa(&loc_rib, me);
 	lsa_put(me);
 
 	loc_rib_deinit(&loc_rib);
 
 	rt_builder_deinit(&rb);
+
+	iv_deinit();
 
 	gnutls_x509_privkey_deinit(privkey);
 
