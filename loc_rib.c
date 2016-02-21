@@ -216,6 +216,8 @@ static void recompute_rid(struct loc_rib *rib, struct loc_rib_id *rid)
 		ref = iv_container_of(an, struct loc_rib_lsa_ref, an);
 
 		cost = lsa_path_cost(rib, rid, ref->lsa);
+		ref->cost = cost;
+
 		if (cost < bestcost) {
 			best = ref->lsa;
 			bestcost = cost;
