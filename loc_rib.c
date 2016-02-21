@@ -141,7 +141,7 @@ lsa_path_cost(struct loc_rib *rib, struct loc_rib_id *rid, struct lsa *lsa)
 	path = lsa_attr_data(pathattr);
 	pathlen = pathattr->datalen;
 
-	if (!pathlen || (pathlen % NODE_ID_LEN) != 0)
+	if ((pathlen % NODE_ID_LEN) != 0)
 		abort();
 
 	from = NULL;
