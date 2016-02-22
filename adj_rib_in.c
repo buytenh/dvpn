@@ -28,6 +28,7 @@
 #include "lsa_diff.h"
 #include "lsa_path.h"
 #include "lsa_type.h"
+#include "util.h"
 
 struct adj_rib_in_lsa_ref {
 	struct iv_avl_node	an;

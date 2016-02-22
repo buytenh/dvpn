@@ -22,6 +22,7 @@
 #include <iv.h>
 #include <iv_avl.h>
 #include <iv_list.h>
+#include <netinet/in.h>
 #include <string.h>
 #include "lsa_diff.h"
 #include "lsa_path.h"

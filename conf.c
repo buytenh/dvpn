@@ -27,6 +27,7 @@
 #include <strings.h>
 #include <sys/utsname.h>
 #include "conf.h"
+#include "util.h"
 
 struct local_conf {
 	struct conf	*conf;

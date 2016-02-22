@@ -28,7 +28,6 @@
 #include "tconn_connect.h"
 #include "tconn_listen.h"
 #include "tun.h"
-#include "util.h"
 
 struct conf {
 	char			*private_key;
@@ -36,6 +35,14 @@ struct conf {
 
 	struct iv_avl_tree	connect_entries;
 	struct iv_avl_tree	listening_sockets;
+};
+
+enum peer_type {
+	PEER_TYPE_INVALID = 0,
+	PEER_TYPE_EPEER = 1,
+	PEER_TYPE_CUSTOMER = 2,
+	PEER_TYPE_TRANSIT = 3,
+	PEER_TYPE_IPEER = 4,
 };
 
 struct conf_connect_entry {

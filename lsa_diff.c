@@ -24,6 +24,7 @@
 #include "lsa.h"
 #include "lsa_diff.h"
 #include "lsa_serialise.h"
+#include "util.h"
 
 struct lsa_diff_request {
 	int	diffs;

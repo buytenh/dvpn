@@ -21,7 +21,8 @@
 #define __LSA_H
 
 #include <iv_avl.h>
-#include "util.h"
+
+#define NODE_ID_LEN	32
 
 struct lsa_attr_set {
 	struct iv_avl_tree	attrs;

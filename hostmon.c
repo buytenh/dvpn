@@ -19,6 +19,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <arpa/inet.h>
 #include <ctype.h>
 #include <getopt.h>
 #include <gnutls/x509.h>
@@ -30,6 +31,7 @@
 #include "loc_rib.h"
 #include "lsa.h"
 #include "lsa_type.h"
+#include "util.h"
 #include "x509.h"
 
 static uint8_t myid[NODE_ID_LEN];

@@ -25,7 +25,6 @@
 #include <netdb.h>
 #include "iv_getaddrinfo.h"
 #include "tconn.h"
-#include "util.h"
 
 struct tconn_connect {
 	char			*name;

@@ -22,6 +22,7 @@
 #include <iv.h>
 #include <string.h>
 #include "dgp_listen.h"
+#include "util.h"
 
 struct conn {
 	struct dgp_listen_entry		*dle;

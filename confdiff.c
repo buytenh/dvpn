@@ -22,6 +22,7 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include "confdiff.h"
+#include "util.h"
 
 static void cce_add(void *_req, struct iv_avl_node *_a)
 {

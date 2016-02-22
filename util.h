@@ -23,16 +23,7 @@
 #include <arpa/inet.h>
 #include <iv_avl.h>
 #include <stdint.h>
-
-#define NODE_ID_LEN	32
-
-enum peer_type {
-	PEER_TYPE_INVALID = 0,
-	PEER_TYPE_EPEER = 1,
-	PEER_TYPE_CUSTOMER = 2,
-	PEER_TYPE_TRANSIT = 3,
-	PEER_TYPE_IPEER = 4,
-};
+#include "conf.h"
 
 int addrcmp(const struct sockaddr_storage *a,
 	    const struct sockaddr_storage *b);

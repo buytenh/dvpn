@@ -25,6 +25,7 @@
 #include "lsa_diff.h"
 #include "lsa_type.h"
 #include "rt_builder.h"
+#include "util.h"
 
 struct node {
 	struct iv_avl_node	an;

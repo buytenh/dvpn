@@ -20,8 +20,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <iv.h>
+#include <netinet/in.h>
 #include <string.h>
 #include "dgp_connect.h"
+#include "util.h"
 
 #define STATE_CONNECTING	1
 #define STATE_ESTABLISHED	2

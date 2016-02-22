@@ -20,8 +20,8 @@
 #ifndef __CSPF_H
 #define __CSPF_H
 
+#include "conf.h"
 #include "spf.h"
-#include "util.h"
 
 struct cspf_node {
 	uint8_t			*id;
