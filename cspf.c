@@ -48,25 +48,25 @@ void cspf_edge_add(struct spf_context *ctx, struct cspf_edge *edge,
 		   enum conf_peer_type to_type, int cost)
 {
 	switch (to_type) {
-	case PEER_TYPE_EPEER:
+	case CONF_PEER_TYPE_EPEER:
 		edge->e0.to = &to->b;
 		edge->e0.cost = cost;
 		spf_edge_add(&from->a, &edge->e0);
 		break;
 
-	case PEER_TYPE_CUSTOMER:
+	case CONF_PEER_TYPE_CUSTOMER:
 		edge->e0.to = &to->b;
 		edge->e0.cost = cost;
 		spf_edge_add(&from->b, &edge->e0);
 		break;
 
-	case PEER_TYPE_TRANSIT:
+	case CONF_PEER_TYPE_TRANSIT:
 		edge->e0.to = &to->a;
 		edge->e0.cost = cost;
 		spf_edge_add(&from->a, &edge->e0);
 		break;
 
-	case PEER_TYPE_IPEER:
+	case CONF_PEER_TYPE_IPEER:
 		edge->e0.to = &to->a;
 		edge->e0.cost = cost;
 		spf_edge_add(&from->a, &edge->e0);
@@ -87,19 +87,19 @@ void cspf_edge_del(struct spf_context *ctx, struct cspf_edge *edge,
 		   enum conf_peer_type to_type)
 {
 	switch (to_type) {
-	case PEER_TYPE_EPEER:
+	case CONF_PEER_TYPE_EPEER:
 		spf_edge_del(&from->a, &edge->e0);
 		break;
 
-	case PEER_TYPE_CUSTOMER:
+	case CONF_PEER_TYPE_CUSTOMER:
 		spf_edge_del(&from->b, &edge->e0);
 		break;
 
-	case PEER_TYPE_TRANSIT:
+	case CONF_PEER_TYPE_TRANSIT:
 		spf_edge_del(&from->a, &edge->e0);
 		break;
 
-	case PEER_TYPE_IPEER:
+	case CONF_PEER_TYPE_IPEER:
 		spf_edge_del(&from->a, &edge->e0);
 		spf_edge_del(&from->b, &edge->e1);
 		break;

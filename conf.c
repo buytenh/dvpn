@@ -184,20 +184,20 @@ get_const_value(struct ini_cfgobj *co, const char *section, const char *name)
 static enum conf_peer_type parse_peer_type(const char *pt)
 {
 	if (!strcasecmp(pt, "epeer") || !strcasecmp(pt, "peer"))
-		return PEER_TYPE_EPEER;
+		return CONF_PEER_TYPE_EPEER;
 
 	if (!strcasecmp(pt, "customer") || !strcasecmp(pt, "downstream"))
-		return PEER_TYPE_CUSTOMER;
+		return CONF_PEER_TYPE_CUSTOMER;
 
 	if (!strcasecmp(pt, "transit") || !strcasecmp(pt, "upstream"))
-		return PEER_TYPE_TRANSIT;
+		return CONF_PEER_TYPE_TRANSIT;
 
 	if (!strcasecmp(pt, "ipeer"))
-		return PEER_TYPE_IPEER;
+		return CONF_PEER_TYPE_IPEER;
 
 	fprintf(stderr, "error parsing peer type '%s'\n", pt);
 
-	return PEER_TYPE_INVALID;
+	return CONF_PEER_TYPE_INVALID;
 }
 
 static int
@@ -456,12 +456,12 @@ static int parse_config_peer(struct local_conf *lc,
 	peertype = get_const_value(co, peer, "PeerType");
 	if (peertype != NULL) {
 		peer_type = parse_peer_type(peertype);
-		if (peer_type == PEER_TYPE_INVALID)
+		if (peer_type == CONF_PEER_TYPE_INVALID)
 			return -1;
 	} else {
 		peer_type = (connect != NULL) ?
-				PEER_TYPE_TRANSIT :
-				PEER_TYPE_CUSTOMER;
+				CONF_PEER_TYPE_TRANSIT :
+				CONF_PEER_TYPE_CUSTOMER;
 	}
 
 	itf = get_const_value(co, peer, "TunInterface");

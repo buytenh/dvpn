@@ -141,18 +141,23 @@ static struct edge *find_edge(struct node *from, uint8_t *to)
 static int
 map_conf_peer_type(enum conf_peer_type forward, enum conf_peer_type reverse)
 {
-	if (forward == PEER_TYPE_IPEER && reverse == PEER_TYPE_IPEER)
-		return PEER_TYPE_IPEER;
+	if (forward == CONF_PEER_TYPE_IPEER &&
+	    reverse == CONF_PEER_TYPE_IPEER)
+		return CONF_PEER_TYPE_IPEER;
 
-	if ((forward == PEER_TYPE_CUSTOMER || forward == PEER_TYPE_IPEER) &&
-	    (reverse == PEER_TYPE_TRANSIT || reverse == PEER_TYPE_IPEER))
-		return PEER_TYPE_CUSTOMER;
+	if ((forward == CONF_PEER_TYPE_CUSTOMER ||
+	     forward == CONF_PEER_TYPE_IPEER) &&
+	    (reverse == CONF_PEER_TYPE_TRANSIT ||
+	     reverse == CONF_PEER_TYPE_IPEER))
+		return CONF_PEER_TYPE_CUSTOMER;
 
-	if ((forward == PEER_TYPE_TRANSIT || forward == PEER_TYPE_IPEER) &&
-	    (reverse == PEER_TYPE_CUSTOMER || reverse == PEER_TYPE_IPEER))
-		return PEER_TYPE_TRANSIT;
+	if ((forward == CONF_PEER_TYPE_TRANSIT ||
+	     forward == CONF_PEER_TYPE_IPEER) &&
+	    (reverse == CONF_PEER_TYPE_CUSTOMER ||
+	     reverse == CONF_PEER_TYPE_IPEER))
+		return CONF_PEER_TYPE_TRANSIT;
 
-	return PEER_TYPE_EPEER;
+	return CONF_PEER_TYPE_EPEER;
 }
 
 static void register_edge(struct rt_builder *rb, struct node *from,
@@ -274,13 +279,13 @@ static void attr_add(void *_cb, struct lsa_attr *attr)
 		peer_type = *((uint8_t *)lsa_attr_data(attr2));
 
 		if (peer_type == LSA_PEER_TYPE_EPEER)
-			add_edge(rb, node, to, metric, PEER_TYPE_EPEER);
+			add_edge(rb, node, to, metric, CONF_PEER_TYPE_EPEER);
 		else if (peer_type == LSA_PEER_TYPE_CUSTOMER)
-			add_edge(rb, node, to, metric, PEER_TYPE_CUSTOMER);
+			add_edge(rb, node, to, metric, CONF_PEER_TYPE_CUSTOMER);
 		else if (peer_type == LSA_PEER_TYPE_TRANSIT)
-			add_edge(rb, node, to, metric, PEER_TYPE_TRANSIT);
+			add_edge(rb, node, to, metric, CONF_PEER_TYPE_TRANSIT);
 		else if (peer_type == LSA_PEER_TYPE_IPEER)
-			add_edge(rb, node, to, metric, PEER_TYPE_IPEER);
+			add_edge(rb, node, to, metric, CONF_PEER_TYPE_IPEER);
 	}
 }
 

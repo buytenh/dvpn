@@ -66,13 +66,13 @@ static enum lsa_peer_type
 conf_peer_type_to_lsa_peer_type(enum conf_peer_type type)
 {
 	switch (type) {
-	case PEER_TYPE_EPEER:
+	case CONF_PEER_TYPE_EPEER:
 		return LSA_PEER_TYPE_EPEER;
-	case PEER_TYPE_CUSTOMER:
+	case CONF_PEER_TYPE_CUSTOMER:
 		return LSA_PEER_TYPE_CUSTOMER;
-	case PEER_TYPE_TRANSIT:
+	case CONF_PEER_TYPE_TRANSIT:
 		return LSA_PEER_TYPE_TRANSIT;
-	case PEER_TYPE_IPEER:
+	case CONF_PEER_TYPE_IPEER:
 		return LSA_PEER_TYPE_IPEER;
 	default:
 		fprintf(stderr, "conf_peer_type_to_lsa_peer_type: invalid "
