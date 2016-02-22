@@ -125,6 +125,9 @@ static int dgp_writer_rib_dump(struct dgp_writer *dw)
 		struct loc_rib_id *rid;
 
 		rid = iv_container_of(an, struct loc_rib_id, an);
+		if (rid->best == NULL)
+			continue;
+
 		if (dgp_writer_output_lsa(dw, NULL, rid->best))
 			return 1;
 	}
