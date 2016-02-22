@@ -19,6 +19,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <netinet/tcp.h>
 #include <string.h>
 #include "dgp_writer.h"
 #include "lsa_path.h"
@@ -112,6 +113,13 @@ static void dgp_writer_lsa_del(void *_dw, struct lsa *lsa)
 static int dgp_writer_rib_dump(struct dgp_writer *dw)
 {
 	struct iv_avl_node *an;
+	int i;
+
+	i = 1;
+	if (setsockopt(dw->fd, SOL_TCP, TCP_CORK, &i, sizeof(i)) < 0) {
+		perror("setsockopt(SOL_TCP, TCP_CORK)");
+		abort();
+	}
 
 	iv_avl_tree_for_each (an, &dw->rib->ids) {
 		struct loc_rib_id *rid;
@@ -119,6 +127,12 @@ static int dgp_writer_rib_dump(struct dgp_writer *dw)
 		rid = iv_container_of(an, struct loc_rib_id, an);
 		if (dgp_writer_output_lsa(dw, NULL, rid->best))
 			return 1;
+	}
+
+	i = 0;
+	if (setsockopt(dw->fd, SOL_TCP, TCP_CORK, &i, sizeof(i)) < 0) {
+		perror("setsockopt(SOL_TCP, TCP_CORK)");
+		abort();
 	}
 
 	return 0;
