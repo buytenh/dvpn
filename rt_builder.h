@@ -28,9 +28,10 @@ struct rt_builder {
 	struct loc_rib	*rib;
 	uint8_t		*source;
 	void		*cookie;
-	void		(*rt_add)(void *, uint8_t *, uint8_t *);
-	void		(*rt_mod)(void *, uint8_t *, uint8_t *, uint8_t *);
-	void		(*rt_del)(void *, uint8_t *, uint8_t *);
+	void		(*rt_add)(void *cookie, uint8_t *dest, uint8_t *nh);
+	void		(*rt_mod)(void *cookie, uint8_t *dest, uint8_t *oldnh,
+				  uint8_t *newnh);
+	void		(*rt_del)(void *cookie, uint8_t *dest, uint8_t *nh);
 
 	struct rib_listener	rl;
 	struct spf_context	ctx;
