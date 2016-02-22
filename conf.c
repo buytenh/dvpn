@@ -183,6 +183,9 @@ get_const_value(struct ini_cfgobj *co, const char *section, const char *name)
 
 static enum conf_peer_type parse_peer_type(const char *pt)
 {
+	if (!strcasecmp(pt, "dbonly"))
+		return CONF_PEER_TYPE_DBONLY;
+
 	if (!strcasecmp(pt, "epeer") || !strcasecmp(pt, "peer"))
 		return CONF_PEER_TYPE_EPEER;
 

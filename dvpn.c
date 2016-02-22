@@ -77,7 +77,7 @@ conf_peer_type_to_lsa_peer_type(enum conf_peer_type type)
 	default:
 		fprintf(stderr, "conf_peer_type_to_lsa_peer_type: invalid "
 				"type %d\n", type);
-		return LSA_PEER_TYPE_EPEER;
+		abort();
 	}
 }
 
@@ -208,7 +208,10 @@ static void cce_set_state(void *_cce, int up)
 		int mtu;
 		uint8_t addr[16];
 
-		local_add_peer(cce->fingerprint, cce->peer_type, cce->cost);
+		if (cce->peer_type != CONF_PEER_TYPE_DBONLY) {
+			local_add_peer(cce->fingerprint, cce->peer_type,
+				       cce->cost);
+		}
 
 		maxseg = tconn_connect_get_maxseg(&cce->tc);
 		if (maxseg < 0)
@@ -241,7 +244,8 @@ static void cce_set_state(void *_cce, int up)
 
 		itf_set_state(tunitf, 0);
 
-		local_del_peer(cce->fingerprint);
+		if (cce->peer_type != CONF_PEER_TYPE_DBONLY)
+			local_del_peer(cce->fingerprint);
 	}
 }
 
@@ -290,7 +294,10 @@ static void cle_set_state(void *_cle, int up)
 		int mtu;
 		uint8_t addr[16];
 
-		local_add_peer(cle->fingerprint, cle->peer_type, cle->cost);
+		if (cle->peer_type != CONF_PEER_TYPE_DBONLY) {
+			local_add_peer(cle->fingerprint, cle->peer_type,
+				       cle->cost);
+		}
 
 		maxseg = tconn_listen_entry_get_maxseg(&cle->tle);
 		if (maxseg < 0)
@@ -325,7 +332,8 @@ static void cle_set_state(void *_cle, int up)
 
 		itf_set_state(tunitf, 0);
 
-		local_del_peer(cle->fingerprint);
+		if (cle->peer_type != CONF_PEER_TYPE_DBONLY)
+			local_del_peer(cle->fingerprint);
 	}
 }
 
