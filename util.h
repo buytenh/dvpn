@@ -32,7 +32,6 @@ void avl_diff(struct iv_avl_tree *a, struct iv_avl_tree *b, void *cookie,
 	      void (*item_mod)(void *cookie, struct iv_avl_node *a,
 			       struct iv_avl_node *b),
 	      void (*item_del)(void *cookie, struct iv_avl_node *a));
-const char *peer_type_name(enum peer_type type);
 void print_address(FILE *fp, const struct sockaddr *addr);
 void printhex(FILE *fp, const uint8_t *a, int len);
 void v6_global_addr_from_key_id(uint8_t *addr, uint8_t *id);
