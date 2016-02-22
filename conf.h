@@ -37,7 +37,7 @@ struct conf {
 	struct iv_avl_tree	listening_sockets;
 };
 
-enum peer_type {
+enum conf_peer_type {
 	PEER_TYPE_INVALID = 0,
 	PEER_TYPE_EPEER = 1,
 	PEER_TYPE_CUSTOMER = 2,
@@ -52,7 +52,7 @@ struct conf_connect_entry {
 	char			*hostname;
 	char			*port;
 	uint8_t			fingerprint[NODE_ID_LEN];
-	enum peer_type		peer_type;
+	enum conf_peer_type	peer_type;
 	char			*tunitf;
 	int			cost;
 
@@ -78,7 +78,7 @@ struct conf_listen_entry {
 
 	char				*name;
 	uint8_t				fingerprint[NODE_ID_LEN];
-	enum peer_type			peer_type;
+	enum conf_peer_type		peer_type;
 	char				*tunitf;
 	int				cost;
 

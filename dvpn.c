@@ -62,7 +62,8 @@ static void rt_del(void *_dummy, uint8_t *dest, uint8_t *nh)
 	itf_del_route_v6_via(dest, nh);
 }
 
-static enum lsa_peer_type peer_type_to_lsa_peer_type(enum peer_type type)
+static enum lsa_peer_type
+conf_peer_type_to_lsa_peer_type(enum conf_peer_type type)
 {
 	switch (type) {
 	case PEER_TYPE_EPEER:
@@ -74,7 +75,7 @@ static enum lsa_peer_type peer_type_to_lsa_peer_type(enum peer_type type)
 	case PEER_TYPE_IPEER:
 		return LSA_PEER_TYPE_IPEER;
 	default:
-		fprintf(stderr, "peer_type_to_lsa_peer_type: invalid "
+		fprintf(stderr, "conf_peer_type_to_lsa_peer_type: invalid "
 				"type %d\n", type);
 		return LSA_PEER_TYPE_EPEER;
 	}
@@ -137,7 +138,7 @@ lsa_add_pubkey_from_privkey(struct lsa *lsa, gnutls_x509_privkey_t privkey)
 	lsa_add_attr(lsa, LSA_ATTR_TYPE_PUBKEY, NULL, 0, buf, len);
 }
 
-static void local_add_peer(uint8_t *id, enum peer_type type, int cost)
+static void local_add_peer(uint8_t *id, enum conf_peer_type type, int cost)
 {
 	struct lsa *newme;
 	struct lsa_attr_set *set;
@@ -152,7 +153,7 @@ static void local_add_peer(uint8_t *id, enum peer_type type, int cost)
 	lsa_attr_set_add_attr(newme, set, LSA_PEER_ATTR_TYPE_METRIC,
 			      NULL, 0, &metric, sizeof(metric));
 
-	peer_type = peer_type_to_lsa_peer_type(type);
+	peer_type = conf_peer_type_to_lsa_peer_type(type);
 	lsa_attr_set_add_attr(newme, set, LSA_PEER_ATTR_TYPE_PEER_TYPE,
 			      NULL, 0, &peer_type, sizeof(peer_type));
 

@@ -181,7 +181,7 @@ get_const_value(struct ini_cfgobj *co, const char *section, const char *name)
 	return value;
 }
 
-static enum peer_type parse_peer_type(const char *pt)
+static enum conf_peer_type parse_peer_type(const char *pt)
 {
 	if (!strcasecmp(pt, "epeer") || !strcasecmp(pt, "peer"))
 		return PEER_TYPE_EPEER;
@@ -202,8 +202,8 @@ static enum peer_type parse_peer_type(const char *pt)
 
 static int
 add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
-		 const uint8_t *fp, enum peer_type peer_type, const char *itf,
-		 int cost)
+		 const uint8_t *fp, enum conf_peer_type peer_type,
+		 const char *itf, int cost)
 {
 	struct conf_connect_entry *cce;
 	char *delim;
@@ -380,8 +380,8 @@ get_listening_socket(struct local_conf *lc, const char *listen)
 
 static int
 add_listen_peer(struct local_conf *lc, const char *peer, const char *listen,
-		const uint8_t *fp, enum peer_type peer_type, const char *itf,
-		int cost)
+		const uint8_t *fp, enum conf_peer_type peer_type,
+		const char *itf, int cost)
 {
 	struct conf_listening_socket *cls;
 	struct conf_listen_entry *cle;
@@ -415,7 +415,7 @@ static int parse_config_peer(struct local_conf *lc,
 	const char *fp;
 	uint8_t f[NODE_ID_LEN];
 	const char *peertype;
-	enum peer_type peer_type;
+	enum conf_peer_type peer_type;
 	const char *itf;
 	struct value_obj *vo;
 	int ret;

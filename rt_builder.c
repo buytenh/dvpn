@@ -39,7 +39,7 @@ struct edge {
 	struct iv_avl_node	an;
 	struct node		*to;
 	int			metric;
-	enum peer_type		to_type;
+	enum conf_peer_type	to_type;
 	struct cspf_edge	edge;
 };
 
@@ -138,7 +138,8 @@ static struct edge *find_edge(struct node *from, uint8_t *to)
 	return NULL;
 }
 
-static int map_peer_type(enum peer_type forward, enum peer_type reverse)
+static int
+map_conf_peer_type(enum conf_peer_type forward, enum conf_peer_type reverse)
 {
 	if (forward == PEER_TYPE_IPEER && reverse == PEER_TYPE_IPEER)
 		return PEER_TYPE_IPEER;
@@ -157,16 +158,16 @@ static int map_peer_type(enum peer_type forward, enum peer_type reverse)
 static void register_edge(struct rt_builder *rb, struct node *from,
 			  struct edge *edge, struct edge *back)
 {
-	enum peer_type type;
+	enum conf_peer_type type;
 
-	type = map_peer_type(edge->to_type, back->to_type);
+	type = map_conf_peer_type(edge->to_type, back->to_type);
 
 	cspf_edge_add(&rb->ctx, &edge->edge, &from->node, &edge->to->node,
 		      type, edge->metric);
 }
 
 static void add_edge(struct rt_builder *rb, struct node *from,
-		     uint8_t *_to, int metric, enum peer_type to_type)
+		     uint8_t *_to, int metric, enum conf_peer_type to_type)
 {
 	struct node *to;
 	struct edge *edge;
@@ -195,9 +196,9 @@ static void add_edge(struct rt_builder *rb, struct node *from,
 static void unregister_edge(struct rt_builder *rb, struct node *from,
 			    struct edge *edge, struct edge *back)
 {
-	enum peer_type type;
+	enum conf_peer_type type;
 
-	type = map_peer_type(edge->to_type, back->to_type);
+	type = map_conf_peer_type(edge->to_type, back->to_type);
 
 	cspf_edge_del(&rb->ctx, &edge->edge, &from->node,
 		      &edge->to->node, type);

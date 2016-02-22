@@ -45,7 +45,7 @@ void cspf_node_del(struct spf_context *ctx, struct cspf_node *node)
 
 void cspf_edge_add(struct spf_context *ctx, struct cspf_edge *edge,
 		   struct cspf_node *from, struct cspf_node *to,
-		   enum peer_type to_type, int cost)
+		   enum conf_peer_type to_type, int cost)
 {
 	switch (to_type) {
 	case PEER_TYPE_EPEER:
@@ -84,7 +84,7 @@ void cspf_edge_add(struct spf_context *ctx, struct cspf_edge *edge,
 
 void cspf_edge_del(struct spf_context *ctx, struct cspf_edge *edge,
 		   struct cspf_node *from, struct cspf_node *to,
-		   enum peer_type to_type)
+		   enum conf_peer_type to_type)
 {
 	switch (to_type) {
 	case PEER_TYPE_EPEER:
