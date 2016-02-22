@@ -706,8 +706,6 @@ int main(int argc, char *argv[])
 	rb.rt_del = rt_del;
 	rt_builder_init(&rb);
 
-	loc_rib_listener_register(&loc_rib, &rb.rl);
-
 	dls.myid = keyid;
 	dls.ifindex = 0;
 	dls.loc_rib = &loc_rib;
@@ -754,9 +752,9 @@ int main(int argc, char *argv[])
 	loc_rib_del_lsa(&loc_rib, me);
 	lsa_put(me);
 
-	loc_rib_deinit(&loc_rib);
-
 	rt_builder_deinit(&rb);
+
+	loc_rib_deinit(&loc_rib);
 
 	iv_deinit();
 

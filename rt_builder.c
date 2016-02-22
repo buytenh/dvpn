@@ -494,6 +494,7 @@ void rt_builder_init(struct rt_builder *rb)
 	rb->rl.lsa_add = lsa_add;
 	rb->rl.lsa_mod = lsa_mod;
 	rb->rl.lsa_del = lsa_del;
+	loc_rib_listener_register(rb->rib, &rb->rl);
 
 	spf_init(&rb->ctx);
 
@@ -506,6 +507,8 @@ void rt_builder_init(struct rt_builder *rb)
 
 void rt_builder_deinit(struct rt_builder *rb)
 {
+	loc_rib_listener_unregister(rb->rib, &rb->rl);
+
 	if (rb->rt)
 		free(rb->rt);
 }

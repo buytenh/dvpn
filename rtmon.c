@@ -151,8 +151,6 @@ int main(int argc, char *argv[])
 	rb.rt_del = rt_del;
 	rt_builder_init(&rb);
 
-	loc_rib_listener_register(&loc_rib, &rb.rl);
-
 	dc.myid = NULL;
 	dc.remoteid = myid;
 	dc.ifindex = 0;
@@ -175,9 +173,9 @@ int main(int argc, char *argv[])
 
 	iv_main();
 
-	loc_rib_deinit(&loc_rib);
-
 	rt_builder_deinit(&rb);
+
+	loc_rib_deinit(&loc_rib);
 
 	iv_deinit();
 
