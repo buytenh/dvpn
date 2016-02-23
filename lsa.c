@@ -80,7 +80,8 @@ struct lsa *lsa_alloc(uint8_t *id)
 
 struct lsa *lsa_get(struct lsa *lsa)
 {
-	lsa->refcount++;
+	if (lsa != NULL)
+		lsa->refcount++;
 
 	return lsa;
 }
@@ -109,7 +110,7 @@ static void attr_tree_free(struct lsa *lsa, struct iv_avl_node *root)
 
 void lsa_put(struct lsa *lsa)
 {
-	if (!--lsa->refcount) {
+	if (lsa != NULL && !--lsa->refcount) {
 		if (!iv_avl_tree_empty(&lsa->root.attrs))
 			attr_tree_free(lsa, lsa->root.attrs.root);
 		free(lsa);
