@@ -620,6 +620,8 @@ static void got_sigint(void *_dummy)
 	iv_signal_unregister(&sigint);
 	iv_signal_unregister(&sigusr1);
 
+	rt_builder_deinit(&rb);
+
 	stop_config(conf);
 
 	dgp_listen_socket_unregister(&dls);
@@ -763,8 +765,6 @@ int main(int argc, char *argv[])
 
 	loc_rib_del_lsa(&loc_rib, me);
 	lsa_put(me);
-
-	rt_builder_deinit(&rb);
 
 	loc_rib_deinit(&loc_rib);
 
