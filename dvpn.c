@@ -44,6 +44,7 @@ static gnutls_x509_privkey_t privkey;
 static uint8_t keyid[NODE_ID_LEN];
 static struct loc_rib loc_rib;
 static struct rt_builder rb;
+static struct iv_avl_tree direct_peers;
 static struct dgp_listen_socket dls;
 static struct lsa *me;
 
@@ -63,6 +64,17 @@ static void rt_del(void *_dummy, uint8_t *dest, uint8_t *nh)
 {
 	if (nh != NULL)
 		itf_del_route_v6_via(dest, nh);
+}
+
+static int compare_direct_peers(struct iv_avl_node *_a, struct iv_avl_node *_b)
+{
+	struct direct_peer *a;
+	struct direct_peer *b;
+
+	a = iv_container_of(_a, struct direct_peer, an);
+	b = iv_container_of(_b, struct direct_peer, an);
+
+	return memcmp(a->addr, b->addr, sizeof(a->addr));
 }
 
 static enum lsa_peer_type
@@ -380,6 +392,11 @@ static int start_conf_connect_entry(struct conf_connect_entry *cce)
 	cce->tc.record_received = cce_record_received;
 	tconn_connect_start(&cce->tc);
 
+	v6_global_addr_from_key_id(cce->dp.addr, cce->fingerprint);
+	cce->dp.itfname = tun_interface_get_name(&cce->tun);
+	if (iv_avl_tree_insert(&direct_peers, &cce->dp.an))
+		abort();
+
 	cce->dc.myid = keyid;
 	cce->dc.remoteid = cce->fingerprint;
 	cce->dc.ifindex = if_nametoindex(tun_interface_get_name(&cce->tun));
@@ -422,6 +439,11 @@ static int start_conf_listen_entry(struct conf_listening_socket *cls,
 	cle->tle.set_state = cle_set_state;
 	cle->tle.record_received = cle_record_received;
 	tconn_listen_entry_register(&cle->tle);
+
+	v6_global_addr_from_key_id(cle->dp.addr, cle->fingerprint);
+	cle->dp.itfname = tun_interface_get_name(&cle->tun);
+	if (iv_avl_tree_insert(&direct_peers, &cle->dp.an))
+		abort();
 
 	cle->dls.myid = keyid;
 	cle->dls.ifindex = if_nametoindex(tun_interface_get_name(&cle->tun));
@@ -719,6 +741,8 @@ int main(int argc, char *argv[])
 	rb.rt_mod = rt_mod;
 	rb.rt_del = rt_del;
 	rt_builder_init(&rb);
+
+	INIT_IV_AVL_TREE(&direct_peers, compare_direct_peers);
 
 	dls.myid = keyid;
 	dls.ifindex = 0;

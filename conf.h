@@ -46,6 +46,12 @@ enum conf_peer_type {
 	CONF_PEER_TYPE_IPEER,
 };
 
+struct direct_peer {
+	struct iv_avl_node	an;
+	uint8_t			addr[16];
+	char			*itfname;
+};
+
 struct conf_connect_entry {
 	struct iv_avl_node	an;
 
@@ -61,6 +67,7 @@ struct conf_connect_entry {
 	struct tun_interface	tun;
 	struct tconn_connect	tc;
 	int			tconn_up;
+	struct direct_peer	dp;
 	struct dgp_connect	dc;
 };
 
@@ -87,6 +94,7 @@ struct conf_listen_entry {
 	struct tun_interface		tun;
 	struct tconn_listen_entry	tle;
 	int				tconn_up;
+	struct direct_peer		dp;
 	struct dgp_listen_socket	dls;
 	struct dgp_listen_entry		dle;
 };
