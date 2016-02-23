@@ -484,11 +484,6 @@ void loc_rib_del_lsa(struct loc_rib *rib, struct lsa *lsa)
 	lsa_put(lsa);
 	free(ref);
 
-	if (iv_avl_tree_empty(&rid->lsas) && !rid->highest_version_seen) {
-		iv_avl_tree_delete(&rib->ids, &rid->an);
-		free(rid);
-	}
-
 	if (!iv_task_registered(&rib->recompute))
 		iv_task_register(&rib->recompute);
 }
