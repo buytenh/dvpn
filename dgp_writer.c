@@ -110,6 +110,14 @@ static void dgp_writer_lsa_del(void *_dw, struct lsa *lsa)
 	dgp_writer_output_lsa(dw, lsa, NULL);
 }
 
+static void cork_fd(int fd, int state)
+{
+	if (setsockopt(fd, SOL_TCP, TCP_CORK, &state, sizeof(state)) < 0) {
+		perror("setsockopt(SOL_TCP, TCP_CORK)");
+		abort();
+	}
+}
+
 static int dgp_writer_send_keepalive(struct dgp_writer *dw)
 {
 	if (write(dw->fd, "", 1) != 1) {
@@ -123,13 +131,13 @@ static int dgp_writer_send_keepalive(struct dgp_writer *dw)
 static void dgp_writer_rib_dump(struct dgp_writer *dw)
 {
 	struct iv_avl_node *an;
-	int i;
 
-	i = 1;
-	if (setsockopt(dw->fd, SOL_TCP, TCP_CORK, &i, sizeof(i)) < 0) {
-		perror("setsockopt(SOL_TCP, TCP_CORK)");
-		abort();
+	if (iv_avl_tree_empty(&dw->rib->ids)) {
+		dgp_writer_send_keepalive(dw);
+		return;
 	}
+
+	cork_fd(dw->fd, 1);
 
 	iv_avl_tree_for_each (an, &dw->rib->ids) {
 		struct loc_rib_id *rid;
@@ -145,11 +153,7 @@ static void dgp_writer_rib_dump(struct dgp_writer *dw)
 	if (dgp_writer_send_keepalive(dw))
 		return;
 
-	i = 0;
-	if (setsockopt(dw->fd, SOL_TCP, TCP_CORK, &i, sizeof(i)) < 0) {
-		perror("setsockopt(SOL_TCP, TCP_CORK)");
-		abort();
-	}
+	cork_fd(dw->fd, 0);
 }
 
 static void dgp_writer_keepalive_timer(void *_dw)
