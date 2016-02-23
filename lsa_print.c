@@ -116,7 +116,7 @@ void lsa_attr_print_key(FILE *fp, int parent_type, struct lsa_attr *attr,
 	fprintf(fp, "]");
 }
 
-static int try_print_der_pubkey(FILE *fp, void *data, int len)
+static int try_print_der_pubkey(FILE *fp, void *data, size_t len)
 {
 	gnutls_pubkey_t pubkey;
 	int ret;
@@ -160,7 +160,7 @@ static int try_print_der_pubkey(FILE *fp, void *data, int len)
 	return 0;
 }
 
-static void print_der_pubkey(FILE *fp, void *data, int len)
+static void print_der_pubkey(FILE *fp, void *data, size_t len)
 {
 	if (try_print_der_pubkey(fp, data, len) < 0)
 		printhex(fp, data, len);
@@ -202,7 +202,7 @@ void lsa_attr_print_data(FILE *fp, int parent_type, struct lsa_attr *attr,
 	} else if (parent_type == 0 && attr->type == LSA_ATTR_TYPE_ADV_PATH &&
 	    (attr->datalen % NODE_ID_LEN) == 0) {
 		uint8_t *data = lsa_attr_data(attr);
-		int i;
+		size_t i;
 
 		for (i = 0; i < attr->datalen; i += NODE_ID_LEN) {
 			if (i)
