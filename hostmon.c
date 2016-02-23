@@ -66,18 +66,19 @@ static void lsa_chg(char chg, struct lsa *a)
 	printf("\n");
 }
 
-static void lsa_add(void *_dummy, struct lsa *a)
+static void lsa_add(void *_dummy, struct lsa *a, uint32_t cost)
 {
 	lsa_chg('+', a);
 }
 
-static void lsa_mod(void *_dummy, struct lsa *a, struct lsa *b)
+static void lsa_mod(void *_dummy, struct lsa *a, uint32_t acost,
+		    struct lsa *b, uint32_t bcost)
 {
 	lsa_chg('-', a);
 	lsa_chg('+', b);
 }
 
-static void lsa_del(void *_dummy, struct lsa *a)
+static void lsa_del(void *_dummy, struct lsa *a, uint32_t cost)
 {
 	lsa_chg('-', a);
 }

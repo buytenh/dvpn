@@ -24,21 +24,22 @@
 #include "rib_listener_to_loc.h"
 #include "util.h"
 
-static void lsa_add(void *cookie, struct lsa *a)
+static void lsa_add(void *cookie, struct lsa *a, uint32_t cost)
 {
 	struct rib_listener_to_loc *rl = cookie;
 
 	loc_rib_add_lsa(rl->dest, a);
 }
 
-static void lsa_mod(void *cookie, struct lsa *a, struct lsa *b)
+static void lsa_mod(void *cookie, struct lsa *a, uint32_t acost,
+		    struct lsa *b, uint32_t bcost)
 {
 	struct rib_listener_to_loc *rl = cookie;
 
 	loc_rib_mod_lsa(rl->dest, a, b);
 }
 
-static void lsa_del(void *cookie, struct lsa *a)
+static void lsa_del(void *cookie, struct lsa *a, uint32_t cost)
 {
 	struct rib_listener_to_loc *rl = cookie;
 

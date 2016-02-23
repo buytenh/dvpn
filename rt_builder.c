@@ -299,7 +299,7 @@ static void attr_del(void *_cb, struct lsa_attr *attr)
 		del_edge(rb, node, lsa_attr_key(attr));
 }
 
-static void lsa_add(void *_rb, struct lsa *a)
+static void lsa_add(void *_rb, struct lsa *a, uint32_t cost)
 {
 	struct rt_builder *rb = _rb;
 	struct attr_cb_data cb;
@@ -314,7 +314,8 @@ static void lsa_add(void *_rb, struct lsa *a)
 	recompute_rtable(rb);
 }
 
-static void lsa_mod(void *_rb, struct lsa *a, struct lsa *b)
+static void lsa_mod(void *_rb, struct lsa *a, uint32_t acost,
+		    struct lsa *b, uint32_t bcost)
 {
 	struct rt_builder *rb = _rb;
 	struct attr_cb_data cb;
@@ -329,7 +330,7 @@ static void lsa_mod(void *_rb, struct lsa *a, struct lsa *b)
 	recompute_rtable(rb);
 }
 
-static void lsa_del(void *_rb, struct lsa *a)
+static void lsa_del(void *_rb, struct lsa *a, uint32_t cost)
 {
 	struct rt_builder *rb = _rb;
 	struct attr_cb_data cb;

@@ -89,21 +89,22 @@ dgp_writer_output_lsa(struct dgp_writer *dw, struct lsa *old, struct lsa *new)
 	return 0;
 }
 
-static void dgp_writer_lsa_add(void *_dw, struct lsa *lsa)
+static void dgp_writer_lsa_add(void *_dw, struct lsa *lsa, uint32_t cost)
 {
 	struct dgp_writer *dw = _dw;
 
 	dgp_writer_output_lsa(dw, NULL, lsa);
 }
 
-static void dgp_writer_lsa_mod(void *_dw, struct lsa *old, struct lsa *new)
+static void dgp_writer_lsa_mod(void *_dw, struct lsa *old, uint32_t oldcost,
+			       struct lsa *new, uint32_t newcost)
 {
 	struct dgp_writer *dw = _dw;
 
 	dgp_writer_output_lsa(dw, old, new);
 }
 
-static void dgp_writer_lsa_del(void *_dw, struct lsa *lsa)
+static void dgp_writer_lsa_del(void *_dw, struct lsa *lsa, uint32_t cost)
 {
 	struct dgp_writer *dw = _dw;
 

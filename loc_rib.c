@@ -198,6 +198,7 @@ lsa_path_cost(struct loc_rib *rib, struct loc_rib_id *rid, struct lsa *lsa)
 static void recompute_rid(struct loc_rib *rib, struct loc_rib_id *rid)
 {
 	struct lsa *oldbest;
+	uint32_t oldbestcost;
 	struct lsa *best;
 	uint32_t bestcost;
 	struct iv_avl_node *an;
@@ -206,6 +207,7 @@ static void recompute_rid(struct loc_rib *rib, struct loc_rib_id *rid)
 	struct rib_listener *rl;
 
 	oldbest = rid->best;
+	oldbestcost = rid->bestcost;
 
 	best = NULL;
 	bestcost = RIB_COST_INELIGIBLE;
@@ -225,34 +227,31 @@ static void recompute_rid(struct loc_rib *rib, struct loc_rib_id *rid)
 		}
 	}
 
-	rid->best = best;
-	rid->bestcost = bestcost;
-
-	if (oldbest == best)
+	if (oldbest == best && oldbestcost == bestcost)
 		return;
 
-	if (best != NULL)
-		lsa_get(best);
+	rid->best = lsa_get(best);
+	rid->bestcost = bestcost;
 
 	if (oldbest == NULL && best != NULL) {
 		iv_list_for_each_safe (ilh, ilh2, &rib->listeners) {
 			rl = iv_container_of(ilh, struct rib_listener, list);
-			rl->lsa_add(rl->cookie, best);
+			rl->lsa_add(rl->cookie, best, bestcost);
 		}
 	} else if (oldbest != NULL && best != NULL) {
 		iv_list_for_each_safe (ilh, ilh2, &rib->listeners) {
 			rl = iv_container_of(ilh, struct rib_listener, list);
-			rl->lsa_mod(rl->cookie, oldbest, best);
+			rl->lsa_mod(rl->cookie, oldbest, oldbestcost,
+				    best, bestcost);
 		}
 	} else if (oldbest != NULL && best == NULL) {
 		iv_list_for_each_safe (ilh, ilh2, &rib->listeners) {
 			rl = iv_container_of(ilh, struct rib_listener, list);
-			rl->lsa_del(rl->cookie, oldbest);
+			rl->lsa_del(rl->cookie, oldbest, oldbestcost);
 		}
 	}
 
-	if (oldbest != NULL)
-		lsa_put(oldbest);
+	lsa_put(oldbest);
 }
 
 static void recompute_rib(void *_rib)

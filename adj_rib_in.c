@@ -165,17 +165,18 @@ static void notify(struct adj_rib_in *rib, struct lsa *old, struct lsa *new)
 	if (old == NULL && new != NULL) {
 		iv_list_for_each_safe (ilh, ilh2, &rib->listeners) {
 			rl = iv_container_of(ilh, struct rib_listener, list);
-			rl->lsa_add(rl->cookie, new);
+			rl->lsa_add(rl->cookie, new, RIB_COST_UNREACHABLE);
 		}
 	} else if (old != NULL && new != NULL) {
 		iv_list_for_each_safe (ilh, ilh2, &rib->listeners) {
 			rl = iv_container_of(ilh, struct rib_listener, list);
-			rl->lsa_mod(rl->cookie, old, new);
+			rl->lsa_mod(rl->cookie, old, RIB_COST_UNREACHABLE,
+				    new, RIB_COST_UNREACHABLE);
 		}
 	} else if (old != NULL && new == NULL) {
 		iv_list_for_each_safe (ilh, ilh2, &rib->listeners) {
 			rl = iv_container_of(ilh, struct rib_listener, list);
-			rl->lsa_del(rl->cookie, old);
+			rl->lsa_del(rl->cookie, old, RIB_COST_UNREACHABLE);
 		}
 	}
 }

@@ -27,10 +27,11 @@
 #define RIB_COST_INELIGIBLE	0xffffffff
 
 struct rib_listener {
-	void		*cookie;
-	void		(*lsa_add)(void *, struct lsa *);
-	void		(*lsa_mod)(void *, struct lsa *, struct lsa *);
-	void		(*lsa_del)(void *, struct lsa *);
+	void	*cookie;
+	void	(*lsa_add)(void *cookie, struct lsa *lsa, uint32_t cost);
+	void	(*lsa_mod)(void *cookie, struct lsa *oldlsa, uint32_t oldcost,
+			   struct lsa *newlsa, uint32_t newcost);
+	void	(*lsa_del)(void *cookie, struct lsa *lsa, uint32_t cost);
 
 	struct iv_list_head	list;
 };

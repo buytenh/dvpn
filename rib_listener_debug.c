@@ -96,7 +96,7 @@ static void print_timestamp(void)
 	printf("===== %s UTC =====\n", buf);
 }
 
-static void lsa_add(void *cookie, struct lsa *a)
+static void lsa_add(void *cookie, struct lsa *a, uint32_t cost)
 {
 	struct rib_listener_debug *rl = cookie;
 
@@ -115,7 +115,8 @@ static void lsa_add(void *cookie, struct lsa *a)
 	printf("\n");
 }
 
-static void lsa_mod(void *cookie, struct lsa *a, struct lsa *b)
+static void lsa_mod(void *cookie, struct lsa *a, uint32_t acost,
+		    struct lsa *b, uint32_t bcost)
 {
 	struct rib_listener_debug *rl = cookie;
 
@@ -134,7 +135,7 @@ static void lsa_mod(void *cookie, struct lsa *a, struct lsa *b)
 	printf("\n");
 }
 
-static void lsa_del(void *cookie, struct lsa *a)
+static void lsa_del(void *cookie, struct lsa *a, uint32_t cost)
 {
 	struct rib_listener_debug *rl = cookie;
 
