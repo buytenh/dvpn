@@ -30,7 +30,7 @@ struct lsa_attr_set {
 
 struct lsa {
 	int			refcount;
-	int			bytes;
+	size_t			bytes;
 	uint8_t			id[NODE_ID_LEN];
 	struct lsa_attr_set	root;
 };
@@ -45,8 +45,8 @@ struct lsa_attr {
 	struct iv_avl_node	an;
 	int			type;
 	unsigned		data_is_attr_set:1;
-	int			keylen;
-	int			datalen;
+	size_t			keylen;
+	size_t			datalen;
 	uint8_t			buf[0];
 };
 
@@ -54,24 +54,25 @@ void *lsa_attr_key(struct lsa_attr *attr);
 void *lsa_attr_data(struct lsa_attr *attr);
 
 struct lsa_attr *lsa_find_attr(struct lsa *lsa, int type,
-			       void *key, int keylen);
+			       void *key, size_t keylen);
 struct lsa_attr *lsa_attr_set_find_attr(struct lsa_attr_set *set,
-					int type, void *key, int keylen);
+					int type, void *key, size_t keylen);
 
-int lsa_add_attr(struct lsa *lsa, int type, void *key, int keylen,
-		 void *data, int datalen);
+int lsa_add_attr(struct lsa *lsa, int type, void *key, size_t keylen,
+		 void *data, size_t datalen);
 int lsa_attr_set_add_attr(struct lsa *lsa, struct lsa_attr_set *set, int type,
-			  void *key, int keylen, void *data, int datalen);
+			  void *key, size_t keylen, void *data, size_t datalen);
 
 struct lsa_attr_set *lsa_add_attr_set(struct lsa *lsa, int type,
-				      void *key, int keylen);
+				      void *key, size_t keylen);
 struct lsa_attr_set *lsa_attr_set_add_attr_set(struct lsa *lsa,
 					       struct lsa_attr_set *set,
-					       int type, void *key, int keylen);
+					       int type, void *key,
+					       size_t keylen);
 
 void lsa_del_attr(struct lsa *lsa, struct lsa_attr *attr);
 
-void lsa_del_attr_bykey(struct lsa *lsa, int type, void *key, int keylen);
+void lsa_del_attr_bykey(struct lsa *lsa, int type, void *key, size_t keylen);
 
 
 #endif

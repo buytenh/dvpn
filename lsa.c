@@ -24,7 +24,7 @@
 #include "lsa.h"
 #include "lsa_serialise.h"
 
-static int lsa_attr_size(struct lsa_attr *attr);
+static size_t lsa_attr_size(struct lsa_attr *attr);
 
 static int lsa_attr_compare_keys(struct lsa_attr *a, struct lsa_attr *b)
 {
@@ -177,19 +177,22 @@ void *lsa_attr_data(struct lsa_attr *attr)
 }
 
 struct lsa_attr *lsa_find_attr(struct lsa *lsa, int type,
-			       void *key, int keylen)
+			       void *key, size_t keylen)
 {
 	return lsa_attr_set_find_attr(&lsa->root, type, key, keylen);
 }
 
 struct lsa_attr *lsa_attr_set_find_attr(struct lsa_attr_set *set,
-					int type, void *key, int keylen)
+					int type, void *key, size_t keylen)
 {
 	struct {
 		struct lsa_attr		skey;
 		uint8_t			kkey[0];
 	} *s;
 	struct iv_avl_node *an;
+
+	if (keylen > 65536)
+		return NULL;
 
 	s = alloca(sizeof(*s) + keylen);
 
@@ -217,24 +220,34 @@ struct lsa_attr *lsa_attr_set_find_attr(struct lsa_attr_set *set,
 	return NULL;
 }
 
-static int lsa_attr_size(struct lsa_attr *attr)
+static size_t lsa_attr_size(struct lsa_attr *attr)
 {
-	int size;
+	size_t size;
 
 	size = 2 * MAX_SERIALISED_INT_LEN;
 
-	if (attr->keylen)
-		size += MAX_SERIALISED_INT_LEN + attr->keylen;
+	if (attr->keylen) {
+		size += MAX_SERIALISED_INT_LEN;
+		if (attr->keylen > SIZE_MAX - size)
+			abort();
+		size += attr->keylen;
+	}
 
+	if (MAX_SERIALISED_INT_LEN > SIZE_MAX - size)
+		abort();
 	size += MAX_SERIALISED_INT_LEN;
-	if (!attr->data_is_attr_set)
+
+	if (!attr->data_is_attr_set) {
+		if (attr->datalen > SIZE_MAX - size)
+			abort();
 		size += attr->datalen;
+	}
 
 	return size;
 }
 
-int lsa_add_attr(struct lsa *lsa, int type, void *key, int keylen,
-		 void *data, int datalen)
+int lsa_add_attr(struct lsa *lsa, int type, void *key, size_t keylen,
+		 void *data, size_t datalen)
 {
 	if (lsa->refcount != 1) {
 		fprintf(stderr, "lsa_add_attr: called on an LSA with "
@@ -246,11 +259,22 @@ int lsa_add_attr(struct lsa *lsa, int type, void *key, int keylen,
 				     key, keylen, data, datalen);
 }
 
-static struct lsa_attr *attr_alloc(int type, int keylen, int datalen)
+static struct lsa_attr *attr_alloc(int type, size_t keylen, size_t datalen)
 {
 	struct lsa_attr *attr;
+	size_t size;
 
-	attr = malloc(sizeof(*attr) + ROUND_UP(keylen) + datalen);
+	size = sizeof(*attr);
+
+	if (ROUND_UP(keylen) > SIZE_MAX - size)
+		abort();
+	size += ROUND_UP(keylen);
+
+	if (datalen > SIZE_MAX - size)
+		abort();
+	size += datalen;
+
+	attr = malloc(size);
 	if (attr == NULL)
 		abort();
 
@@ -263,7 +287,7 @@ static struct lsa_attr *attr_alloc(int type, int keylen, int datalen)
 }
 
 int lsa_attr_set_add_attr(struct lsa *lsa, struct lsa_attr_set *set, int type,
-			  void *key, int keylen, void *data, int datalen)
+			  void *key, size_t keylen, void *data, size_t datalen)
 {
 	struct lsa_attr *attr;
 
@@ -295,7 +319,7 @@ int lsa_attr_set_add_attr(struct lsa *lsa, struct lsa_attr_set *set, int type,
 }
 
 struct lsa_attr_set *lsa_add_attr_set(struct lsa *lsa, int type,
-				      void *key, int keylen)
+				      void *key, size_t keylen)
 {
 	if (lsa->refcount != 1) {
 		fprintf(stderr, "lsa_add_attr_set: called on an LSA "
@@ -308,7 +332,7 @@ struct lsa_attr_set *lsa_add_attr_set(struct lsa *lsa, int type,
 
 struct lsa_attr_set *
 lsa_attr_set_add_attr_set(struct lsa *lsa, struct lsa_attr_set *set,
-			  int type, void *key, int keylen)
+			  int type, void *key, size_t keylen)
 {
 	struct lsa_attr *attr;
 	struct lsa_attr_set *child;
@@ -363,7 +387,7 @@ void lsa_del_attr(struct lsa *lsa, struct lsa_attr *attr)
 	free(attr);
 }
 
-void lsa_del_attr_bykey(struct lsa *lsa, int type, void *key, int keylen)
+void lsa_del_attr_bykey(struct lsa *lsa, int type, void *key, size_t keylen)
 {
 	struct lsa_attr *attr;
 
