@@ -48,10 +48,10 @@ static struct lsa *map(struct dgp_writer *dw, struct lsa *lsa)
 static int
 dgp_writer_output_lsa(struct dgp_writer *dw, struct lsa *old, struct lsa *new)
 {
-	int serlen;
-	int buflen;
+	size_t serlen;
+	size_t buflen;
 	uint8_t *buf;
-	int len;
+	size_t len;
 	struct lsa dummy;
 	struct lsa *lsa;
 
@@ -67,6 +67,8 @@ dgp_writer_output_lsa(struct dgp_writer *dw, struct lsa *old, struct lsa *new)
 	}
 
 	serlen = lsa_serialise_length(lsa, dw->myid);
+	if (serlen > 65536 - 128)
+		abort();
 
 	buflen = serlen + 128;
 	buf = alloca(buflen);

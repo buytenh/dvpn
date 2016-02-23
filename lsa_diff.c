@@ -64,8 +64,8 @@ static int attr_cmp(struct lsa_attr *a, struct lsa_attr *b)
 
 		return memcmp(lsa_attr_data(a), lsa_attr_data(b), a->datalen);
 	} else {
-		int alen;
-		int blen;
+		size_t alen;
+		size_t blen;
 		uint8_t *abuf;
 		uint8_t *bbuf;
 
@@ -73,6 +73,9 @@ static int attr_cmp(struct lsa_attr *a, struct lsa_attr *b)
 		blen = lsa_attr_serialise_length(b);
 		if (alen != blen)
 			return 1;
+
+		if (alen > 65536 - 16)
+			abort();
 
 		abuf = alloca(alen + 16);
 		lsa_attr_serialise(abuf, alen + 16, a);

@@ -26,22 +26,31 @@
 
 struct dst {
 	uint8_t		*dst;
-	int		dstlen;
-	int		off;
+	size_t		dstlen;
+	size_t		off;
 };
 
-static void dst_append(struct dst *dst, uint8_t *buf, int buflen)
+static void dst_append(struct dst *dst, uint8_t *buf, size_t buflen)
 {
-	int space;
+	size_t off;
 
-	space = dst->dstlen - dst->off;
-	if (space > buflen)
-		space = buflen;
+	off = dst->off;
 
-	if (space > 0)
-		memcpy(dst->dst + dst->off, buf, space);
-
+	if (buflen > SIZE_MAX - off) {
+		fprintf(stderr, "dst_append: buffer SIZE_MAX overflow\n");
+		abort();
+	}
 	dst->off += buflen;
+
+	if (off < dst->dstlen) {
+		size_t space;
+
+		space = dst->dstlen - off;
+		if (space > buflen)
+			space = buflen;
+
+		memcpy(dst->dst + off, buf, space);
+	}
 }
 
 static void dst_append_int(struct dst *dst, uint64_t value)
@@ -67,7 +76,7 @@ static void dst_append_int(struct dst *dst, uint64_t value)
 	dst_append(dst, val + i, sizeof(val) - i);
 }
 
-static int
+static size_t
 lsa_attr_set_serialise_length(struct lsa_attr_set *set, uint8_t *preid);
 
 static void
@@ -131,7 +140,7 @@ lsa_attrs_serialise(struct dst *dst, struct iv_avl_tree *attrs, uint8_t *preid)
 	}
 }
 
-static int
+static size_t
 lsa_attr_set_serialise_length(struct lsa_attr_set *set, uint8_t *preid)
 {
 	struct dst dst;
@@ -145,13 +154,13 @@ lsa_attr_set_serialise_length(struct lsa_attr_set *set, uint8_t *preid)
 	return dst.off;
 }
 
-int lsa_serialise_length(struct lsa *lsa, uint8_t *preid)
+size_t lsa_serialise_length(struct lsa *lsa, uint8_t *preid)
 {
 	return NODE_ID_LEN + lsa_attr_set_serialise_length(&lsa->root, preid);
 }
 
-int lsa_serialise(uint8_t *buf, int buflen, int serlen,
-		  struct lsa *lsa, uint8_t *preid)
+size_t lsa_serialise(uint8_t *buf, size_t buflen, size_t serlen,
+		     struct lsa *lsa, uint8_t *preid)
 {
 	struct dst dst;
 
@@ -167,20 +176,21 @@ int lsa_serialise(uint8_t *buf, int buflen, int serlen,
 	lsa_attrs_serialise(&dst, &lsa->root.attrs, preid);
 
 	if (serlen != dst.off) {
-		fprintf(stderr, "lsa_serialise: lsa size %d versus "
-				"buffer size %d\n", serlen, dst.off);
+		fprintf(stderr, "lsa_serialise: lsa size %lu versus "
+				"buffer size %lu\n", (unsigned long)serlen,
+			(unsigned long)dst.off);
 		abort();
 	}
 
 	return dst.off;
 }
 
-int lsa_attr_serialise_length(struct lsa_attr *attr)
+size_t lsa_attr_serialise_length(struct lsa_attr *attr)
 {
 	return lsa_attr_serialise(NULL, 0, attr);
 }
 
-int lsa_attr_serialise(uint8_t *buf, int buflen, struct lsa_attr *attr)
+size_t lsa_attr_serialise(uint8_t *buf, size_t buflen, struct lsa_attr *attr)
 {
 	struct dst dst;
 
