@@ -40,10 +40,14 @@ static struct iv_signal sigusr1;
 
 static void print_addr(FILE *fp, uint8_t *addr)
 {
-	char caddr[64];
+	if (addr != NULL) {
+		char caddr[64];
 
-	inet_ntop(AF_INET6, addr, caddr, sizeof(caddr));
-	fputs(caddr, fp);
+		inet_ntop(AF_INET6, addr, caddr, sizeof(caddr));
+		fputs(caddr, fp);
+	} else {
+		fprintf(fp, "<direct>");
+	}
 }
 
 static void rt_add(void *_dummy, uint8_t *dest, uint8_t *nh)
@@ -146,7 +150,7 @@ int main(int argc, char *argv[])
 	loc_rib_init(&loc_rib);
 
 	rb.rib = &loc_rib;
-	rb.source = myid;
+	rb.myid = myid;
 	rb.cookie = NULL;
 	rb.rt_add = rt_add;
 	rb.rt_mod = rt_mod;

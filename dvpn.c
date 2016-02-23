@@ -49,17 +49,20 @@ static struct lsa *me;
 
 static void rt_add(void *_dummy, uint8_t *dest, uint8_t *nh)
 {
-	itf_add_route_v6_via(dest, nh);
+	if (nh != NULL)
+		itf_add_route_v6_via(dest, nh);
 }
 
 static void rt_mod(void *_dummy, uint8_t *dest, uint8_t *oldnh, uint8_t *newnh)
 {
-	itf_chg_route_v6_via(dest, newnh);
+	if (newnh != NULL)
+		itf_chg_route_v6_via(dest, newnh);
 }
 
 static void rt_del(void *_dummy, uint8_t *dest, uint8_t *nh)
 {
-	itf_del_route_v6_via(dest, nh);
+	if (nh != NULL)
+		itf_del_route_v6_via(dest, nh);
 }
 
 static enum lsa_peer_type
@@ -708,7 +711,7 @@ int main(int argc, char *argv[])
 	loc_rib_init(&loc_rib);
 
 	rb.rib = &loc_rib;
-	rb.source = keyid;
+	rb.myid = keyid;
 	rb.cookie = NULL;
 	rb.rt_add = rt_add;
 	rb.rt_mod = rt_mod;

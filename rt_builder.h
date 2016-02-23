@@ -20,13 +20,11 @@
 #ifndef __RT_BUILDER_H
 #define __RT_BUILDER_H
 
-#include <iv_avl.h>
 #include "rib_listener.h"
-#include "spf.h"
 
 struct rt_builder {
 	struct loc_rib	*rib;
-	uint8_t		*source;
+	uint8_t		*myid;
 	void		*cookie;
 	void		(*rt_add)(void *cookie, uint8_t *dest, uint8_t *nh);
 	void		(*rt_mod)(void *cookie, uint8_t *dest, uint8_t *oldnh,
@@ -34,10 +32,6 @@ struct rt_builder {
 	void		(*rt_del)(void *cookie, uint8_t *dest, uint8_t *nh);
 
 	struct rib_listener	rl;
-	struct spf_context	ctx;
-	int			num_nodes;
-	struct iv_avl_tree	nodes;
-	struct rtable		*rt;
 };
 
 void rt_builder_init(struct rt_builder *rb);
