@@ -110,7 +110,17 @@ static void dgp_writer_lsa_del(void *_dw, struct lsa *lsa)
 	dgp_writer_output_lsa(dw, lsa, NULL);
 }
 
-static int dgp_writer_rib_dump(struct dgp_writer *dw)
+static int dgp_writer_send_keepalive(struct dgp_writer *dw)
+{
+	if (write(dw->fd, "", 1) != 1) {
+		dw->io_error(dw->cookie);
+		return 1;
+	}
+
+	return 0;
+}
+
+static void dgp_writer_rib_dump(struct dgp_writer *dw)
 {
 	struct iv_avl_node *an;
 	int i;
@@ -129,22 +139,17 @@ static int dgp_writer_rib_dump(struct dgp_writer *dw)
 			continue;
 
 		if (dgp_writer_output_lsa(dw, NULL, rid->best))
-			return 1;
+			return;
 	}
+
+	if (dgp_writer_send_keepalive(dw))
+		return;
 
 	i = 0;
 	if (setsockopt(dw->fd, SOL_TCP, TCP_CORK, &i, sizeof(i)) < 0) {
 		perror("setsockopt(SOL_TCP, TCP_CORK)");
 		abort();
 	}
-
-	return 0;
-}
-
-static void dgp_writer_send_keepalive(struct dgp_writer *dw)
-{
-	if (write(dw->fd, "", 1) != 1)
-		dw->io_error(dw->cookie);
 }
 
 static void dgp_writer_keepalive_timer(void *_dw)
@@ -175,8 +180,7 @@ void dgp_writer_register(struct dgp_writer *dw)
 	dw->keepalive_timer.handler = dgp_writer_keepalive_timer;
 	iv_timer_register(&dw->keepalive_timer);
 
-	if (!dgp_writer_rib_dump(dw))
-		dgp_writer_send_keepalive(dw);
+	dgp_writer_rib_dump(dw);
 }
 
 void dgp_writer_unregister(struct dgp_writer *dw)
