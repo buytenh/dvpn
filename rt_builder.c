@@ -94,12 +94,23 @@ static void rt_mod(struct rt_builder *rb, struct lsa *old, struct lsa *new)
 {
 	uint8_t dest[16];
 	uint8_t nhold[16];
+	uint8_t *nholdptr;
 	uint8_t nhnew[16];
+	uint8_t *nhnewptr;
 
 	v6_global_addr_from_key_id(dest, new->id);
 
-	rb->rt_mod(rb->cookie, dest, getnh(rb, old, nhold),
-		   getnh(rb, new, nhnew));
+	nholdptr = getnh(rb, old, nhold);
+	nhnewptr = getnh(rb, new, nhnew);
+
+	if (nholdptr == NULL && nhnewptr == NULL)
+		return;
+
+	if (nholdptr != NULL && nhnewptr != NULL &&
+	    !memcmp(nholdptr, nhnewptr, 16))
+		return;
+
+	rb->rt_mod(rb->cookie, dest, nholdptr, nhnewptr);
 }
 
 static void rt_del(struct rt_builder *rb, struct lsa *lsa)
