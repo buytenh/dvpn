@@ -86,6 +86,7 @@ static void got_sigint(void *_dummy)
 {
 	fprintf(stderr, "SIGINT received, shutting down\n");
 
+	loc_rib_listener_unregister(&loc_rib, &rib_listener);
 	dgp_connect_stop(&dc);
 
 	iv_signal_unregister(&sigint);

@@ -79,6 +79,7 @@ static void got_sigint(void *_dummy)
 {
 	fprintf(stderr, "SIGINT received, shutting down\n");
 
+	rt_builder_deinit(&rb);
 	dgp_connect_stop(&dc);
 
 	iv_signal_unregister(&sigint);
@@ -173,8 +174,6 @@ int main(int argc, char *argv[])
 	iv_signal_register(&sigusr1);
 
 	iv_main();
-
-	rt_builder_deinit(&rb);
 
 	loc_rib_deinit(&loc_rib);
 
