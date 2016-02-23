@@ -26,9 +26,6 @@
 #include "lsa.h"
 #include "rib_listener.h"
 
-#define LOC_RIB_COST_UNREACHABLE	0xfffffffe
-#define LOC_RIB_COST_INELIGIBLE		0xffffffff
-
 struct loc_rib {
 	uint8_t			*myid;
 

@@ -133,7 +133,7 @@ lsa_path_cost(struct loc_rib *rib, struct loc_rib_id *rid, struct lsa *lsa)
 	int i;
 
 	if (lsa_get_version(lsa) < rid->highest_version_seen)
-		return LOC_RIB_COST_INELIGIBLE;
+		return RIB_COST_INELIGIBLE;
 
 	pathattr = lsa_find_attr(lsa, LSA_ATTR_TYPE_ADV_PATH, NULL, 0);
 	if (pathattr == NULL)
@@ -149,7 +149,7 @@ lsa_path_cost(struct loc_rib *rib, struct loc_rib_id *rid, struct lsa *lsa)
 	if (rib->myid != NULL) {
 		from = find_recent_lsa(rib, rib->myid);
 		if (from == NULL)
-			return LOC_RIB_COST_UNREACHABLE;
+			return RIB_COST_UNREACHABLE;
 	}
 
 	traversing_transits = 1;
@@ -162,7 +162,7 @@ lsa_path_cost(struct loc_rib *rib, struct loc_rib_id *rid, struct lsa *lsa)
 
 		to = find_recent_lsa(rib, path + i);
 		if (to == NULL)
-			return LOC_RIB_COST_UNREACHABLE;
+			return RIB_COST_UNREACHABLE;
 
 		if (i == 0 && from == NULL) {
 			from = to;
@@ -170,10 +170,10 @@ lsa_path_cost(struct loc_rib *rib, struct loc_rib_id *rid, struct lsa *lsa)
 		}
 
 		if (get_peer_metric_type(from, to->id, &ametric, &atype) < 0)
-			return LOC_RIB_COST_UNREACHABLE;
+			return RIB_COST_UNREACHABLE;
 
 		if (get_peer_metric_type(to, from->id, NULL, &btype) < 0)
-			return LOC_RIB_COST_UNREACHABLE;
+			return RIB_COST_UNREACHABLE;
 
 		if (traversing_transits) {
 			if (!(atype & LSA_PEER_TYPE_TRANSIT))
@@ -182,9 +182,9 @@ lsa_path_cost(struct loc_rib *rib, struct loc_rib_id *rid, struct lsa *lsa)
 				traversing_transits = 0;
 		} else {
 			if (!(atype & LSA_PEER_TYPE_CUSTOMER))
-				return LOC_RIB_COST_UNREACHABLE;
+				return RIB_COST_UNREACHABLE;
 			if (!(btype & LSA_PEER_TYPE_TRANSIT))
-				return LOC_RIB_COST_UNREACHABLE;
+				return RIB_COST_UNREACHABLE;
 		}
 
 		cost += ametric;
@@ -208,7 +208,7 @@ static void recompute_rid(struct loc_rib *rib, struct loc_rib_id *rid)
 	oldbest = rid->best;
 
 	best = NULL;
-	bestcost = LOC_RIB_COST_INELIGIBLE;
+	bestcost = RIB_COST_INELIGIBLE;
 
 	iv_avl_tree_for_each (an, &rid->lsas) {
 		struct loc_rib_lsa_ref *ref;
@@ -386,7 +386,7 @@ static struct loc_rib_id *get_id(struct loc_rib *rib, uint8_t *id)
 	rid->highest_version_seen = 0;
 	INIT_IV_AVL_TREE(&rid->lsas, compare_lsa_refs);
 	rid->best = NULL;
-	rid->bestcost = LOC_RIB_COST_INELIGIBLE;
+	rid->bestcost = RIB_COST_INELIGIBLE;
 
 	iv_avl_tree_insert(&rib->ids, &rid->an);
 

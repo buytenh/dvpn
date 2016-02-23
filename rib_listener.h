@@ -23,6 +23,9 @@
 #include <iv_list.h>
 #include "lsa.h"
 
+#define RIB_COST_UNREACHABLE	0xfffffffe
+#define RIB_COST_INELIGIBLE	0xffffffff
+
 struct rib_listener {
 	void		*cookie;
 	void		(*lsa_add)(void *, struct lsa *);
