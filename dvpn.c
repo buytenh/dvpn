@@ -48,22 +48,52 @@ static struct iv_avl_tree direct_peers;
 static struct dgp_listen_socket dls;
 static struct lsa *me;
 
+static char *peer_itfname(uint8_t *addr)
+{
+	struct iv_avl_node *an;
+
+	an = direct_peers.root;
+	while (an != NULL) {
+		struct direct_peer *dp;
+		int ret;
+
+		dp = iv_container_of(an, struct direct_peer, an);
+
+		ret = memcmp(addr, dp->addr, sizeof(dp->addr));
+		if (ret == 0)
+			return dp->itfname;
+
+		if (ret < 0)
+			an = an->left;
+		else
+			an = an->right;
+	}
+
+	return NULL;
+}
+
 static void rt_add(void *_dummy, uint8_t *dest, uint8_t *nh)
 {
 	if (nh != NULL)
-		itf_add_route_v6_via(dest, nh);
+		itf_add_route_v6_direct(dest, peer_itfname(nh));
+	else
+		itf_add_route_v6_direct(dest, peer_itfname(dest));
 }
 
 static void rt_mod(void *_dummy, uint8_t *dest, uint8_t *oldnh, uint8_t *newnh)
 {
 	if (newnh != NULL)
-		itf_chg_route_v6_via(dest, newnh);
+		itf_chg_route_v6_direct(dest, peer_itfname(newnh));
+	else
+		itf_chg_route_v6_direct(dest, peer_itfname(dest));
 }
 
 static void rt_del(void *_dummy, uint8_t *dest, uint8_t *nh)
 {
 	if (nh != NULL)
-		itf_del_route_v6_via(dest, nh);
+		itf_del_route_v6_direct(dest, peer_itfname(nh));
+	else
+		itf_del_route_v6_direct(dest, peer_itfname(dest));
 }
 
 static int compare_direct_peers(struct iv_avl_node *_a, struct iv_avl_node *_b)
@@ -250,9 +280,6 @@ static void cce_set_state(void *_cce, int up)
 		v6_global_addr_from_key_id(addr, keyid);
 		itf_add_addr_v6(tunitf, addr, 128);
 
-		v6_global_addr_from_key_id(addr, cce->fingerprint);
-		itf_add_route_v6_direct(addr, tunitf);
-
 		dgp_connect_start(&cce->dc);
 	} else {
 		dgp_connect_stop(&cce->dc);
@@ -335,9 +362,6 @@ static void cle_set_state(void *_cle, int up)
 
 		v6_global_addr_from_key_id(addr, keyid);
 		itf_add_addr_v6(tunitf, addr, 128);
-
-		v6_global_addr_from_key_id(addr, cle->fingerprint);
-		itf_add_route_v6_direct(addr, tunitf);
 
 		dgp_listen_socket_register(&cle->dls);
 		dgp_listen_entry_register(&cle->dle);

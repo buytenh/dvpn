@@ -22,9 +22,8 @@
 
 int itf_add_addr_v6(const char *itf, const uint8_t *addr, int len);
 int itf_add_route_v6_direct(const uint8_t *addr, const char *itf);
-int itf_add_route_v6_via(const uint8_t *dest, const uint8_t *via);
-int itf_chg_route_v6_via(const uint8_t *dest, const uint8_t *via);
-int itf_del_route_v6_via(const uint8_t *dest, const uint8_t *via);
+int itf_chg_route_v6_direct(const uint8_t *addr, const char *itf);
+int itf_del_route_v6_direct(const uint8_t *addr, const char *itf);
 int itf_set_mtu(const char *itf, int mtu);
 int itf_set_state(const char *itf, int up);
 

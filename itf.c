@@ -116,40 +116,14 @@ int itf_add_route_v6_direct(const uint8_t *addr, const char *itf)
 	return __route_v6_direct("add", addr, itf);
 }
 
-static int
-__route_v6_via(char *action, const uint8_t *dest, const uint8_t *via)
+int itf_chg_route_v6_direct(const uint8_t *addr, const char *itf)
 {
-	char daddr[64];
-	char vaddr[64];
-	char *args[7];
-
-	inet_ntop(AF_INET6, dest, daddr, sizeof(daddr));
-	inet_ntop(AF_INET6, via, vaddr, sizeof(vaddr));
-
-	args[0] = "ip";
-	args[1] = "route";
-	args[2] = action;
-	args[3] = daddr;
-	args[4] = "via";
-	args[5] = vaddr;
-	args[6] = NULL;
-
-	return spawnvp("ip", args);
+	return __route_v6_direct("chg", addr, itf);
 }
 
-int itf_add_route_v6_via(const uint8_t *dest, const uint8_t *via)
+int itf_del_route_v6_direct(const uint8_t *addr, const char *itf)
 {
-	return __route_v6_via("add", dest, via);
-}
-
-int itf_chg_route_v6_via(const uint8_t *dest, const uint8_t *via)
-{
-	return __route_v6_via("chg", dest, via);
-}
-
-int itf_del_route_v6_via(const uint8_t *dest, const uint8_t *via)
-{
-	return __route_v6_via("del", dest, via);
+	return __route_v6_direct("del", addr, itf);
 }
 
 int itf_set_mtu(const char *itf, int mtu)
