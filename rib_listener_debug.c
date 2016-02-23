@@ -110,6 +110,8 @@ static void lsa_add(void *cookie, struct lsa *a, uint32_t cost)
 	}
 	printf("]\n");
 
+	printf("cost: %u\n", cost);
+
 	lsa_diff(NULL, a, cookie, attr_add, attr_mod, attr_del);
 
 	printf("\n");
@@ -130,6 +132,9 @@ static void lsa_mod(void *cookie, struct lsa *a, uint32_t acost,
 	}
 	printf("]\n");
 
+	if (acost != bcost)
+		printf("cost: %u -> %u\n", acost, bcost);
+
 	lsa_diff(a, b, cookie, attr_add, attr_mod, attr_del);
 
 	printf("\n");
@@ -148,6 +153,8 @@ static void lsa_del(void *cookie, struct lsa *a, uint32_t cost)
 		printf(")");
 	}
 	printf("]\n");
+
+	printf("cost: %u\n", cost);
 
 	lsa_diff(a, NULL, cookie, attr_add, attr_mod, attr_del);
 
