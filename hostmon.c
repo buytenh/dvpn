@@ -40,23 +40,18 @@ static struct rib_listener rib_listener;
 static struct dgp_connect dc;
 static struct iv_signal sigint;
 
-static void lsa_chg(char chg, struct lsa *a)
+static void lsa_chg(char chg, struct lsa *a, struct lsa_attr *node_name)
 {
-	struct lsa_attr *attr;
 	uint8_t addr[16];
 	char dst[128];
 	uint8_t *data;
 	int i;
 
-	attr = lsa_find_attr(a, LSA_ATTR_TYPE_NODE_NAME, NULL, 0);
-	if (attr == NULL)
-		return;
-
 	v6_global_addr_from_key_id(addr, a->id);
 	printf("%c%s ", chg, inet_ntop(AF_INET6, addr, dst, sizeof(dst)));
 
-	data = lsa_attr_data(attr);
-	for (i = 0; i < attr->datalen; i++) {
+	data = lsa_attr_data(node_name);
+	for (i = 0; i < node_name->datalen; i++) {
 		if (isalnum(data[i]))
 			putchar(data[i]);
 		else
@@ -68,19 +63,46 @@ static void lsa_chg(char chg, struct lsa *a)
 
 static void lsa_add(void *_dummy, struct lsa *a, uint32_t cost)
 {
-	lsa_chg('+', a);
+	struct lsa_attr *attr;
+
+	attr = lsa_find_attr(a, LSA_ATTR_TYPE_NODE_NAME, NULL, 0);
+	if (attr != NULL)
+		lsa_chg('+', a, attr);
 }
 
 static void lsa_mod(void *_dummy, struct lsa *a, uint32_t acost,
 		    struct lsa *b, uint32_t bcost)
 {
-	lsa_chg('-', a);
-	lsa_chg('+', b);
+	struct lsa_attr *aattr;
+	struct lsa_attr *battr;
+
+	aattr = lsa_find_attr(a, LSA_ATTR_TYPE_NODE_NAME, NULL, 0);
+	battr = lsa_find_attr(b, LSA_ATTR_TYPE_NODE_NAME, NULL, 0);
+
+	if (aattr == NULL && battr == NULL)
+		return;
+
+	if (aattr != NULL && battr != NULL &&
+	    aattr->datalen == battr->datalen &&
+	    !memcmp(lsa_attr_data(aattr), lsa_attr_data(battr),
+		    aattr->datalen)) {
+		return;
+	}
+
+	if (aattr != NULL)
+		lsa_chg('-', a, aattr);
+
+	if (battr != NULL)
+		lsa_chg('+', b, battr);
 }
 
 static void lsa_del(void *_dummy, struct lsa *a, uint32_t cost)
 {
-	lsa_chg('-', a);
+	struct lsa_attr *attr;
+
+	attr = lsa_find_attr(a, LSA_ATTR_TYPE_NODE_NAME, NULL, 0);
+	if (attr != NULL)
+		lsa_chg('-', a, attr);
 }
 
 static void got_sigint(void *_dummy)
