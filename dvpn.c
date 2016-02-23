@@ -239,7 +239,7 @@ static void cce_set_state(void *_cce, int up)
 		itf_add_addr_v6(tunitf, addr, 128);
 
 		v6_global_addr_from_key_id(addr, cce->fingerprint);
-		itf_add_route_v6_direct(tunitf, addr);
+		itf_add_route_v6_direct(addr, tunitf);
 
 		dgp_connect_start(&cce->dc);
 	} else {
@@ -325,7 +325,7 @@ static void cle_set_state(void *_cle, int up)
 		itf_add_addr_v6(tunitf, addr, 128);
 
 		v6_global_addr_from_key_id(addr, cle->fingerprint);
-		itf_add_route_v6_direct(tunitf, addr);
+		itf_add_route_v6_direct(addr, tunitf);
 
 		dgp_listen_socket_register(&cle->dls);
 		dgp_listen_entry_register(&cle->dle);

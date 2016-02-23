@@ -92,22 +92,28 @@ int itf_add_addr_v6(const char *itf, const uint8_t *addr, int len)
 	return spawnvp("ip", args);
 }
 
-int itf_add_route_v6_direct(const char *itf, const uint8_t *addr)
+static int
+__route_v6_direct(char *action, const uint8_t *dest, const char *itf)
 {
-	char caddr[64];
+	char daddr[64];
 	char *args[7];
 
-	inet_ntop(AF_INET6, addr, caddr, sizeof(caddr));
+	inet_ntop(AF_INET6, dest, daddr, sizeof(daddr));
 
 	args[0] = "ip";
 	args[1] = "route";
-	args[2] = "add";
-	args[3] = caddr;
+	args[2] = action;
+	args[3] = daddr;
 	args[4] = "dev";
 	args[5] = (char *)itf;
 	args[6] = NULL;
 
 	return spawnvp("ip", args);
+}
+
+int itf_add_route_v6_direct(const uint8_t *addr, const char *itf)
+{
+	return __route_v6_direct("add", addr, itf);
 }
 
 static int
