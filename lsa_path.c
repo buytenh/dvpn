@@ -26,7 +26,7 @@
 int lsa_path_contains(struct lsa_attr *attr, uint8_t *id)
 {
 	void *data;
-	int i;
+	size_t i;
 
 	if (attr->type != LSA_ATTR_TYPE_ADV_PATH)
 		abort();
