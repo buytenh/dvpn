@@ -20,19 +20,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <iv_list.h>
+#include <limits.h>
 #include <string.h>
 #include "lsa_deserialise.h"
 #include "lsa_type.h"
 
 struct src {
 	uint8_t		*src;
-	int		srclen;
-	int		off;
+	size_t		srclen;
+	size_t		off;
 };
 
 #define SRC_GET_PTR(_src, _buflen)			\
 	({						\
-		int off = (_src)->off;			\
+		size_t off = (_src)->off;		\
 		if ((_src)->srclen - off < _buflen)	\
 			goto short_read;		\
 		(_src)->off += _buflen;			\
@@ -47,7 +48,7 @@ struct src {
 		(_src)->off += _buflen;					\
 	}
 
-#define SRC_READ_INT(src)				\
+#define SRC_READ_UINT64_T(src)				\
 	({						\
 		uint8_t val;				\
 		int cnt;				\
@@ -69,15 +70,37 @@ struct src {
 		v;					\
 	})
 
+#define SRC_READ_INT(src)				\
+	({						\
+		uint64_t v;				\
+							\
+		v = SRC_READ_UINT64_T(src);		\
+		if (v > INT_MAX)			\
+			goto error;			\
+							\
+		(int)v;					\
+	})
+
+#define SRC_READ_SIZE_T(src)				\
+	({						\
+		uint64_t v;				\
+							\
+		v = SRC_READ_UINT64_T(src);		\
+		if (v > SIZE_MAX)			\
+			goto error;			\
+							\
+		(size_t)v;				\
+	})
+
 static int lsa_deserialise_attr_set(struct lsa *lsa, struct lsa_attr_set *dst,
 				    struct src *src)
 {
 	while (src->off < src->srclen) {
 		int type;
 		int flags;
-		int keylen;
+		size_t keylen;
 		uint8_t *key;
-		int datalen;
+		size_t datalen;
 		uint8_t *data;
 
 		type = SRC_READ_INT(src);
@@ -85,13 +108,13 @@ static int lsa_deserialise_attr_set(struct lsa *lsa, struct lsa_attr_set *dst,
 		flags = SRC_READ_INT(src);
 
 		if (flags & LSA_ATTR_FLAG_HAS_KEY) {
-			keylen = SRC_READ_INT(src);
+			keylen = SRC_READ_SIZE_T(src);
 			key = SRC_GET_PTR(src, keylen);
 		} else {
 			keylen = 0;
 		}
 
-		datalen = SRC_READ_INT(src);
+		datalen = SRC_READ_SIZE_T(src);
 		data = SRC_GET_PTR(src, datalen);
 
 		if (flags & LSA_ATTR_FLAG_DATA_IS_TLV) {
@@ -123,22 +146,25 @@ error:
 	return -1;
 }
 
-int lsa_deserialise(struct lsa **lsap, uint8_t *buf, int buflen)
+ssize_t lsa_deserialise(struct lsa **lsap, uint8_t *buf, size_t buflen)
 {
 	struct lsa *lsa = NULL;
 	struct src src;
-	int len;
+	size_t len;
 	uint8_t id[NODE_ID_LEN];
 
 	src.src = buf;
 	src.srclen = buflen;
 	src.off = 0;
 
-	len = SRC_READ_INT(&src);
+	len = SRC_READ_SIZE_T(&src);
 	if (len == 0) {
 		*lsap = NULL;
 		return src.off;
 	}
+
+	if (len > SSIZE_MAX - src.off)
+		return -1;
 
 	len += src.off;
 	if (len > buflen)
