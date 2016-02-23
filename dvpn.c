@@ -438,6 +438,8 @@ static void stop_conf_connect_entry(struct conf_connect_entry *cce)
 		mylsa_del_peer(cce->fingerprint);
 	}
 
+	iv_avl_tree_delete(&direct_peers, &cce->dp.an);
+
 	tconn_connect_destroy(&cce->tc);
 
 	tun_interface_unregister(&cce->tun);
@@ -489,6 +491,8 @@ static void stop_conf_listen_entry(struct conf_listen_entry *cle)
 		dgp_listen_socket_unregister(&cle->dls);
 		mylsa_del_peer(cle->fingerprint);
 	}
+
+	iv_avl_tree_delete(&direct_peers, &cle->dp.an);
 
 	tconn_listen_entry_unregister(&cle->tle);
 
