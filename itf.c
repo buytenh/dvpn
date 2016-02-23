@@ -27,6 +27,8 @@
 #include <unistd.h>
 #include "itf.h"
 
+#define DEBUG	0
+
 static int spawnvp(const char *file, char *const *argv)
 {
 	pid_t pid;
@@ -40,6 +42,20 @@ static int spawnvp(const char *file, char *const *argv)
 	}
 
 	if (pid == 0) {
+#if DEBUG
+		char *const *ptr;
+
+		fprintf(stderr, "running");
+
+		ptr = argv;
+		while (*ptr != NULL) {
+			fprintf(stderr, " %s", *ptr);
+			ptr++;
+		}
+
+		fprintf(stderr, "\n");
+#endif
+
 		execvp(file, argv);
 		perror("execvp");
 		exit(1);
