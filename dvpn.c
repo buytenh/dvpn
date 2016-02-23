@@ -141,7 +141,7 @@ lsa_add_pubkey_from_privkey(struct lsa *lsa, gnutls_x509_privkey_t privkey)
 	lsa_add_attr(lsa, LSA_ATTR_TYPE_PUBKEY, NULL, 0, buf, len);
 }
 
-static void local_add_peer(uint8_t *id, enum conf_peer_type type, int cost)
+static void mylsa_add_peer(uint8_t *id, enum conf_peer_type type, int cost)
 {
 	struct lsa *newme;
 	struct lsa_attr_set *set;
@@ -168,7 +168,7 @@ static void local_add_peer(uint8_t *id, enum conf_peer_type type, int cost)
 	me = newme;
 }
 
-static void local_del_peer(uint8_t *id)
+static void mylsa_del_peer(uint8_t *id)
 {
 	struct lsa *newme;
 
@@ -212,7 +212,7 @@ static void cce_set_state(void *_cce, int up)
 		uint8_t addr[16];
 
 		if (cce->peer_type != CONF_PEER_TYPE_DBONLY) {
-			local_add_peer(cce->fingerprint, cce->peer_type,
+			mylsa_add_peer(cce->fingerprint, cce->peer_type,
 				       cce->cost);
 		}
 
@@ -248,7 +248,7 @@ static void cce_set_state(void *_cce, int up)
 		itf_set_state(tunitf, 0);
 
 		if (cce->peer_type != CONF_PEER_TYPE_DBONLY)
-			local_del_peer(cce->fingerprint);
+			mylsa_del_peer(cce->fingerprint);
 	}
 }
 
@@ -298,7 +298,7 @@ static void cle_set_state(void *_cle, int up)
 		uint8_t addr[16];
 
 		if (cle->peer_type != CONF_PEER_TYPE_DBONLY) {
-			local_add_peer(cle->fingerprint, cle->peer_type,
+			mylsa_add_peer(cle->fingerprint, cle->peer_type,
 				       cle->cost);
 		}
 
@@ -336,7 +336,7 @@ static void cle_set_state(void *_cle, int up)
 		itf_set_state(tunitf, 0);
 
 		if (cle->peer_type != CONF_PEER_TYPE_DBONLY)
-			local_del_peer(cle->fingerprint);
+			mylsa_del_peer(cle->fingerprint);
 	}
 }
 
@@ -394,7 +394,7 @@ static void stop_conf_connect_entry(struct conf_connect_entry *cce)
 
 	if (cce->tconn_up) {
 		dgp_connect_stop(&cce->dc);
-		local_del_peer(cce->fingerprint);
+		mylsa_del_peer(cce->fingerprint);
 	}
 
 	tconn_connect_destroy(&cce->tc);
@@ -441,7 +441,7 @@ static void stop_conf_listen_entry(struct conf_listen_entry *cle)
 	if (cle->tconn_up) {
 		dgp_listen_entry_unregister(&cle->dle);
 		dgp_listen_socket_unregister(&cle->dls);
-		local_del_peer(cle->fingerprint);
+		mylsa_del_peer(cle->fingerprint);
 	}
 
 	tconn_listen_entry_unregister(&cle->tle);
