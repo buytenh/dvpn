@@ -93,7 +93,7 @@ struct src {
 	})
 
 static int lsa_deserialise_attr_set(struct lsa *lsa, struct lsa_attr_set *dst,
-				    struct src *src)
+				    struct src *src, int maxdepth)
 {
 	while (src->off < src->srclen) {
 		int type;
@@ -121,6 +121,9 @@ static int lsa_deserialise_attr_set(struct lsa *lsa, struct lsa_attr_set *dst,
 			struct lsa_attr_set *set;
 			struct src srcdata;
 
+			if (maxdepth == 0)
+				return -1;
+
 			set = lsa_attr_set_add_attr_set(lsa, dst, type,
 							key, keylen);
 			if (set == NULL)
@@ -129,8 +132,10 @@ static int lsa_deserialise_attr_set(struct lsa *lsa, struct lsa_attr_set *dst,
 			srcdata.src = data;
 			srcdata.srclen = datalen;
 			srcdata.off = 0;
-			if (lsa_deserialise_attr_set(lsa, set, &srcdata) < 0)
+			if (lsa_deserialise_attr_set(lsa, set, &srcdata,
+						     maxdepth - 1) < 0) {
 				return -1;
+			}
 		} else {
 			if (lsa_attr_set_add_attr(lsa, dst, type, key, keylen,
 						  data, datalen) < 0) {
@@ -178,7 +183,7 @@ ssize_t lsa_deserialise(struct lsa **lsap, uint8_t *buf, size_t buflen)
 	if (lsa == NULL)
 		return -1;
 
-	if (lsa_deserialise_attr_set(lsa, &lsa->root, &src) < 0)
+	if (lsa_deserialise_attr_set(lsa, &lsa->root, &src, 8) < 0)
 		goto error;
 
 	*lsap = lsa;
