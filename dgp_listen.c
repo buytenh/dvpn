@@ -107,7 +107,7 @@ static void got_connection(void *_dls)
 	}
 	addr6 = (struct sockaddr_in6 *)&addr;
 
-	if (addr6->sin6_port == htons(44461))
+	if (addr6->sin6_port == htons(173))
 		dle = find_entry_by_addr(dls, addr6->sin6_addr.s6_addr);
 	else
 		dle = NULL;
@@ -189,7 +189,7 @@ int dgp_listen_socket_register(struct dgp_listen_socket *dls)
 		v6_linklocal_addr_from_key_id(addr, dls->myid);
 
 	saddr.sin6_family = AF_INET6;
-	saddr.sin6_port = htons(44461);
+	saddr.sin6_port = htons(173);
 	saddr.sin6_flowinfo = 0;
 	memcpy(&saddr.sin6_addr, addr, 16);
 	saddr.sin6_scope_id = dls->ifindex;
