@@ -46,8 +46,8 @@ struct client_conn {
 #define STATE_TLS_HANDSHAKE	1
 #define STATE_CONNECTED		2
 
-#define HANDSHAKE_TIMEOUT	30
-#define KEEPALIVE_INTERVAL	30
+#define HANDSHAKE_TIMEOUT	15
+#define KEEPALIVE_INTERVAL	15
 
 static void print_name(FILE *fp, struct client_conn *cc)
 {
