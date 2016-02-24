@@ -483,7 +483,7 @@ static int parse_config_peer(struct local_conf *lc,
 			return -1;
 		}
 	} else {
-		cost = 1;
+		cost = 0;
 	}
 
 	if (connect != NULL) {

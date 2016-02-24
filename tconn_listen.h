@@ -50,6 +50,7 @@ struct tconn_listen_entry {
 
 int tconn_listen_entry_register(struct tconn_listen_entry *tle);
 void tconn_listen_entry_unregister(struct tconn_listen_entry *tle);
+int tconn_listen_entry_get_rtt(struct tconn_listen_entry *tle);
 int tconn_listen_entry_get_maxseg(struct tconn_listen_entry *tle);
 void tconn_listen_entry_record_send(struct tconn_listen_entry *tle,
 				    const uint8_t *rec, int len);

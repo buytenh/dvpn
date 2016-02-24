@@ -454,6 +454,23 @@ void tconn_connect_destroy(struct tconn_connect *tc)
 	}
 }
 
+int tconn_connect_get_rtt(struct tconn_connect *tc)
+{
+	struct tcp_info info;
+	socklen_t len;
+
+	if (tc->state != STATE_CONNECTED)
+		return -1;
+
+	len = sizeof(info);
+	if (getsockopt(tc->tconnfd.fd, SOL_TCP, TCP_INFO, &info, &len) < 0) {
+		perror("getsockopt(SOL_TCP, TCP_INFO)");
+		return -1;
+	}
+
+	return info.tcpi_rtt / 1000;
+}
+
 int tconn_connect_get_maxseg(struct tconn_connect *tc)
 {
 	int mseg;

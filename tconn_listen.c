@@ -342,6 +342,25 @@ void tconn_listen_entry_unregister(struct tconn_listen_entry *tle)
 	iv_avl_tree_delete(&tle->tls->listen_entries, &tle->an);
 }
 
+int tconn_listen_entry_get_rtt(struct tconn_listen_entry *tle)
+{
+	struct client_conn *cc;
+	struct tcp_info info;
+	socklen_t len;
+
+	cc = tle->current;
+	if (cc == NULL)
+		return -1;
+
+	len = sizeof(info);
+	if (getsockopt(cc->fd.fd, SOL_TCP, TCP_MAXSEG, &info, &len) < 0) {
+		perror("getsockopt(SOL_TCP, TCP_MAXSEG)");
+		return -1;
+	}
+
+	return info.tcpi_rtt / 1000;
+}
+
 int tconn_listen_entry_get_maxseg(struct tconn_listen_entry *tle)
 {
 	struct client_conn *cc;

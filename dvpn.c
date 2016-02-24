@@ -254,8 +254,16 @@ static void cce_set_state(void *_cce, int up)
 		uint8_t addr[16];
 
 		if (cce->peer_type != CONF_PEER_TYPE_DBONLY) {
-			mylsa_add_peer(cce->fingerprint, cce->peer_type,
-				       cce->cost);
+			int cost;
+
+			cost = cce->cost;
+			if (cost == 0) {
+				cost = tconn_connect_get_rtt(&cce->tc);
+				if (cost < 1)
+					cost = 1;
+			}
+
+			mylsa_add_peer(cce->fingerprint, cce->peer_type, cost);
 		}
 
 		maxseg = tconn_connect_get_maxseg(&cce->tc);
@@ -337,8 +345,16 @@ static void cle_set_state(void *_cle, int up)
 		uint8_t addr[16];
 
 		if (cle->peer_type != CONF_PEER_TYPE_DBONLY) {
-			mylsa_add_peer(cle->fingerprint, cle->peer_type,
-				       cle->cost);
+			int cost;
+
+			cost = cle->cost;
+			if (cost == 0) {
+				cost = tconn_listen_entry_get_rtt(&cle->tle);
+				if (cost < 1)
+					cost = 1;
+			}
+
+			mylsa_add_peer(cle->fingerprint, cle->peer_type, cost);
 		}
 
 		maxseg = tconn_listen_entry_get_maxseg(&cle->tle);

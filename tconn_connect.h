@@ -59,6 +59,7 @@ struct tconn_connect {
 
 void tconn_connect_start(struct tconn_connect *tc);
 void tconn_connect_destroy(struct tconn_connect *tc);
+int tconn_connect_get_rtt(struct tconn_connect *tc);
 int tconn_connect_get_maxseg(struct tconn_connect *tc);
 void tconn_connect_record_send(struct tconn_connect *tc,
 			       const uint8_t *rec, int len);
