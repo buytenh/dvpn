@@ -80,8 +80,8 @@ static struct lsa *find_recent_lsa(struct loc_rib *rib, uint8_t *id)
 	return lsa;
 }
 
-static int get_peer_metric_type(struct lsa *lsa, uint8_t *peer,
-				uint16_t *metric, uint8_t *type)
+static int get_peer_metric_flags(struct lsa *lsa, uint8_t *peer,
+				 uint16_t *metric, uint8_t *flags)
 {
 	struct lsa_attr *attr;
 	struct lsa_attr_set *set;
@@ -106,16 +106,16 @@ static int get_peer_metric_type(struct lsa *lsa, uint8_t *peer,
 		*metric = ntohs(*((uint16_t *)lsa_attr_data(attr2)));
 	}
 
-	if (type != NULL) {
+	if (flags != NULL) {
 		struct lsa_attr *attr2;
 
 		attr2 = lsa_attr_set_find_attr(set,
-					       LSA_PEER_ATTR_TYPE_PEER_TYPE,
+					       LSA_PEER_ATTR_TYPE_PEER_FLAGS,
 					       NULL, 0);
 		if (attr2 == NULL || attr2->datalen != 1)
 			return -1;
 
-		*type = *((uint8_t *)lsa_attr_data(attr2));
+		*flags = *((uint8_t *)lsa_attr_data(attr2));
 	}
 
 	return 0;
@@ -157,8 +157,8 @@ lsa_path_cost(struct loc_rib *rib, struct loc_rib_id *rid, struct lsa *lsa)
 	for (i = 0; i < pathlen; i += NODE_ID_LEN) {
 		struct lsa *to;
 		uint16_t ametric;
-		uint8_t atype;
-		uint8_t btype;
+		uint8_t aflags;
+		uint8_t bflags;
 
 		to = find_recent_lsa(rib, path + i);
 		if (to == NULL)
@@ -169,21 +169,21 @@ lsa_path_cost(struct loc_rib *rib, struct loc_rib_id *rid, struct lsa *lsa)
 			continue;
 		}
 
-		if (get_peer_metric_type(from, to->id, &ametric, &atype) < 0)
+		if (get_peer_metric_flags(from, to->id, &ametric, &aflags) < 0)
 			return RIB_COST_UNREACHABLE;
 
-		if (get_peer_metric_type(to, from->id, NULL, &btype) < 0)
+		if (get_peer_metric_flags(to, from->id, NULL, &bflags) < 0)
 			return RIB_COST_UNREACHABLE;
 
 		if (traversing_transits) {
-			if (!(atype & LSA_PEER_TYPE_TRANSIT))
+			if (!(aflags & LSA_PEER_FLAGS_TRANSIT))
 				traversing_transits = 0;
-			if (!(btype & LSA_PEER_TYPE_CUSTOMER))
+			if (!(bflags & LSA_PEER_FLAGS_CUSTOMER))
 				traversing_transits = 0;
 		} else {
-			if (!(atype & LSA_PEER_TYPE_CUSTOMER))
+			if (!(aflags & LSA_PEER_FLAGS_CUSTOMER))
 				return RIB_COST_UNREACHABLE;
-			if (!(btype & LSA_PEER_TYPE_TRANSIT))
+			if (!(bflags & LSA_PEER_FLAGS_TRANSIT))
 				return RIB_COST_UNREACHABLE;
 		}
 

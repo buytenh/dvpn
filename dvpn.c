@@ -108,17 +108,17 @@ static int compare_direct_peers(struct iv_avl_node *_a, struct iv_avl_node *_b)
 }
 
 static enum lsa_peer_type
-conf_peer_type_to_lsa_peer_type(enum conf_peer_type type)
+conf_peer_type_to_lsa_peer_flags(enum conf_peer_type type)
 {
 	switch (type) {
 	case CONF_PEER_TYPE_EPEER:
-		return LSA_PEER_TYPE_EPEER;
+		return 0;
 	case CONF_PEER_TYPE_CUSTOMER:
-		return LSA_PEER_TYPE_CUSTOMER;
+		return LSA_PEER_FLAGS_CUSTOMER;
 	case CONF_PEER_TYPE_TRANSIT:
-		return LSA_PEER_TYPE_TRANSIT;
+		return LSA_PEER_FLAGS_TRANSIT;
 	case CONF_PEER_TYPE_IPEER:
-		return LSA_PEER_TYPE_IPEER;
+		return LSA_PEER_FLAGS_CUSTOMER | LSA_PEER_FLAGS_TRANSIT;
 	default:
 		fprintf(stderr, "conf_peer_type_to_lsa_peer_type: invalid "
 				"type %d\n", type);
@@ -188,7 +188,7 @@ static void mylsa_add_peer(uint8_t *id, enum conf_peer_type type, int cost)
 	struct lsa *newme;
 	struct lsa_attr_set *set;
 	uint16_t metric;
-	uint8_t peer_type;
+	uint8_t peer_flags;
 
 	newme = lsa_clone(me);
 
@@ -198,9 +198,9 @@ static void mylsa_add_peer(uint8_t *id, enum conf_peer_type type, int cost)
 	lsa_attr_set_add_attr(newme, set, LSA_PEER_ATTR_TYPE_METRIC,
 			      NULL, 0, &metric, sizeof(metric));
 
-	peer_type = conf_peer_type_to_lsa_peer_type(type);
-	lsa_attr_set_add_attr(newme, set, LSA_PEER_ATTR_TYPE_PEER_TYPE,
-			      NULL, 0, &peer_type, sizeof(peer_type));
+	peer_flags = conf_peer_type_to_lsa_peer_flags(type);
+	lsa_attr_set_add_attr(newme, set, LSA_PEER_ATTR_TYPE_PEER_FLAGS,
+			      NULL, 0, &peer_flags, sizeof(peer_flags));
 
 	lsa_update_version(newme);
 

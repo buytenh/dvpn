@@ -35,14 +35,12 @@ enum lsa_attr_flags {
 
 enum lsa_peer_attr_type {
 	LSA_PEER_ATTR_TYPE_METRIC = 1,
-	LSA_PEER_ATTR_TYPE_PEER_TYPE = 2,
+	LSA_PEER_ATTR_TYPE_PEER_FLAGS = 2,
 };
 
 enum lsa_peer_type {
-	LSA_PEER_TYPE_EPEER = 0,
-	LSA_PEER_TYPE_CUSTOMER = 1,
-	LSA_PEER_TYPE_TRANSIT = 2,
-	LSA_PEER_TYPE_IPEER = 3,
+	LSA_PEER_FLAGS_CUSTOMER = 1,
+	LSA_PEER_FLAGS_TRANSIT = 2,
 };
 
 

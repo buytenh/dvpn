@@ -50,8 +50,8 @@ lsa_attr_type_name(int parent_type, int type, char *buf, int bufsize)
 		switch (type) {
 		case LSA_PEER_ATTR_TYPE_METRIC:
 			return "metric";
-		case LSA_PEER_ATTR_TYPE_PEER_TYPE:
-			return "type";
+		case LSA_PEER_ATTR_TYPE_PEER_FLAGS:
+			return "flags";
 		}
 	}
 
@@ -222,20 +222,25 @@ void lsa_attr_print_data(FILE *fp, int parent_type, struct lsa_attr *attr,
 
 		fprintf(fp, "%d", ntohs(*metric));
 	} else if (parent_type == LSA_ATTR_TYPE_PEER &&
-		   attr->type == LSA_PEER_ATTR_TYPE_PEER_TYPE &&
+		   attr->type == LSA_PEER_ATTR_TYPE_PEER_FLAGS &&
 		   attr->datalen == 1) {
-		uint8_t *peer_type = lsa_attr_data(attr);
+		uint8_t *peer_flags = lsa_attr_data(attr);
+		uint8_t ct;
 
-		if (*peer_type == LSA_PEER_TYPE_EPEER)
+		ct = *peer_flags &
+			(LSA_PEER_FLAGS_CUSTOMER | LSA_PEER_FLAGS_TRANSIT);
+
+		if (ct == 0)
 			fprintf(fp, "epeer");
-		else if (*peer_type == LSA_PEER_TYPE_CUSTOMER)
+		else if (ct == LSA_PEER_FLAGS_CUSTOMER)
 			fprintf(fp, "customer");
-		else if (*peer_type == LSA_PEER_TYPE_TRANSIT)
+		else if (ct == LSA_PEER_FLAGS_TRANSIT)
 			fprintf(fp, "transit");
-		else if (*peer_type == LSA_PEER_TYPE_IPEER)
+		else if (ct == (LSA_PEER_FLAGS_CUSTOMER |
+				LSA_PEER_FLAGS_TRANSIT))
 			fprintf(fp, "ipeer");
 		else
-			fprintf(fp, "%d", *peer_type);
+			fprintf(fp, "%d", ct);
 	} else {
 		printhex(fp, lsa_attr_data(attr), attr->datalen);
 	}
