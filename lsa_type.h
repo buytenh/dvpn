@@ -31,6 +31,7 @@ enum lsa_attr_type {
 enum lsa_attr_flags {
 	LSA_ATTR_FLAG_HAS_KEY = 1,
 	LSA_ATTR_FLAG_DATA_IS_TLV = 2,
+	LSA_ATTR_FLAG_SIGNED = 4,
 };
 
 enum lsa_peer_attr_type {
