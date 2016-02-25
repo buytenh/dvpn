@@ -47,7 +47,7 @@ static uint64_t lsa_get_version(struct lsa *lsa)
 	uint64_t version;
 
 	attr = lsa_find_attr(lsa, LSA_ATTR_TYPE_VERSION, NULL, 0);
-	if (attr == NULL || attr->datalen != 8)
+	if (attr == NULL || !attr->attr_signed || attr->datalen != 8)
 		return 0;
 
 	data = lsa_attr_data(attr);
@@ -87,7 +87,7 @@ static int get_peer_metric_flags(struct lsa *lsa, uint8_t *peer,
 	struct lsa_attr_set *set;
 
 	attr = lsa_find_attr(lsa, LSA_ATTR_TYPE_PEER, peer, NODE_ID_LEN);
-	if (attr == NULL)
+	if (attr == NULL || !attr->attr_signed)
 		return -1;
 
 	if (!attr->data_is_attr_set)
