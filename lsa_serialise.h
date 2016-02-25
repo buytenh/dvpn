@@ -24,9 +24,10 @@
 
 #define MAX_SERIALISED_INT_LEN		10
 
-size_t lsa_serialise_length(struct lsa *lsa, uint8_t *preid);
+size_t lsa_serialise_length(struct lsa *lsa, int signed_only, uint8_t *preid);
 size_t lsa_serialise(uint8_t *buf, size_t buflen, size_t serlen,
-		     struct lsa *lsa, uint8_t *preid);
+		     struct lsa *lsa, int signed_only, uint8_t *preid);
+
 size_t lsa_attr_serialise_length(struct lsa_attr *attr);
 size_t lsa_attr_serialise(uint8_t *buf, size_t buflen, struct lsa_attr *attr);
 

@@ -66,14 +66,14 @@ dgp_writer_output_lsa(struct dgp_writer *dw, struct lsa *old, struct lsa *new)
 		lsa = &dummy;
 	}
 
-	serlen = lsa_serialise_length(lsa, dw->myid);
+	serlen = lsa_serialise_length(lsa, 0, dw->myid);
 	if (serlen > 65536 - 128)
 		abort();
 
 	buflen = serlen + 128;
 	buf = alloca(buflen);
 
-	len = lsa_serialise(buf, buflen, serlen, lsa, dw->myid);
+	len = lsa_serialise(buf, buflen, serlen, lsa, 0, dw->myid);
 	if (len > buflen)
 		abort();
 
