@@ -91,6 +91,8 @@ __lsa_attr_serialise(struct dst *dst, struct lsa_attr *attr, uint8_t *preid)
 		flags |= LSA_ATTR_FLAG_HAS_KEY;
 	if (attr->data_is_attr_set)
 		flags |= LSA_ATTR_FLAG_DATA_IS_TLV;
+	if (attr->attr_signed)
+		flags |= LSA_ATTR_FLAG_SIGNED;
 
 	dst_append_int(dst, flags);
 
