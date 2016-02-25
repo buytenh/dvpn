@@ -353,8 +353,8 @@ int tconn_listen_entry_get_rtt(struct tconn_listen_entry *tle)
 		return -1;
 
 	len = sizeof(info);
-	if (getsockopt(cc->fd.fd, SOL_TCP, TCP_MAXSEG, &info, &len) < 0) {
-		perror("getsockopt(SOL_TCP, TCP_MAXSEG)");
+	if (getsockopt(cc->fd.fd, SOL_TCP, TCP_INFO, &info, &len) < 0) {
+		perror("getsockopt(SOL_TCP, TCP_INFO)");
 		return -1;
 	}
 
