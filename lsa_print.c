@@ -20,8 +20,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
-#include <gnutls/abstract.h>
-#include <gnutls/gnutls.h>
 #include <iv_list.h>
 #include "loc_rib.h"
 #include "lsa_print.h"
@@ -120,56 +118,6 @@ void lsa_attr_print_key(FILE *fp, int parent_type, struct lsa_attr *attr,
 	fprintf(fp, "]");
 }
 
-static int try_print_der_pubkey(FILE *fp, void *data, size_t len)
-{
-	gnutls_pubkey_t pubkey;
-	int ret;
-	gnutls_datum_t d;
-	gnutls_datum_t n;
-	gnutls_datum_t e;
-
-	ret = gnutls_pubkey_init(&pubkey);
-	if (ret < 0) {
-		gnutls_perror(ret);
-		return -1;
-	}
-
-	d.data = data;
-	d.size = len;
-
-	ret = gnutls_pubkey_import(pubkey, &d, GNUTLS_X509_FMT_DER);
-	if (ret < 0) {
-		gnutls_perror(ret);
-		gnutls_pubkey_deinit(pubkey);
-		return -1;
-	}
-
-	ret = gnutls_pubkey_export_rsa_raw(pubkey, &n, &e);
-	if (ret < 0) {
-		gnutls_perror(ret);
-		gnutls_pubkey_deinit(pubkey);
-		return -1;
-	}
-
-	fprintf(fp, "n=");
-	printhex(fp, n.data, n.size);
-	fprintf(fp, " e=");
-	printhex(fp, e.data, e.size);
-
-	gnutls_free(n.data);
-	gnutls_free(e.data);
-
-	gnutls_pubkey_deinit(pubkey);
-
-	return 0;
-}
-
-static void print_der_pubkey(FILE *fp, void *data, size_t len)
-{
-	if (try_print_der_pubkey(fp, data, len) < 0)
-		printhex(fp, data, len);
-}
-
 void lsa_attr_print_data(FILE *fp, int parent_type, struct lsa_attr *attr,
 			 struct loc_rib *name_hints)
 {
@@ -218,7 +166,9 @@ void lsa_attr_print_data(FILE *fp, int parent_type, struct lsa_attr *attr,
 	} else if (parent_type == 0 && attr->type == LSA_ATTR_TYPE_VERSION) {
 		printhex(fp, lsa_attr_data(attr), attr->datalen);
 	} else if (parent_type == 0 && attr->type == LSA_ATTR_TYPE_PUBKEY) {
-		print_der_pubkey(fp, lsa_attr_data(attr), attr->datalen);
+		fprintf(fp, "<pubkey>");
+	} else if (parent_type == 0 && attr->type == LSA_ATTR_TYPE_SIGNATURE) {
+		fprintf(fp, "<signature>");
 	} else if (parent_type == LSA_ATTR_TYPE_PEER &&
 		   attr->type == LSA_PEER_ATTR_TYPE_METRIC &&
 		   attr->datalen == 2) {
