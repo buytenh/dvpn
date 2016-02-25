@@ -26,6 +26,7 @@ enum lsa_attr_type {
 	LSA_ATTR_TYPE_NODE_NAME = 3,
 	LSA_ATTR_TYPE_VERSION = 4,
 	LSA_ATTR_TYPE_PUBKEY = 5,
+	LSA_ATTR_TYPE_SIGNATURE = 6,
 };
 
 enum lsa_attr_flags {
