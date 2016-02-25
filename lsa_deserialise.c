@@ -102,6 +102,7 @@ static int lsa_deserialise_attr_set(struct lsa *lsa, struct lsa_attr_set *dst,
 		uint8_t *key;
 		size_t datalen;
 		uint8_t *data;
+		int sign;
 
 		type = SRC_READ_INT(src);
 
@@ -117,6 +118,8 @@ static int lsa_deserialise_attr_set(struct lsa *lsa, struct lsa_attr_set *dst,
 		datalen = SRC_READ_SIZE_T(src);
 		data = SRC_GET_PTR(src, datalen);
 
+		sign = !!(flags & LSA_ATTR_FLAG_SIGNED);
+
 		if (flags & LSA_ATTR_FLAG_DATA_IS_TLV) {
 			struct lsa_attr_set *set;
 			struct src srcdata;
@@ -124,7 +127,7 @@ static int lsa_deserialise_attr_set(struct lsa *lsa, struct lsa_attr_set *dst,
 			if (maxdepth == 0)
 				return -1;
 
-			set = lsa_attr_set_add_attr_set(lsa, dst, type, 0,
+			set = lsa_attr_set_add_attr_set(lsa, dst, type, sign,
 							key, keylen);
 			if (set == NULL)
 				return -1;
@@ -137,7 +140,7 @@ static int lsa_deserialise_attr_set(struct lsa *lsa, struct lsa_attr_set *dst,
 				return -1;
 			}
 		} else {
-			if (lsa_attr_set_add_attr(lsa, dst, type, 0,
+			if (lsa_attr_set_add_attr(lsa, dst, type, sign,
 						  key, keylen,
 						  data, datalen) < 0) {
 				return -1;
