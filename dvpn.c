@@ -170,8 +170,7 @@ static void lsa_initial_version(struct lsa *lsa)
 	lsa_add_version(lsa, (t64 + 1) << 8);
 }
 
-static void
-lsa_add_pubkey_from_privkey(struct lsa *lsa, gnutls_x509_privkey_t privkey)
+static void lsa_add_pubkey(struct lsa *lsa)
 {
 	uint8_t buf[65536];
 	int len;
@@ -802,7 +801,7 @@ int main(int argc, char *argv[])
 			     conf->node_name, strlen(conf->node_name));
 	}
 	lsa_initial_version(me);
-	lsa_add_pubkey_from_privkey(me, privkey);
+	lsa_add_pubkey(me);
 	loc_rib_add_lsa(&loc_rib, me);
 
 	if (start_config(conf))
