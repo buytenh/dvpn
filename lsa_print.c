@@ -65,6 +65,8 @@ void lsa_attr_print_type_name(FILE *fp, int parent_type, struct lsa_attr *attr)
 	char t[128];
 
 	fputs(lsa_attr_type_name(parent_type, attr->type, t, sizeof(t)), fp);
+	if (attr->attr_signed)
+		fprintf(fp, "(signed)");
 }
 
 static void print_node_name(FILE *fp, struct lsa_attr *attr)
