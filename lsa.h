@@ -45,6 +45,7 @@ struct lsa_attr {
 	struct iv_avl_node	an;
 	int			type;
 	unsigned		data_is_attr_set:1;
+	unsigned		attr_signed:1;
 	size_t			keylen;
 	size_t			datalen;
 	uint8_t			buf[0];

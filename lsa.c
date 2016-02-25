@@ -280,6 +280,7 @@ static struct lsa_attr *attr_alloc(int type, size_t keylen, size_t datalen)
 
 	attr->type = type;
 	attr->data_is_attr_set = 0;
+	attr->attr_signed = 0;
 	attr->keylen = keylen;
 	attr->datalen = datalen;
 
