@@ -27,6 +27,7 @@
 #include "adj_rib_in.h"
 #include "lsa_diff.h"
 #include "lsa_path.h"
+#include "lsa_serialise.h"
 #include "lsa_type.h"
 #include "util.h"
 
@@ -78,38 +79,19 @@ adj_rib_in_find_ref(struct adj_rib_in *rib, uint8_t *id)
 	return NULL;
 }
 
-static int check_valid_pubkey(void *data, int len)
-{
-	gnutls_pubkey_t pubkey;
-	int ret;
-	gnutls_datum_t datum;
-
-	ret = gnutls_pubkey_init(&pubkey);
-	if (ret < 0) {
-		gnutls_perror(ret);
-		return -1;
-	}
-
-	datum.data = data;
-	datum.size = len;
-
-	ret = gnutls_pubkey_import(pubkey, &datum, GNUTLS_X509_FMT_DER);
-	if (ret < 0) {
-		gnutls_perror(ret);
-		gnutls_pubkey_deinit(pubkey);
-		return -1;
-	}
-
-	gnutls_pubkey_deinit(pubkey);
-
-	return 0;
-}
-
 static struct lsa *map(struct adj_rib_in *rib, struct lsa *lsa)
 {
 	struct lsa_attr *attr;
 	struct sha256_ctx ctx;
 	uint8_t id[NODE_ID_LEN];
+	gnutls_pubkey_t pubkey;
+	int ret;
+	gnutls_datum_t datum;
+	size_t serlen;
+	size_t buflen;
+	void *buf;
+	size_t len;
+	gnutls_datum_t data;
 
 	if (lsa == NULL)
 		return NULL;
@@ -142,8 +124,54 @@ static struct lsa *map(struct adj_rib_in *rib, struct lsa *lsa)
 	if (memcmp(lsa->id, id, NODE_ID_LEN))
 		return NULL;
 
-	if (check_valid_pubkey(lsa_attr_data(attr), attr->datalen) < 0)
+	ret = gnutls_pubkey_init(&pubkey);
+	if (ret < 0) {
+		gnutls_perror(ret);
 		return NULL;
+	}
+
+	datum.data = lsa_attr_data(attr);
+	datum.size = attr->datalen;
+
+	ret = gnutls_pubkey_import(pubkey, &datum, GNUTLS_X509_FMT_DER);
+	if (ret < 0) {
+		gnutls_perror(ret);
+		gnutls_pubkey_deinit(pubkey);
+		return NULL;
+	}
+
+	attr = lsa_find_attr(lsa, LSA_ATTR_TYPE_SIGNATURE, NULL, 0);
+	if (attr == NULL) {
+		gnutls_pubkey_deinit(pubkey);
+		return NULL;
+	}
+
+	datum.data = lsa_attr_data(attr);
+	datum.size = attr->datalen;
+
+	serlen = lsa_serialise_length(lsa, 1, NULL);
+	if (serlen > 65536 - 128)
+		abort();
+
+	buflen = serlen + 128;
+	buf = alloca(buflen);
+
+	len = lsa_serialise(buf, buflen, serlen, lsa, 1, NULL);
+	if (len > buflen)
+		abort();
+
+	data.data = buf;
+	data.size = len;
+
+	ret = gnutls_pubkey_verify_data2(pubkey, GNUTLS_SIGN_RSA_SHA256,
+					 0, &data, &datum);
+	if (ret < 0) {
+		gnutls_perror(ret);
+		gnutls_pubkey_deinit(pubkey);
+		return NULL;
+	}
+
+	gnutls_pubkey_deinit(pubkey);
 
 	return lsa;
 }
