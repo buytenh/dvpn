@@ -83,6 +83,12 @@ PeerType=peer
 
 **Note:** Configuration of Foo node contains fingerprint of Bar node and vice versa.
 
+On each node is added dvpn[0-9] interface defaulting to 2001:2f::/32 subnet.
+> ba:be:c0:01:ba:be:c0:01:ba:be:**c0:01:ba:be:c0:01:ba:be:c0:01:ba:be**:c0:01:ba:be:c0:01:ba:be:c0:01
+
+The remaining part of IPv6 address is a part of fingerprint thus makes address unspoofable and cryptographically secure.
+
+
 ## Tools
 `rtmon`, `topomon` and `hostmon` are tools provided with dvpn package for administrative purposes. They connect to the local dvpn instance, pull out a copy of its routing database, and dump it in a certain way, they also dump changes as they are recieved.
 
