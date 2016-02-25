@@ -43,9 +43,12 @@ After compilation sample configs and keys will be created.
 - ipeer - provides transit to each other, they are transit and customer in both directions
 - dbonly - peer only exchange LSAs, but no data at all
 
-Route readvertising works basically like this
+Route readvertising works basically like most ISPs. Customer routes are propagated to other customers, to transits and to peers while transit and peer routes are only propagated to customers.
 
-Markdown | Less | Pretty
---- | --- | ---
-*Still* | `renders` | **nicely**
-1 | 2 | 3
+From\To | Customer | Transit | Peer
+--- | --- | --- | ---
+Customer | YES | YES | YES
+Transit | YES | NO | NO
+Peer | YES | NO | NO
+
+There are two route types, readvertisable and nonreadvertisable. Readvertisable can be advertised to transits, and then it stays readvertisable, nonreadvertisable can only be advertised to customers, but if you advertise a readvertisable route to a customer or a peer, it thereby becomes nonreadvertisable.
