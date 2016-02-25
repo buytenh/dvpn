@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
+#include <gnutls/abstract.h>
 #include <gnutls/x509.h>
 #include <iv.h>
 #include <iv_signal.h>
@@ -132,7 +133,7 @@ static void lsa_add_version(struct lsa *lsa, uint64_t version)
 
 	t32[0] = htonl((version >> 32) & 0xffffffff);
 	t32[1] = htonl(version & 0xffffffff);
-	lsa_add_attr(lsa, LSA_ATTR_TYPE_VERSION, 0, NULL, 0, t32, sizeof(t32));
+	lsa_add_attr(lsa, LSA_ATTR_TYPE_VERSION, 1, NULL, 0, t32, sizeof(t32));
 }
 
 static void lsa_update_version(struct lsa *lsa)
@@ -179,7 +180,56 @@ static void lsa_add_pubkey(struct lsa *lsa)
 	if (len < 0)
 		abort();
 
-	lsa_add_attr(lsa, LSA_ATTR_TYPE_PUBKEY, 0, NULL, 0, buf, len);
+	lsa_add_attr(lsa, LSA_ATTR_TYPE_PUBKEY, 1, NULL, 0, buf, len);
+}
+
+static void lsa_sign(struct lsa *lsa)
+{
+	struct lsa_attr *attr;
+	size_t serlen;
+	size_t buflen;
+	void *buf;
+	size_t len;
+	gnutls_privkey_t pk;
+	int ret;
+	gnutls_datum_t data;
+	gnutls_datum_t sig;
+
+	attr = lsa_find_attr(lsa, LSA_ATTR_TYPE_SIGNATURE, NULL, 0);
+	if (attr != NULL)
+		lsa_del_attr(lsa, attr);
+
+	serlen = lsa_serialise_length(lsa, 1, NULL);
+	if (serlen > 65536 - 128)
+		abort();
+
+	buflen = serlen + 128;
+	buf = alloca(buflen);
+
+	len = lsa_serialise(buf, buflen, serlen, lsa, 1, NULL);
+	if (len > buflen)
+		abort();
+
+	ret = gnutls_privkey_init(&pk);
+	if (ret < 0)
+		abort();
+
+	ret = gnutls_privkey_import_x509(pk, privkey, 0);
+	if (ret < 0)
+		abort();
+
+	data.data = buf;
+	data.size = len;
+	ret = gnutls_privkey_sign_data(pk, GNUTLS_DIG_SHA256, 0, &data, &sig);
+	if (ret < 0)
+		abort();
+
+	gnutls_privkey_deinit(pk);
+
+	lsa_add_attr(lsa, LSA_ATTR_TYPE_SIGNATURE, 0, NULL, 0,
+		     sig.data, sig.size);
+
+	gnutls_free(sig.data);
 }
 
 static void mylsa_add_peer(uint8_t *id, enum conf_peer_type type, int cost)
@@ -191,17 +241,19 @@ static void mylsa_add_peer(uint8_t *id, enum conf_peer_type type, int cost)
 
 	newme = lsa_clone(me);
 
-	set = lsa_add_attr_set(newme, LSA_ATTR_TYPE_PEER, 0, id, NODE_ID_LEN);
+	set = lsa_add_attr_set(newme, LSA_ATTR_TYPE_PEER, 1, id, NODE_ID_LEN);
 
 	metric = htons(cost);
-	lsa_attr_set_add_attr(newme, set, LSA_PEER_ATTR_TYPE_METRIC, 0,
+	lsa_attr_set_add_attr(newme, set, LSA_PEER_ATTR_TYPE_METRIC, 1,
 			      NULL, 0, &metric, sizeof(metric));
 
 	peer_flags = conf_peer_type_to_lsa_peer_flags(type);
-	lsa_attr_set_add_attr(newme, set, LSA_PEER_ATTR_TYPE_PEER_FLAGS, 0,
+	lsa_attr_set_add_attr(newme, set, LSA_PEER_ATTR_TYPE_PEER_FLAGS, 1,
 			      NULL, 0, &peer_flags, sizeof(peer_flags));
 
 	lsa_update_version(newme);
+
+	lsa_sign(newme);
 
 	loc_rib_mod_lsa(&loc_rib, me, newme);
 
@@ -218,6 +270,8 @@ static void mylsa_del_peer(uint8_t *id)
 	lsa_del_attr_bykey(newme, LSA_ATTR_TYPE_PEER, id, NODE_ID_LEN);
 
 	lsa_update_version(newme);
+
+	lsa_sign(newme);
 
 	loc_rib_mod_lsa(&loc_rib, me, newme);
 
@@ -797,11 +851,13 @@ int main(int argc, char *argv[])
 	me = lsa_alloc(keyid);
 	lsa_add_attr(me, LSA_ATTR_TYPE_ADV_PATH, 0, NULL, 0, NULL, 0);
 	if (conf->node_name != NULL) {
-		lsa_add_attr(me, LSA_ATTR_TYPE_NODE_NAME, 0, NULL, 0,
+		lsa_add_attr(me, LSA_ATTR_TYPE_NODE_NAME, 1, NULL, 0,
 			     conf->node_name, strlen(conf->node_name));
 	}
 	lsa_initial_version(me);
 	lsa_add_pubkey(me);
+	lsa_sign(me);
+
 	loc_rib_add_lsa(&loc_rib, me);
 
 	if (start_config(conf))
