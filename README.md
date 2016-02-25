@@ -36,7 +36,16 @@ After compilation sample configs and keys will be created.
 `PeerFingerprint` - unique fingerprint of peer's key, `./dvpn [--show-key-id <key.pem>]` to view a key
 
 `PeerType` - [peer|transit|customer|ipeer|epeer|transmit|customer|dbonly]
-- dbonly - peers only exchange LSAs, but no data at all
 - epeer - only exchanges traffic for themselves and their customers
+- peer - alias to epeer
+- transit - peer is authorized to route traffic for you on your behalf
+- customer - peer is allowed use you as a transit
 - ipeer - provides transit to each other, they are transit and customer in both directions
+- dbonly - peer only exchange LSAs, but no data at all
 
+Route readvertising works basically like this
+
+Markdown | Less | Pretty
+--- | --- | ---
+*Still* | `renders` | **nicely**
+1 | 2 | 3
