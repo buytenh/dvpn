@@ -132,7 +132,7 @@ static void lsa_add_version(struct lsa *lsa, uint64_t version)
 
 	t32[0] = htonl((version >> 32) & 0xffffffff);
 	t32[1] = htonl(version & 0xffffffff);
-	lsa_add_attr(lsa, LSA_ATTR_TYPE_VERSION, NULL, 0, t32, sizeof(t32));
+	lsa_add_attr(lsa, LSA_ATTR_TYPE_VERSION, 0, NULL, 0, t32, sizeof(t32));
 }
 
 static void lsa_update_version(struct lsa *lsa)
@@ -180,7 +180,7 @@ lsa_add_pubkey_from_privkey(struct lsa *lsa, gnutls_x509_privkey_t privkey)
 	if (len < 0)
 		abort();
 
-	lsa_add_attr(lsa, LSA_ATTR_TYPE_PUBKEY, NULL, 0, buf, len);
+	lsa_add_attr(lsa, LSA_ATTR_TYPE_PUBKEY, 0, NULL, 0, buf, len);
 }
 
 static void mylsa_add_peer(uint8_t *id, enum conf_peer_type type, int cost)
@@ -192,14 +192,14 @@ static void mylsa_add_peer(uint8_t *id, enum conf_peer_type type, int cost)
 
 	newme = lsa_clone(me);
 
-	set = lsa_add_attr_set(newme, LSA_ATTR_TYPE_PEER, id, NODE_ID_LEN);
+	set = lsa_add_attr_set(newme, LSA_ATTR_TYPE_PEER, 0, id, NODE_ID_LEN);
 
 	metric = htons(cost);
-	lsa_attr_set_add_attr(newme, set, LSA_PEER_ATTR_TYPE_METRIC,
+	lsa_attr_set_add_attr(newme, set, LSA_PEER_ATTR_TYPE_METRIC, 0,
 			      NULL, 0, &metric, sizeof(metric));
 
 	peer_flags = conf_peer_type_to_lsa_peer_flags(type);
-	lsa_attr_set_add_attr(newme, set, LSA_PEER_ATTR_TYPE_PEER_FLAGS,
+	lsa_attr_set_add_attr(newme, set, LSA_PEER_ATTR_TYPE_PEER_FLAGS, 0,
 			      NULL, 0, &peer_flags, sizeof(peer_flags));
 
 	lsa_update_version(newme);
@@ -796,9 +796,9 @@ int main(int argc, char *argv[])
 		return 1;
 
 	me = lsa_alloc(keyid);
-	lsa_add_attr(me, LSA_ATTR_TYPE_ADV_PATH, NULL, 0, NULL, 0);
+	lsa_add_attr(me, LSA_ATTR_TYPE_ADV_PATH, 0, NULL, 0, NULL, 0);
 	if (conf->node_name != NULL) {
-		lsa_add_attr(me, LSA_ATTR_TYPE_NODE_NAME, NULL, 0,
+		lsa_add_attr(me, LSA_ATTR_TYPE_NODE_NAME, 0, NULL, 0,
 			     conf->node_name, strlen(conf->node_name));
 	}
 	lsa_initial_version(me);

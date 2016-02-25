@@ -133,11 +133,13 @@ static void lsa_attr_set_clone(struct lsa *lsa, struct lsa_attr_set *dst,
 
 			s = lsa_attr_data(attr);
 			d = lsa_attr_set_add_attr_set(lsa, dst, attr->type,
+					!!(attr->attr_signed),
 					lsa_attr_key(attr), attr->keylen);
 
 			lsa_attr_set_clone(lsa, d, s);
 		} else {
 			lsa_attr_set_add_attr(lsa, dst, attr->type,
+					!!(attr->attr_signed),
 					lsa_attr_key(attr), attr->keylen,
 					lsa_attr_data(attr), attr->datalen);
 		}
@@ -246,8 +248,8 @@ static size_t lsa_attr_size(struct lsa_attr *attr)
 	return size;
 }
 
-int lsa_add_attr(struct lsa *lsa, int type, void *key, size_t keylen,
-		 void *data, size_t datalen)
+int lsa_add_attr(struct lsa *lsa, int type, int sign,
+		 void *key, size_t keylen, void *data, size_t datalen)
 {
 	if (lsa->refcount != 1) {
 		fprintf(stderr, "lsa_add_attr: called on an LSA with "
@@ -255,7 +257,7 @@ int lsa_add_attr(struct lsa *lsa, int type, void *key, size_t keylen,
 		abort();
 	}
 
-	return lsa_attr_set_add_attr(lsa, &lsa->root, type,
+	return lsa_attr_set_add_attr(lsa, &lsa->root, type, sign,
 				     key, keylen, data, datalen);
 }
 
@@ -287,8 +289,9 @@ static struct lsa_attr *attr_alloc(int type, size_t keylen, size_t datalen)
 	return attr;
 }
 
-int lsa_attr_set_add_attr(struct lsa *lsa, struct lsa_attr_set *set, int type,
-			  void *key, size_t keylen, void *data, size_t datalen)
+int lsa_attr_set_add_attr(struct lsa *lsa, struct lsa_attr_set *set,
+			  int type, int sign, void *key, size_t keylen,
+			  void *data, size_t datalen)
 {
 	struct lsa_attr *attr;
 
@@ -303,6 +306,9 @@ int lsa_attr_set_add_attr(struct lsa *lsa, struct lsa_attr_set *set, int type,
 		abort();
 
 	attr = attr_alloc(type, keylen, datalen);
+
+	if (sign)
+		attr->attr_signed = 1;
 
 	if (keylen)
 		memcpy(lsa_attr_key(attr), key, keylen);
@@ -319,7 +325,7 @@ int lsa_attr_set_add_attr(struct lsa *lsa, struct lsa_attr_set *set, int type,
 	return 0;
 }
 
-struct lsa_attr_set *lsa_add_attr_set(struct lsa *lsa, int type,
+struct lsa_attr_set *lsa_add_attr_set(struct lsa *lsa, int type, int sign,
 				      void *key, size_t keylen)
 {
 	if (lsa->refcount != 1) {
@@ -328,12 +334,13 @@ struct lsa_attr_set *lsa_add_attr_set(struct lsa *lsa, int type,
 		abort();
 	}
 
-	return lsa_attr_set_add_attr_set(lsa, &lsa->root, type, key, keylen);
+	return lsa_attr_set_add_attr_set(lsa, &lsa->root, type,
+					 sign, key, keylen);
 }
 
 struct lsa_attr_set *
 lsa_attr_set_add_attr_set(struct lsa *lsa, struct lsa_attr_set *set,
-			  int type, void *key, size_t keylen)
+			  int type, int sign, void *key, size_t keylen)
 {
 	struct lsa_attr *attr;
 	struct lsa_attr_set *child;
@@ -350,6 +357,8 @@ lsa_attr_set_add_attr_set(struct lsa *lsa, struct lsa_attr_set *set,
 
 	attr = attr_alloc(type, keylen, sizeof(struct lsa_attr_set));
 	attr->data_is_attr_set = 1;
+	if (sign)
+		attr->attr_signed = 1;
 	if (keylen)
 		memcpy(lsa_attr_key(attr), key, keylen);
 
