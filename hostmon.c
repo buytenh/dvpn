@@ -61,11 +61,22 @@ static void lsa_chg(char chg, struct lsa *a, struct lsa_attr *node_name)
 	printf("\n");
 }
 
+static struct lsa_attr *node_name(struct lsa *lsa)
+{
+	struct lsa_attr *attr;
+
+	attr = lsa_find_attr(lsa, LSA_ATTR_TYPE_NODE_NAME, NULL, 0);
+	if (attr != NULL && !attr->attr_signed)
+		attr = NULL;
+
+	return attr;
+}
+
 static void lsa_add(void *_dummy, struct lsa *a, uint32_t cost)
 {
 	struct lsa_attr *attr;
 
-	attr = lsa_find_attr(a, LSA_ATTR_TYPE_NODE_NAME, NULL, 0);
+	attr = node_name(a);
 	if (attr != NULL)
 		lsa_chg('+', a, attr);
 }
@@ -76,8 +87,8 @@ static void lsa_mod(void *_dummy, struct lsa *a, uint32_t acost,
 	struct lsa_attr *aattr;
 	struct lsa_attr *battr;
 
-	aattr = lsa_find_attr(a, LSA_ATTR_TYPE_NODE_NAME, NULL, 0);
-	battr = lsa_find_attr(b, LSA_ATTR_TYPE_NODE_NAME, NULL, 0);
+	aattr = node_name(a);
+	battr = node_name(b);
 
 	if (aattr == NULL && battr == NULL)
 		return;
@@ -100,7 +111,7 @@ static void lsa_del(void *_dummy, struct lsa *a, uint32_t cost)
 {
 	struct lsa_attr *attr;
 
-	attr = lsa_find_attr(a, LSA_ATTR_TYPE_NODE_NAME, NULL, 0);
+	attr = node_name(a);
 	if (attr != NULL)
 		lsa_chg('-', a, attr);
 }
