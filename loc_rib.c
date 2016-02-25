@@ -100,7 +100,7 @@ static int get_peer_metric_flags(struct lsa *lsa, uint8_t *peer,
 
 		attr2 = lsa_attr_set_find_attr(set, LSA_PEER_ATTR_TYPE_METRIC,
 					       NULL, 0);
-		if (attr2 == NULL || attr2->datalen != 2)
+		if (attr2 == NULL || !attr2->attr_signed || attr2->datalen != 2)
 			return -1;
 
 		*metric = ntohs(*((uint16_t *)lsa_attr_data(attr2)));
@@ -112,7 +112,7 @@ static int get_peer_metric_flags(struct lsa *lsa, uint8_t *peer,
 		attr2 = lsa_attr_set_find_attr(set,
 					       LSA_PEER_ATTR_TYPE_PEER_FLAGS,
 					       NULL, 0);
-		if (attr2 == NULL || attr2->datalen != 1)
+		if (attr2 == NULL || !attr2->attr_signed || attr2->datalen != 1)
 			return -1;
 
 		*flags = *((uint8_t *)lsa_attr_data(attr2));
