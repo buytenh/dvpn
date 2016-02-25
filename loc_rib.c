@@ -299,6 +299,8 @@ void loc_rib_deinit(struct loc_rib *rib)
 			free(ref);
 		}
 
+		lsa_put(rid->best);
+
 		iv_avl_tree_delete(&rib->ids, &rid->an);
 		free(rid);
 	}
