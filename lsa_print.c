@@ -43,6 +43,8 @@ lsa_attr_type_name(int parent_type, int type, char *buf, int bufsize)
 			return "VERSION";
 		case LSA_ATTR_TYPE_PUBKEY:
 			return "PUBKEY";
+		case LSA_ATTR_TYPE_SIGNATURE:
+			return "SIGNATURE";
 		}
 	}
 
