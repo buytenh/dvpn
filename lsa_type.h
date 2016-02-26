@@ -40,7 +40,7 @@ enum lsa_peer_attr_type {
 	LSA_PEER_ATTR_TYPE_PEER_FLAGS = 2,
 };
 
-enum lsa_peer_type {
+enum lsa_peer_flags {
 	LSA_PEER_FLAGS_CUSTOMER = 1,
 	LSA_PEER_FLAGS_TRANSIT = 2,
 };

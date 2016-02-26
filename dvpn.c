@@ -108,7 +108,7 @@ static int compare_direct_peers(struct iv_avl_node *_a, struct iv_avl_node *_b)
 	return memcmp(a->addr, b->addr, sizeof(a->addr));
 }
 
-static enum lsa_peer_type
+static enum lsa_peer_flags
 conf_peer_type_to_lsa_peer_flags(enum conf_peer_type type)
 {
 	switch (type) {
@@ -121,7 +121,7 @@ conf_peer_type_to_lsa_peer_flags(enum conf_peer_type type)
 	case CONF_PEER_TYPE_IPEER:
 		return LSA_PEER_FLAGS_CUSTOMER | LSA_PEER_FLAGS_TRANSIT;
 	default:
-		fprintf(stderr, "conf_peer_type_to_lsa_peer_type: invalid "
+		fprintf(stderr, "conf_peer_type_to_lsa_peer_flags: invalid "
 				"type %d\n", type);
 		abort();
 	}
