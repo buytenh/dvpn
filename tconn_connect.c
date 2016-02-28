@@ -46,6 +46,7 @@
 #define CONNECT_TIMEOUT		10
 #define HANDSHAKE_TIMEOUT	15
 #define KEEPALIVE_INTERVAL	15
+#define KEEPALIVE_TIMEOUT	20
 #define SHORT_RETRY_WAIT_TIME	2
 #define LONG_RETRY_WAIT_TIME	10
 
@@ -87,7 +88,8 @@ static void schedule_retry(struct tconn_connect *tc, int waittime)
 
 	iv_validate_now();
 	tc->rx_timeout.expires = iv_now;
-	tc->rx_timeout.expires.tv_sec += waittime;
+	timespec_add_ms(&tc->rx_timeout.expires,
+			900 * waittime, 1100 * waittime);
 	iv_timer_register(&tc->rx_timeout);
 }
 
@@ -99,7 +101,8 @@ static void send_keepalive(void *_tc)
 	if (tc->state != STATE_CONNECTED)
 		abort();
 
-	tc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	timespec_add_ms(&tc->keepalive_timer.expires,
+			900 * KEEPALIVE_INTERVAL, 1100 * KEEPALIVE_INTERVAL);
 	iv_timer_register(&tc->keepalive_timer);
 
 	if (tconn_record_send(&tc->tconn, keepalive, 3)) {
@@ -122,12 +125,14 @@ static void handshake_done(void *_tc, char *desc)
 
 	iv_timer_unregister(&tc->rx_timeout);
 	tc->rx_timeout.expires = iv_now;
-	tc->rx_timeout.expires.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
+	timespec_add_ms(&tc->rx_timeout.expires,
+			1000 * KEEPALIVE_TIMEOUT, 1000 * KEEPALIVE_TIMEOUT);
 	iv_timer_register(&tc->rx_timeout);
 
 	IV_TIMER_INIT(&tc->keepalive_timer);
 	tc->keepalive_timer.expires = iv_now;
-	tc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	timespec_add_ms(&tc->keepalive_timer.expires,
+			900 * KEEPALIVE_INTERVAL, 1100 * KEEPALIVE_INTERVAL);
 	tc->keepalive_timer.cookie = tc;
 	tc->keepalive_timer.handler = send_keepalive;
 	iv_timer_register(&tc->keepalive_timer);
@@ -143,7 +148,8 @@ static void record_received(void *_tc, const uint8_t *rec, int len)
 
 	iv_timer_unregister(&tc->rx_timeout);
 	tc->rx_timeout.expires = iv_now;
-	tc->rx_timeout.expires.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
+	timespec_add_ms(&tc->rx_timeout.expires,
+			1000 * KEEPALIVE_TIMEOUT, 1000 * KEEPALIVE_TIMEOUT);
 	iv_timer_register(&tc->rx_timeout);
 
 	tc->record_received(tc->cookie, rec, len);
@@ -175,7 +181,8 @@ static void connect_success(struct tconn_connect *tc)
 
 	iv_validate_now();
 	tc->rx_timeout.expires = iv_now;
-	tc->rx_timeout.expires.tv_sec += HANDSHAKE_TIMEOUT;
+	timespec_add_ms(&tc->rx_timeout.expires,
+			1000 * HANDSHAKE_TIMEOUT, 1000 * HANDSHAKE_TIMEOUT);
 	iv_timer_register(&tc->rx_timeout);
 
 	tc->tconn.fd = &tc->tconnfd;
@@ -245,7 +252,8 @@ static void try_connect(struct tconn_connect *tc)
 	} else {
 		iv_validate_now();
 		tc->rx_timeout.expires = iv_now;
-		tc->rx_timeout.expires.tv_sec += CONNECT_TIMEOUT;
+		timespec_add_ms(&tc->rx_timeout.expires,
+				1000 * CONNECT_TIMEOUT, 1000 * CONNECT_TIMEOUT);
 		iv_timer_register(&tc->rx_timeout);
 	}
 }
@@ -404,7 +412,13 @@ static void rx_timeout_expired(void *_tc)
 	iv_validate_now();
 
 	tc->rx_timeout.expires = iv_now;
-	tc->rx_timeout.expires.tv_sec += waittime;
+	if (tc->state == STATE_WAITING_RETRY) {
+		timespec_add_ms(&tc->rx_timeout.expires,
+				900 * waittime, 1100 * waittime);
+	} else {
+		timespec_add_ms(&tc->rx_timeout.expires,
+				1000 * waittime, 1000 * waittime);
+	}
 	iv_timer_register(&tc->rx_timeout);
 }
 
@@ -425,7 +439,8 @@ void tconn_connect_start(struct tconn_connect *tc)
 
 	iv_validate_now();
 	tc->rx_timeout.expires = iv_now;
-	tc->rx_timeout.expires.tv_sec += RESOLVE_TIMEOUT;
+	timespec_add_ms(&tc->rx_timeout.expires,
+			1000 * RESOLVE_TIMEOUT, 1000 * RESOLVE_TIMEOUT);
 	iv_timer_register(&tc->rx_timeout);
 }
 
@@ -498,7 +513,8 @@ void tconn_connect_record_send(struct tconn_connect *tc,
 
 	iv_timer_unregister(&tc->keepalive_timer);
 	tc->keepalive_timer.expires = iv_now;
-	tc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	timespec_add_ms(&tc->keepalive_timer.expires,
+			900 * KEEPALIVE_INTERVAL, 1100 * KEEPALIVE_INTERVAL);
 	iv_timer_register(&tc->keepalive_timer);
 
 	if (tconn_record_send(&tc->tconn, rec, len)) {

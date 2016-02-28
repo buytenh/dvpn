@@ -25,6 +25,7 @@
 #include "lsa_path.h"
 #include "lsa_serialise.h"
 #include "lsa_type.h"
+#include "util.h"
 
 #define KEEPALIVE_INTERVAL	10
 
@@ -85,7 +86,8 @@ dgp_writer_output_lsa(struct dgp_writer *dw, struct lsa *old, struct lsa *new)
 	iv_timer_unregister(&dw->keepalive_timer);
 	iv_validate_now();
 	dw->keepalive_timer.expires = iv_now;
-	dw->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	timespec_add_ms(&dw->keepalive_timer.expires,
+			900 * KEEPALIVE_INTERVAL, 1100 * KEEPALIVE_INTERVAL);
 	iv_timer_register(&dw->keepalive_timer);
 
 	return 0;
@@ -165,7 +167,8 @@ static void dgp_writer_keepalive_timer(void *_dw)
 
 	iv_validate_now();
 	dw->keepalive_timer.expires = iv_now;
-	dw->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	timespec_add_ms(&dw->keepalive_timer.expires,
+			900 * KEEPALIVE_INTERVAL, 1100 * KEEPALIVE_INTERVAL);
 	iv_timer_register(&dw->keepalive_timer);
 
 	dgp_writer_send_keepalive(dw);
@@ -182,7 +185,8 @@ void dgp_writer_register(struct dgp_writer *dw)
 	IV_TIMER_INIT(&dw->keepalive_timer);
 	iv_validate_now();
 	dw->keepalive_timer.expires = iv_now;
-	dw->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	timespec_add_ms(&dw->keepalive_timer.expires,
+			900 * KEEPALIVE_INTERVAL, 1100 * KEEPALIVE_INTERVAL);
 	dw->keepalive_timer.cookie = dw;
 	dw->keepalive_timer.handler = dgp_writer_keepalive_timer;
 	iv_timer_register(&dw->keepalive_timer);

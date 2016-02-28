@@ -40,7 +40,7 @@ static void io_error(struct dgp_connect *dc)
 
 	iv_validate_now();
 	dc->timeout.expires = iv_now;
-	dc->timeout.expires.tv_sec += 1;
+	timespec_add_ms(&dc->timeout.expires, 900, 1100);
 	iv_timer_register(&dc->timeout);
 }
 
@@ -98,7 +98,7 @@ static void connect_pollout(void *_dc)
 		iv_timer_unregister(&dc->timeout);
 		iv_validate_now();
 		dc->timeout.expires = iv_now;
-		dc->timeout.expires.tv_sec += 1;
+		timespec_add_ms(&dc->timeout.expires, 900, 1100);
 		iv_timer_register(&dc->timeout);
 	}
 }
@@ -164,7 +164,7 @@ static void try_connect(struct dgp_connect *dc)
 	} else {
 		iv_validate_now();
 		dc->timeout.expires = iv_now;
-		dc->timeout.expires.tv_sec += 10;
+		timespec_add_ms(&dc->timeout.expires, 9000, 11000);
 		iv_timer_register(&dc->timeout);
 	}
 
@@ -175,7 +175,7 @@ fail:
 
 	iv_validate_now();
 	dc->timeout.expires = iv_now;
-	dc->timeout.expires.tv_sec += 1;
+	timespec_add_ms(&dc->timeout.expires, 900, 1100);
 	iv_timer_register(&dc->timeout);
 }
 
@@ -191,7 +191,7 @@ static void rx_timeout_expired(void *_dc)
 
 		iv_validate_now();
 		dc->timeout.expires = iv_now;
-		dc->timeout.expires.tv_sec += 1;
+		timespec_add_ms(&dc->timeout.expires, 900, 1100);
 		iv_timer_register(&dc->timeout);
 	} else if (dc->state == STATE_WAITING_RETRY) {
 		dc->state = STATE_CONNECTING;

@@ -23,6 +23,7 @@
 #include <string.h>
 #include "dgp_reader.h"
 #include "lsa_deserialise.h"
+#include "util.h"
 
 #define KEEPALIVE_TIMEOUT	15
 
@@ -51,7 +52,8 @@ void dgp_reader_register(struct dgp_reader *dr)
 	IV_TIMER_INIT(&dr->keepalive_timeout);
 	iv_validate_now();
 	dr->keepalive_timeout.expires = iv_now;
-	dr->keepalive_timeout.expires.tv_sec += KEEPALIVE_TIMEOUT;
+	timespec_add_ms(&dr->keepalive_timeout.expires,
+			1000 * KEEPALIVE_TIMEOUT, 1000 * KEEPALIVE_TIMEOUT);
 	dr->keepalive_timeout.cookie = dr;
 	dr->keepalive_timeout.handler = dgp_reader_keepalive_timeout;
 	iv_timer_register(&dr->keepalive_timeout);
@@ -81,7 +83,8 @@ int dgp_reader_read(struct dgp_reader *dr, int fd)
 	iv_timer_unregister(&dr->keepalive_timeout);
 	iv_validate_now();
 	dr->keepalive_timeout.expires = iv_now;
-	dr->keepalive_timeout.expires.tv_sec += KEEPALIVE_TIMEOUT;
+	timespec_add_ms(&dr->keepalive_timeout.expires,
+			1000 * KEEPALIVE_TIMEOUT, 1000 * KEEPALIVE_TIMEOUT);
 	iv_timer_register(&dr->keepalive_timeout);
 
 	off = 0;

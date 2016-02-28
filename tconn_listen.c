@@ -48,6 +48,7 @@ struct client_conn {
 
 #define HANDSHAKE_TIMEOUT	15
 #define KEEPALIVE_INTERVAL	15
+#define KEEPALIVE_TIMEOUT	20
 
 static void print_name(FILE *fp, struct client_conn *cc)
 {
@@ -126,7 +127,8 @@ static void send_keepalive(void *_cc)
 	static uint8_t keepalive[] = { 0x00, 0x00, 0x00 };
 	struct client_conn *cc = _cc;
 
-	cc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	timespec_add_ms(&cc->keepalive_timer.expires,
+			900 * KEEPALIVE_INTERVAL, 1100 * KEEPALIVE_INTERVAL);
 	iv_timer_register(&cc->keepalive_timer);
 
 	if (tconn_record_send(&cc->tconn, keepalive, 3)) {
@@ -158,12 +160,14 @@ static void handshake_done(void *_cc, char *desc)
 
 	iv_timer_unregister(&cc->rx_timeout);
 	cc->rx_timeout.expires = iv_now;
-	cc->rx_timeout.expires.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
+	timespec_add_ms(&cc->rx_timeout.expires,
+			1000 * KEEPALIVE_TIMEOUT, 1000 * KEEPALIVE_TIMEOUT);
 	iv_timer_register(&cc->rx_timeout);
 
 	IV_TIMER_INIT(&cc->keepalive_timer);
 	cc->keepalive_timer.expires = iv_now;
-	cc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	timespec_add_ms(&cc->keepalive_timer.expires,
+			900 * KEEPALIVE_INTERVAL, 1100 * KEEPALIVE_INTERVAL);
 	cc->keepalive_timer.cookie = cc;
 	cc->keepalive_timer.handler = send_keepalive;
 	iv_timer_register(&cc->keepalive_timer);
@@ -180,7 +184,8 @@ static void record_received(void *_cc, const uint8_t *rec, int len)
 
 	iv_timer_unregister(&cc->rx_timeout);
 	cc->rx_timeout.expires = iv_now;
-	cc->rx_timeout.expires.tv_sec += 1.5 * KEEPALIVE_INTERVAL;
+	timespec_add_ms(&cc->rx_timeout.expires,
+			1000 * KEEPALIVE_TIMEOUT, 1000 * KEEPALIVE_TIMEOUT);
 	iv_timer_register(&cc->rx_timeout);
 
 	tle->record_received(tle->cookie, rec, len);
@@ -234,7 +239,8 @@ static void got_connection(void *_ls)
 
 	IV_TIMER_INIT(&cc->rx_timeout);
 	cc->rx_timeout.expires = iv_now;
-	cc->rx_timeout.expires.tv_sec += HANDSHAKE_TIMEOUT;
+	timespec_add_ms(&cc->rx_timeout.expires,
+			1000 * HANDSHAKE_TIMEOUT, 1000 * HANDSHAKE_TIMEOUT);
 	cc->rx_timeout.cookie = cc;
 	cc->rx_timeout.handler = rx_timeout;
 	iv_timer_register(&cc->rx_timeout);
@@ -393,7 +399,8 @@ void tconn_listen_entry_record_send(struct tconn_listen_entry *tle,
 
 	iv_timer_unregister(&cc->keepalive_timer);
 	cc->keepalive_timer.expires = iv_now;
-	cc->keepalive_timer.expires.tv_sec += KEEPALIVE_INTERVAL;
+	timespec_add_ms(&cc->keepalive_timer.expires,
+			900 * KEEPALIVE_INTERVAL, 1100 * KEEPALIVE_INTERVAL);
 	iv_timer_register(&cc->keepalive_timer);
 
 	if (tconn_record_send(&cc->tconn, rec, len)) {
