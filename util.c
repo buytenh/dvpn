@@ -144,9 +144,31 @@ void print_address(FILE *fp, const struct sockaddr *addr)
 	}
 }
 
+static char base64[] =
+	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
 void print_fingerprint(FILE *fp, const uint8_t *id)
 {
-	printhex(fp, id, NODE_ID_LEN);
+	int i;
+	int j;
+	uint32_t val;
+	char out[43];
+
+	for (i = 0, j = 0; i < 30; i += 3, j += 4) {
+		val = (id[i] << 16) | (id[i + 1] << 8) | id[i + 2];
+
+		out[j] = base64[(val >> 18) & 0x3f];
+		out[j + 1] = base64[(val >> 12) & 0x3f];
+		out[j + 2] = base64[(val >> 6) & 0x3f];
+		out[j + 3] = base64[val & 0x3f];
+	}
+
+	val = (id[30] << 16) | (id[31] << 8);
+	out[40] = base64[(val >> 18) & 0x3f];
+	out[41] = base64[(val >> 12) & 0x3f];
+	out[42] = base64[(val >> 6) & 0x3f];
+
+	fwrite(out, 1, sizeof(out), fp);
 }
 
 void printhex(FILE *fp, const uint8_t *a, int len)
