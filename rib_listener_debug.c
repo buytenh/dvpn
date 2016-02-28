@@ -105,7 +105,7 @@ static void lsa_add(void *cookie, struct lsa *a, uint32_t cost)
 	printf("lsa add: [");
 	if (lsa_print_id_name(stdout, a->id, rl->name_hints)) {
 		printf("(");
-		printhex(stdout, a->id, NODE_ID_LEN);
+		print_fingerprint(stdout, a->id);
 		printf(")");
 	}
 	printf("]\n");
@@ -127,7 +127,7 @@ static void lsa_mod(void *cookie, struct lsa *a, uint32_t acost,
 	printf("lsa mod: [");
 	if (lsa_print_id_name(stdout, a->id, rl->name_hints)) {
 		printf("(");
-		printhex(stdout, a->id, NODE_ID_LEN);
+		print_fingerprint(stdout, a->id);
 		printf(")");
 	}
 	printf("]\n");
@@ -149,7 +149,7 @@ static void lsa_del(void *cookie, struct lsa *a, uint32_t cost)
 	printf("lsa del: [");
 	if (lsa_print_id_name(stdout, a->id, rl->name_hints)) {
 		printf("(");
-		printhex(stdout, a->id, NODE_ID_LEN);
+		print_fingerprint(stdout, a->id);
 		printf(")");
 	}
 	printf("]\n");

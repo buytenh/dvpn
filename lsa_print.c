@@ -100,7 +100,7 @@ int lsa_print_id_name(FILE *fp, uint8_t *id, struct loc_rib *name_hints)
 		}
 	}
 
-	printhex(fp, id, NODE_ID_LEN);
+	print_fingerprint(fp, id);
 
 	return 0;
 }

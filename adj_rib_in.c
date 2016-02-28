@@ -236,7 +236,7 @@ int adj_rib_in_add_lsa(struct adj_rib_in *rib, struct lsa *lsa)
 	if (rib->size + lsa->bytes > ADJ_RIB_IN_MAX_BYTES) {
 		fprintf(stderr, "adj_rib_in_add_lsa: dropping LSA "
 				"received from peer ");
-		printhex(stderr, rib->remoteid, NODE_ID_LEN);
+		print_fingerprint(stderr, rib->remoteid);
 		fprintf(stderr, " because of RIB overflow\n");
 
 		if (ref != NULL)

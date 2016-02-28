@@ -54,7 +54,7 @@ static int verify_key_id(void *_tc, const uint8_t *id)
 	struct tconn_connect *tc = _tc;
 
 	fprintf(stderr, "%s: peer key ID ", tc->name);
-	printhex(stderr, id, NODE_ID_LEN);
+	print_fingerprint(stderr, id);
 
 	if (memcmp(tc->fingerprint, id, NODE_ID_LEN)) {
 		fprintf(stderr, " - mismatch\n");

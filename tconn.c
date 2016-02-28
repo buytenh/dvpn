@@ -625,7 +625,7 @@ static int tconn_verify_cert(gnutls_session_t sess)
 
 	if (0) {
 		fprintf(stderr, "%p: ", tc);
-		printhex(stderr, peerid, NODE_ID_LEN);
+		print_fingerprint(stderr, peerid);
 		fprintf(stderr, "\n");
 	}
 

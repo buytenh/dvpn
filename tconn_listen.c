@@ -94,7 +94,7 @@ static int verify_key_id(void *_cc, const uint8_t *id)
 	struct iv_avl_node *an;
 
 	fprintf(stderr, "conn%d: peer key ID ", cc->fd.fd);
-	printhex(stderr, id, NODE_ID_LEN);
+	print_fingerprint(stderr, id);
 
 	an = cc->tls->listen_entries.root;
 	while (an != NULL) {

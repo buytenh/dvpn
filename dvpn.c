@@ -767,7 +767,7 @@ static int show_key_id(const char *file)
 	if (ret == 0) {
 		ret = x509_get_privkey_id(keyid, privkey);
 		if (ret == 0) {
-			printhex(stdout, keyid, NODE_ID_LEN);
+			print_fingerprint(stdout, keyid);
 			printf("\n");
 		}
 		gnutls_x509_privkey_deinit(privkey);
@@ -823,7 +823,7 @@ int main(int argc, char *argv[])
 		return 1;
 
 	fprintf(stderr, "dvpn: using key ID ");
-	printhex(stderr, keyid, NODE_ID_LEN);
+	print_fingerprint(stderr, keyid);
 	fprintf(stderr, "\n");
 
 	iv_init();
