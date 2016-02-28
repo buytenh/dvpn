@@ -144,6 +144,11 @@ void print_address(FILE *fp, const struct sockaddr *addr)
 	}
 }
 
+void print_fingerprint(FILE *fp, const uint8_t *id)
+{
+	printhex(fp, id, NODE_ID_LEN);
+}
+
 void printhex(FILE *fp, const uint8_t *a, int len)
 {
 	int i;
