@@ -126,7 +126,7 @@ static void got_sigint(void *_dummy)
 	iv_signal_unregister(&sigint);
 }
 
-int main(int argc, char *argv[])
+int hostmon_main(int argc, char *argv[])
 {
 	static struct option long_options[] = {
 		{ "config-file", required_argument, 0, 'c' },

@@ -54,7 +54,7 @@ static void got_sigusr1(void *_dummy)
 	loc_rib_print(stderr, &loc_rib);
 }
 
-int main(int argc, char *argv[])
+int topomon_main(int argc, char *argv[])
 {
 	static struct option long_options[] = {
 		{ "config-file", required_argument, 0, 'c' },

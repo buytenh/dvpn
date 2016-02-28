@@ -778,7 +778,7 @@ static int show_key_id(const char *file)
 	return !!ret;
 }
 
-int main(int argc, char *argv[])
+int dvpn_main(int argc, char *argv[])
 {
 	static struct option long_options[] = {
 		{ "config-file", required_argument, 0, 'c' },
