@@ -105,6 +105,17 @@ int lsa_print_id_name(FILE *fp, uint8_t *id, struct loc_rib *name_hints)
 	return 0;
 }
 
+static void printhex(FILE *fp, const uint8_t *a, int len)
+{
+	int i;
+
+	for (i = 0; i < len; i++) {
+		fprintf(fp, "%.2x", a[i]);
+		if (i < len - 1)
+			fprintf(fp, ":");
+	}
+}
+
 void lsa_attr_print_key(FILE *fp, int parent_type, struct lsa_attr *attr,
 			struct loc_rib *name_hints)
 {

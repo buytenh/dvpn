@@ -171,17 +171,6 @@ void print_fingerprint(FILE *fp, const uint8_t *id)
 	fwrite(out, 1, sizeof(out), fp);
 }
 
-void printhex(FILE *fp, const uint8_t *a, int len)
-{
-	int i;
-
-	for (i = 0; i < len; i++) {
-		fprintf(fp, "%.2x", a[i]);
-		if (i < len - 1)
-			fprintf(fp, ":");
-	}
-}
-
 void v6_global_addr_from_key_id(uint8_t *addr, uint8_t *id)
 {
 	addr[0] = 0x20;
