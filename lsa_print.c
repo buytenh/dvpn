@@ -208,9 +208,7 @@ void lsa_print(FILE *fp, struct lsa *lsa, struct loc_rib *name_hints)
 	struct iv_avl_node *an;
 
 	fprintf(fp, "LSA [");
-	printhex(fp, lsa->id, NODE_ID_LEN / 2);
-	fprintf(fp, ":\n     ");
-	printhex(fp, lsa->id + (NODE_ID_LEN / 2), NODE_ID_LEN / 2);
+	print_fingerprint(fp, lsa->id);
 	fprintf(fp, "]\n");
 
 	iv_avl_tree_for_each (an, &lsa->root.attrs) {
