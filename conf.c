@@ -181,6 +181,26 @@ get_const_value(struct ini_cfgobj *co, const char *section, const char *name)
 	return value;
 }
 
+static int base64char(char c)
+{
+	if (c >= 'A' && c <= 'Z')
+		return 0 + (c - 'A');
+
+	if (c >= 'a' && c <= 'z')
+		return 26 + (c - 'a');
+
+	if (c >= '0' && c <= '9')
+		return 52 + (c - '0');
+
+	if (c == '+')
+		return 62;
+
+	if (c == '/')
+		return 63;
+
+	return -1;
+}
+
 static int parse_fingerprint(uint8_t *id, const char *fp)
 {
 	if (sscanf(fp, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:"
@@ -195,6 +215,59 @@ static int parse_fingerprint(uint8_t *id, const char *fp)
 		   &id[20], &id[21], &id[22], &id[23],
 		   &id[24], &id[25], &id[26], &id[27],
 		   &id[28], &id[29], &id[30], &id[31]) == NODE_ID_LEN) {
+		return 0;
+	}
+
+	if (strlen(fp) == 43) {
+		int i;
+		int j;
+		int v0;
+		int v1;
+		int v2;
+		int v3;
+		uint32_t val;
+
+		for (i = 0, j = 0; i < 40; i += 4, j += 3) {
+			v0 = base64char(fp[i]);
+			if (v0 < 0)
+				return -1;
+
+			v1 = base64char(fp[i + 1]);
+			if (v1 < 0)
+				return -1;
+
+			v2 = base64char(fp[i + 2]);
+			if (v2 < 0)
+				return -1;
+
+			v3 = base64char(fp[i + 3]);
+			if (v3 < 0)
+				return -1;
+
+			val = (v0 << 18) | (v1 << 12) | (v2 << 6) | v3;
+
+			id[j] = (val >> 16) & 0xff;
+			id[j + 1] = (val >> 8) & 0xff;
+			id[j + 2] = val & 0xff;
+		}
+
+		v0 = base64char(fp[40]);
+		if (v0 < 0)
+			return -1;
+
+		v1 = base64char(fp[41]);
+		if (v1 < 0)
+			return -1;
+
+		v2 = base64char(fp[42]);
+		if (v2 < 0)
+			return -1;
+
+		val = (v0 << 18) | (v1 << 12) | (v2 << 6);
+
+		id[30] = (val >> 16) & 0xff;
+		id[31] = (val >> 8) & 0xff;
+
 		return 0;
 	}
 
