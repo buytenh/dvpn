@@ -171,6 +171,21 @@ void print_fingerprint(FILE *fp, const uint8_t *id)
 	fwrite(out, 1, sizeof(out), fp);
 }
 
+void timespec_add_ms(struct timespec *ts, int minms, int maxms)
+{
+	int ms;
+
+	ms = minms;
+	ms += ((maxms - minms) * ((long long)random())) / RAND_MAX;
+
+	ts->tv_sec += ms / 1000;
+	ts->tv_nsec += 1000000 * (ms % 1000);
+	if (ts->tv_nsec >= 1000000000) {
+		ts->tv_sec++;
+		ts->tv_nsec -= 1000000000;
+	}
+}
+
 void v6_global_addr_from_key_id(uint8_t *addr, uint8_t *id)
 {
 	addr[0] = 0x20;
