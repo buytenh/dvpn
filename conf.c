@@ -181,6 +181,26 @@ get_const_value(struct ini_cfgobj *co, const char *section, const char *name)
 	return value;
 }
 
+static int parse_fingerprint(uint8_t *id, const char *fp)
+{
+	if (sscanf(fp, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:"
+		       "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:"
+		       "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:"
+		       "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+		   &id[0], &id[1], &id[2], &id[3],
+		   &id[4], &id[5], &id[6], &id[7],
+		   &id[8], &id[9], &id[10], &id[11],
+		   &id[12], &id[13], &id[14], &id[15],
+		   &id[16], &id[17], &id[18], &id[19],
+		   &id[20], &id[21], &id[22], &id[23],
+		   &id[24], &id[25], &id[26], &id[27],
+		   &id[28], &id[29], &id[30], &id[31]) == NODE_ID_LEN) {
+		return 0;
+	}
+
+	return -1;
+}
+
 static enum conf_peer_type parse_peer_type(const char *pt)
 {
 	if (!strcasecmp(pt, "dbonly"))
@@ -439,18 +459,7 @@ static int parse_config_peer(struct local_conf *lc,
 		return -1;
 	}
 
-	if (sscanf(fp, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:"
-		       "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:"
-		       "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:"
-		       "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
-		   &f[0], &f[1], &f[2], &f[3],
-		   &f[4], &f[5], &f[6], &f[7],
-		   &f[8], &f[9], &f[10], &f[11],
-		   &f[12], &f[13], &f[14], &f[15],
-		   &f[16], &f[17], &f[18], &f[19],
-		   &f[20], &f[21], &f[22], &f[23],
-		   &f[24], &f[25], &f[26], &f[27],
-		   &f[28], &f[29], &f[30], &f[31]) != NODE_ID_LEN) {
+	if (parse_fingerprint(f, fp) < 0) {
 		fprintf(stderr, "peer object for '%s' has an unparseable "
 				"PeerFingerprint '%s'\n", peer, fp);
 		return -1;
