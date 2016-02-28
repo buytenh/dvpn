@@ -23,6 +23,7 @@
 #include <string.h>
 
 int dvpn(const char *config);
+int gencert(const char *keyfile);
 int hostmon(const char *config);
 int rtmon(const char *config);
 int show_key_id(const char *file);
@@ -31,6 +32,7 @@ int topomon(const char *config);
 enum {
 	TOOL_UNKNOWN = 0,
 	TOOL_DVPN,
+	TOOL_GENCERT,
 	TOOL_HOSTMON,
 	TOOL_RTMON,
 	TOOL_SHOW_KEY_ID,
@@ -72,6 +74,11 @@ static void try_determine_tool(char *argv0)
 		return;
 	}
 
+	if (!strcmp(t, "gencert") || !strcmp(t, "dvpn-gencert")) {
+		tool = TOOL_GENCERT;
+		return;
+	}
+
 	if (!strcmp(t, "hostmon") || !strcmp(t, "dvpn-hostmon")) {
 		tool = TOOL_HOSTMON;
 		return;
@@ -97,6 +104,7 @@ int main(int argc, char *argv[])
 {
 	static struct option long_options[] = {
 		{ "config-file", required_argument, 0, 'c' },
+		{ "gencert", no_argument, 0, 'g' },
 		{ "hostmon", no_argument, 0, 'h' },
 		{ "rtmon", no_argument, 0, 'r' },
 		{ "show-key-id", no_argument, 0, 's' },
@@ -115,6 +123,10 @@ int main(int argc, char *argv[])
 		switch (c) {
 		case 'c':
 			config = optarg;
+			break;
+
+		case 'g':
+			set_tool(TOOL_GENCERT);
 			break;
 
 		case 'h':
@@ -149,6 +161,8 @@ int main(int argc, char *argv[])
 	switch (tool) {
 	case TOOL_DVPN:
 		return dvpn(config);
+	case TOOL_GENCERT:
+		return gencert(argv[optind]);
 	case TOOL_HOSTMON:
 		return hostmon(config);
 	case TOOL_RTMON:
