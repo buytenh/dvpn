@@ -21,7 +21,6 @@
 #include <stdlib.h>
 #include <arpa/inet.h>
 #include <ctype.h>
-#include <getopt.h>
 #include <gnutls/x509.h>
 #include <iv.h>
 #include <iv_signal.h>
@@ -126,37 +125,10 @@ static void got_sigint(void *_dummy)
 	iv_signal_unregister(&sigint);
 }
 
-int hostmon_main(int argc, char *argv[])
+int hostmon(const char *config)
 {
-	static struct option long_options[] = {
-		{ "config-file", required_argument, 0, 'c' },
-		{ 0, 0, 0, 0, },
-	};
-	const char *config = "/etc/dvpn.ini";
 	struct conf *conf;
 	gnutls_x509_privkey_t privkey;
-
-	while (1) {
-		int c;
-
-		c = getopt_long(argc, argv, "c:", long_options, NULL);
-		if (c == -1)
-			break;
-
-		switch (c) {
-		case 'c':
-			config = optarg;
-			break;
-
-		case '?':
-			fprintf(stderr, "syntax: %s [-c <config.ini>]\n",
-				argv[0]);
-			return 1;
-
-		default:
-			abort();
-		}
-	}
 
 	conf = parse_config(config);
 	if (conf == NULL)

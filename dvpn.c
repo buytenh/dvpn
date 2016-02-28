@@ -19,7 +19,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <getopt.h>
 #include <gnutls/abstract.h>
 #include <gnutls/x509.h>
 #include <iv.h>
@@ -751,64 +750,9 @@ static void got_sigusr1(void *_dummy)
 	loc_rib_print(stderr, &loc_rib);
 }
 
-static void usage(const char *me)
+int dvpn(const char *_config)
 {
-	fprintf(stderr, "syntax: %s [-c <config.ini>]\n", me);
-	fprintf(stderr, "        %s [--show-key-id <key.pem>]\n", me);
-}
-
-static int show_key_id(const char *file)
-{
-	int ret;
-
-	gnutls_global_init();
-
-	ret = x509_read_privkey(&privkey, file);
-	if (ret == 0) {
-		ret = x509_get_privkey_id(keyid, privkey);
-		if (ret == 0) {
-			print_fingerprint(stdout, keyid);
-			printf("\n");
-		}
-		gnutls_x509_privkey_deinit(privkey);
-	}
-
-	gnutls_global_deinit();
-
-	return !!ret;
-}
-
-int dvpn_main(int argc, char *argv[])
-{
-	static struct option long_options[] = {
-		{ "config-file", required_argument, 0, 'c' },
-		{ "show-key-id", required_argument, 0, 'k' },
-		{ 0, 0, 0, 0, },
-	};
-
-	while (1) {
-		int c;
-
-		c = getopt_long(argc, argv, "c:", long_options, NULL);
-		if (c == -1)
-			break;
-
-		switch (c) {
-		case 'c':
-			config = optarg;
-			break;
-
-		case 'k':
-			return show_key_id(optarg);
-
-		case '?':
-			usage(argv[0]);
-			return 1;
-
-		default:
-			abort();
-		}
-	}
+	config = _config;
 
 	conf = parse_config(config);
 	if (conf == NULL)

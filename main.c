@@ -19,49 +19,145 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <getopt.h>
 #include <string.h>
 
-int dvpn_main(int argc, char *argv[]);
-int hostmon_main(int argc, char *argv[]);
-int rtmon_main(int argc, char *argv[]);
-int topomon_main(int argc, char *argv[]);
+int dvpn(const char *config);
+int hostmon(const char *config);
+int rtmon(const char *config);
+int show_key_id(const char *file);
+int topomon(const char *config);
 
-static char *get_tool_name(char *argv0)
+enum {
+	TOOL_UNKNOWN = 0,
+	TOOL_DVPN,
+	TOOL_HOSTMON,
+	TOOL_RTMON,
+	TOOL_SHOW_KEY_ID,
+	TOOL_TOPOMON,
+};
+
+static int tool = TOOL_UNKNOWN;
+
+static void set_tool(int newtool)
 {
-	char *tool;
+	if (tool != TOOL_UNKNOWN) {
+		fprintf(stderr, "error: can only select one tool to run\n");
+		exit(1);
+	}
 
-	tool = argv0;
-	if (tool == NULL)
-		return NULL;
+	tool = newtool;
+}
 
-	while (*tool != 0) {
+static void try_determine_tool(char *argv0)
+{
+	char *t;
+
+	if (argv0 == NULL)
+		return;
+
+	t = argv0;
+	while (*t != 0) {
 		char *delim;
 
-		delim = strchr(tool, '/');
+		delim = strchr(t, '/');
 		if (delim == NULL)
 			break;
 
-		tool = delim + 1;
+		t = delim + 1;
 	}
 
-	return tool;
+	if (!strcmp(t, "dvpn")) {
+		tool = TOOL_DVPN;
+		return;
+	}
+
+	if (!strcmp(t, "hostmon") || !strcmp(t, "dvpn-hostmon")) {
+		tool = TOOL_HOSTMON;
+		return;
+	}
+
+	if (!strcmp(t, "rtmon") || !strcmp(t, "dvpn-rtmon")) {
+		tool = TOOL_RTMON;
+		return;
+	}
+
+	if (!strcmp(t, "show-key-id") || !strcmp(t, "dvpn-show-key-id")) {
+		tool = TOOL_SHOW_KEY_ID;
+		return;
+	}
+
+	if (!strcmp(t, "topomon") || !strcmp(t, "dvpn-topomon")) {
+		tool = TOOL_TOPOMON;
+		return;
+	}
 }
 
 int main(int argc, char *argv[])
 {
-	char *tool;
+	static struct option long_options[] = {
+		{ "config-file", required_argument, 0, 'c' },
+		{ "hostmon", no_argument, 0, 'h' },
+		{ "rtmon", no_argument, 0, 'r' },
+		{ "show-key-id", no_argument, 0, 's' },
+		{ "topomon", no_argument, 0, 't' },
+		{ 0, 0, 0, 0, },
+	};
+	const char *config = "/etc/dvpn.ini";
 
-	tool = get_tool_name(argv[0]);
-	if (tool != NULL) {
-		if (!strcmp(tool, "hostmon") || !strcmp(tool, "dvpn-hostmon"))
-			return hostmon_main(argc, argv);
+	while (1) {
+		int c;
 
-		if (!strcmp(tool, "rtmon") || !strcmp(tool, "dvpn-rtmon"))
-			return rtmon_main(argc, argv);
+		c = getopt_long(argc, argv, "c:", long_options, NULL);
+		if (c == -1)
+			break;
 
-		if (!strcmp(tool, "topomon") || !strcmp(tool, "dvpn-topomon"))
-			return topomon_main(argc, argv);
+		switch (c) {
+		case 'c':
+			config = optarg;
+			break;
+
+		case 'h':
+			set_tool(TOOL_HOSTMON);
+			break;
+
+		case 'r':
+			set_tool(TOOL_RTMON);
+			break;
+
+		case 's':
+			set_tool(TOOL_SHOW_KEY_ID);
+			break;
+
+		case 't':
+			set_tool(TOOL_TOPOMON);
+			break;
+
+		case '?':
+			fprintf(stderr, "syntax: %s [-c <config.ini>]\n",
+				argv[0]);
+			return 1;
+
+		default:
+			abort();
+		}
 	}
 
-	return dvpn_main(argc, argv);
+	if (tool == TOOL_UNKNOWN)
+		try_determine_tool(argv[0]);
+
+	switch (tool) {
+	case TOOL_DVPN:
+		return dvpn(config);
+	case TOOL_HOSTMON:
+		return hostmon(config);
+	case TOOL_RTMON:
+		return rtmon(config);
+	case TOOL_SHOW_KEY_ID:
+		return show_key_id(argv[optind]);
+	case TOOL_TOPOMON:
+		return topomon(config);
+	}
+
+	return dvpn(config);
 }
