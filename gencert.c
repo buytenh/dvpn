@@ -42,7 +42,7 @@ int gencert(const char *keyfile)
 	if (x509_read_privkey(&key, keyfile) < 0)
 		goto err;
 
-	if (x509_generate_cert(&crt, key) < 0)
+	if (x509_generate_self_signed_cert(&crt, key) < 0)
 		goto err_deinit_priv;
 
 	size = sizeof(buf);

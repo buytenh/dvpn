@@ -186,8 +186,8 @@ err:
 	return -1;
 }
 
-int
-x509_generate_cert(gnutls_x509_crt_t *crt, gnutls_x509_privkey_t x509_privkey)
+int x509_generate_self_signed_cert(gnutls_x509_crt_t *crt,
+				   gnutls_x509_privkey_t x509_privkey)
 {
 	int ret;
 	gnutls_privkey_t privkey;
@@ -287,7 +287,7 @@ err_free_crt:
 	gnutls_x509_crt_deinit(*crt);
 
 err:
-	fprintf(stderr, "x509_generate_cert: ");
+	fprintf(stderr, "x509_generate_self_signed_cert: ");
 	gnutls_perror(ret);
 
 	return -1;
