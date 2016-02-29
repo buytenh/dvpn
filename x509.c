@@ -186,105 +186,58 @@ err:
 	return -1;
 }
 
-int x509_generate_self_signed_cert(gnutls_x509_crt_t *crt,
+int x509_generate_self_signed_cert(gnutls_x509_crt_t *_crt,
 				   gnutls_x509_privkey_t x509_privkey)
 {
-	int ret;
 	gnutls_privkey_t privkey;
-	gnutls_pubkey_t pubkey;
-	time_t now;
-	uint8_t serial[5];
-	uint8_t buf[256];
-	size_t size;
-	gnutls_digest_algorithm_t dig;
-
-	ret = gnutls_x509_crt_init(crt);
-	if (ret < 0)
-		goto err;
+	int ret;
+	gnutls_x509_crt_t crt;
 
 	ret = gnutls_privkey_init(&privkey);
 	if (ret < 0)
-		goto err_free_crt;
+		goto err;
 
 	ret = gnutls_privkey_import_x509(privkey, x509_privkey, 0);
 	if (ret < 0)
 		goto err_free_priv;
 
-	ret = gnutls_pubkey_init(&pubkey);
+	ret = gnutls_x509_crt_init(&crt);
 	if (ret < 0)
 		goto err_free_priv;
 
-	ret = gnutls_pubkey_import_privkey(pubkey, privkey, 0, 0);
+	ret = gnutls_x509_crt_set_serial(crt, "", 1);
 	if (ret < 0)
-		goto err_free_pub;
+		goto err_free_crt;
 
-	ret = gnutls_x509_crt_set_pubkey(*crt, pubkey);
+	ret = gnutls_x509_crt_set_activation_time(crt, 0);
 	if (ret < 0)
-		goto err_free_pub;
+		goto err_free_crt;
 
-	time(&now);
-
-	ret = gnutls_x509_crt_set_activation_time(*crt, now);
+	ret = gnutls_x509_crt_set_expiration_time(crt,
+			GNUTLS_X509_NO_WELL_DEFINED_EXPIRATION);
 	if (ret < 0)
-		goto err_free_pub;
+		goto err_free_crt;
 
-	serial[0] = (now >> 32) & 0xff;
-	serial[1] = (now >> 24) & 0xff;
-	serial[2] = (now >> 16) & 0xff;
-	serial[3] = (now >> 8) & 0xff;
-	serial[4] = now & 0xff;
-
-	ret = gnutls_x509_crt_set_serial(*crt, serial, 5);
+	ret = gnutls_x509_crt_set_key(crt, x509_privkey);
 	if (ret < 0)
-		goto err_free_pub;
+		goto err_free_crt;
 
-	ret = gnutls_x509_crt_set_expiration_time(*crt, now + 86400);
+	ret = gnutls_x509_crt_privkey_sign(crt, crt, privkey,
+					   GNUTLS_DIG_SHA256, 0);
 	if (ret < 0)
-		goto err_free_pub;
+		goto err_free_crt;
 
-	ret = gnutls_x509_crt_set_basic_constraints(*crt, 0, -1);
-	if (ret < 0)
-		goto err_free_pub;
-
-	ret = gnutls_x509_crt_set_key_usage(*crt,
-		GNUTLS_KEY_DIGITAL_SIGNATURE | GNUTLS_KEY_KEY_ENCIPHERMENT);
-	if (ret < 0)
-		goto err_free_pub;
-
-	size = sizeof(buf);
-	ret = gnutls_x509_crt_get_key_id(*crt, 0, buf, &size);
-	if (ret < 0)
-		goto err_free_pub;
-
-	ret = gnutls_x509_crt_set_subject_key_id(*crt, buf, size);
-	if (ret < 0)
-		goto err_free_pub;
-
-	ret = gnutls_x509_crt_set_version(*crt, 3);
-	if (ret < 0)
-		goto err_free_pub;
-
-	ret = gnutls_pubkey_get_preferred_hash_algorithm(pubkey, &dig, NULL);
-	if (ret < 0)
-		goto err_free_pub;
-
-	ret = gnutls_x509_crt_privkey_sign(*crt, *crt, privkey, dig, 0);
-	if (ret < 0)
-		goto err_free_pub;
-
-	gnutls_pubkey_deinit(pubkey);
 	gnutls_privkey_deinit(privkey);
+
+	*_crt = crt;
 
 	return 0;
 
-err_free_pub:
-	gnutls_pubkey_deinit(pubkey);
+err_free_crt:
+	gnutls_x509_crt_deinit(crt);
 
 err_free_priv:
 	gnutls_privkey_deinit(privkey);
-
-err_free_crt:
-	gnutls_x509_crt_deinit(*crt);
 
 err:
 	fprintf(stderr, "x509_generate_self_signed_cert: ");
