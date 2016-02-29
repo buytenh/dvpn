@@ -42,6 +42,7 @@
 
 static gnutls_x509_privkey_t privkey;
 static uint8_t keyid[NODE_ID_LEN];
+static gnutls_x509_crt_t crt;
 static struct loc_rib loc_rib;
 static struct rt_builder rb;
 static struct iv_avl_tree direct_peers;
@@ -477,7 +478,8 @@ static int start_conf_connect_entry(struct conf_connect_entry *cce)
 	cce->tc.name = cce->name;
 	cce->tc.hostname = cce->hostname;
 	cce->tc.port = cce->port;
-	cce->tc.privkey = privkey;
+	cce->tc.mykey = privkey;
+	cce->tc.mycrt = crt;
 	cce->tc.fingerprint = cce->fingerprint;
 	cce->tc.cookie = cce;
 	cce->tc.set_state = cce_set_state;
@@ -572,7 +574,8 @@ static int start_conf_listening_socket(struct conf_listening_socket *cls)
 	struct iv_avl_node *an;
 
 	cls->tls.listen_address = cls->listen_address;
-	cls->tls.privkey = privkey;
+	cls->tls.mykey = privkey;
+	cls->tls.mycrt = crt;
 	if (tconn_listen_socket_register(&cls->tls))
 		return 1;
 
@@ -766,6 +769,9 @@ int dvpn(const char *_config)
 	if (x509_get_privkey_id(keyid, privkey) < 0)
 		return 1;
 
+	if (x509_generate_self_signed_cert(&crt, privkey) < 0)
+		return 1;
+
 	fprintf(stderr, "dvpn: using key ID ");
 	print_fingerprint(stderr, keyid);
 	fprintf(stderr, "\n");
@@ -836,6 +842,8 @@ int dvpn(const char *_config)
 	loc_rib_deinit(&loc_rib);
 
 	iv_deinit();
+
+	gnutls_x509_crt_deinit(crt);
 
 	gnutls_x509_privkey_deinit(privkey);
 

@@ -1,6 +1,6 @@
 /*
  * dvpn, a multipoint vpn implementation
- * Copyright (C) 2015 Lennert Buytenhek
+ * Copyright (C) 2015, 2016 Lennert Buytenhek
  *
  * This library is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License version
@@ -19,7 +19,6 @@
 
 /*
  * TODO:
- * - certificate caching
  * - byte/time limits, renegotiation
  *   - work out state machine for renegotiation
  *   - limit min (limit at which we'll accept a remote reneg)
@@ -657,7 +656,6 @@ err:
 static int tconn_start_handshake(struct tconn *tc)
 {
 	int ret;
-	gnutls_x509_crt_t cert;
 
 	ret = gnutls_certificate_allocate_credentials(&tc->cert);
 	if (ret) {
@@ -667,13 +665,8 @@ static int tconn_start_handshake(struct tconn *tc)
 
 	gnutls_certificate_set_verify_function(tc->cert, tconn_verify_cert);
 
-	ret = x509_generate_self_signed_cert(&cert, tc->privkey);
-	if (ret)
-		goto err_free;
-
-	ret = gnutls_certificate_set_x509_key(tc->cert, &cert, 1, tc->privkey);
-	gnutls_x509_crt_deinit(cert);
-
+	ret = gnutls_certificate_set_x509_key(tc->cert, &tc->mycrt,
+					      1, tc->mykey);
 	if (ret) {
 		gtls_perror("gnutls_certificate_set_x509_key", ret);
 		goto err_free;

@@ -187,7 +187,8 @@ static void connect_success(struct tconn_connect *tc)
 
 	tc->tconn.fd = &tc->tconnfd;
 	tc->tconn.role = TCONN_ROLE_CLIENT;
-	tc->tconn.privkey = tc->privkey;
+	tc->tconn.mykey = tc->mykey;
+	tc->tconn.mycrt = tc->mycrt;
 	tc->tconn.cookie = tc;
 	tc->tconn.verify_key_id = verify_key_id;
 	tc->tconn.handshake_done = handshake_done;
