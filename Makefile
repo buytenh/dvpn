@@ -1,4 +1,4 @@
-all:		dvpn gencert hostmon rtmon show-key-id topomon
+all:		dbmon dvpn gencert hostmon rtmon show-key-id
 
 clean:
 		rm -f *.dot
@@ -6,6 +6,7 @@ clean:
 		rm -f client.key
 		rm -f client2.ini
 		rm -f client2.key
+		rm -f dbmon
 		rm -f dvpn
 		rm -f gencert
 		rm -f hostmon
@@ -13,14 +14,16 @@ clean:
 		rm -f server.ini
 		rm -f server.key
 		rm -f show-key-id
-		rm -f topomon
 
 install:	dvpn
 		install -m 0755 dvpn /usr/bin
 		install -m 0644 dvpn.service /usr/lib/systemd/system
 
-dvpn:		adj_rib_in.c adj_rib_in.h conf.c conf.h confdiff.c confdiff.h dgp_connect.c dgp_connect.h dgp_listen.c dgp_listen.h dgp_reader.c dgp_reader.h dgp_writer.c dgp_writer.h dvpn.c gencert.c hostmon.c itf.c itf.h iv_getaddrinfo.c iv_getaddrinfo.h main.c loc_rib.c loc_rib.h loc_rib_print.c loc_rib_print.h lsa.c lsa.h lsa_deserialise.c lsa_deserialise.h lsa_diff.c lsa_diff.h lsa_path.c lsa_path.h lsa_print.c lsa_print.h lsa_serialise.c lsa_serialise.h lsa_type.h rib_listener.h rib_listener_debug.c rib_listener_debug.h rib_listener_to_loc.c rib_listener_to_loc.h rt_builder.c rt_builder.h rtmon.c tconn.c show-key-id.c tconn.h tconn_connect.c tconn_connect.h tconn_listen.c tconn_listen.h topomon.c tun.c tun.h util.c util.h x509.c x509.h
-		gcc -Wall -g -o dvpn adj_rib_in.c conf.c confdiff.c dgp_connect.c dgp_listen.c dgp_reader.c dgp_writer.c dvpn.c itf.c gencert.c hostmon.c iv_getaddrinfo.c main.c loc_rib.c loc_rib_print.c lsa.c lsa_deserialise.c lsa_diff.c lsa_path.c lsa_print.c lsa_serialise.c rib_listener_debug.c rib_listener_to_loc.c rt_builder.c rtmon.c tconn.c show-key-id.c tconn_connect.c tconn_listen.c topomon.c tun.c util.c x509.c -lgnutls -lini_config -livykis -lnettle
+dvpn:		adj_rib_in.c adj_rib_in.h conf.c conf.h confdiff.c confdiff.h dbmon.c dgp_connect.c dgp_connect.h dgp_listen.c dgp_listen.h dgp_reader.c dgp_reader.h dgp_writer.c dgp_writer.h dvpn.c gencert.c hostmon.c itf.c itf.h iv_getaddrinfo.c iv_getaddrinfo.h main.c loc_rib.c loc_rib.h loc_rib_print.c loc_rib_print.h lsa.c lsa.h lsa_deserialise.c lsa_deserialise.h lsa_diff.c lsa_diff.h lsa_path.c lsa_path.h lsa_print.c lsa_print.h lsa_serialise.c lsa_serialise.h lsa_type.h rib_listener.h rib_listener_debug.c rib_listener_debug.h rib_listener_to_loc.c rib_listener_to_loc.h rt_builder.c rt_builder.h rtmon.c tconn.c show-key-id.c tconn.h tconn_connect.c tconn_connect.h tconn_listen.c tconn_listen.h tun.c tun.h util.c util.h x509.c x509.h
+		gcc -Wall -g -o dvpn adj_rib_in.c conf.c confdiff.c dbmon.c dgp_connect.c dgp_listen.c dgp_reader.c dgp_writer.c dvpn.c itf.c gencert.c hostmon.c iv_getaddrinfo.c main.c loc_rib.c loc_rib_print.c lsa.c lsa_deserialise.c lsa_diff.c lsa_path.c lsa_print.c lsa_serialise.c rib_listener_debug.c rib_listener_to_loc.c rt_builder.c rtmon.c tconn.c show-key-id.c tconn_connect.c tconn_listen.c tun.c util.c x509.c -lgnutls -lini_config -livykis -lnettle
+
+dbmon:		dvpn
+		ln -sf dvpn dbmon
 
 gencert:	dvpn
 		ln -sf dvpn gencert
@@ -33,9 +36,6 @@ rtmon:		dvpn
 
 show-key-id:	dvpn
 		ln -sf dvpn show-key-id
-
-topomon:	dvpn
-		ln -sf dvpn topomon
 
 test:		client.ini client.key client2.ini client2.key dvpn server.ini server.key
 

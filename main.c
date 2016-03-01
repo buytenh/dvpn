@@ -22,21 +22,21 @@
 #include <getopt.h>
 #include <string.h>
 
+int dbmon(const char *config);
 int dvpn(const char *config);
 int gencert(const char *keyfile);
 int hostmon(const char *config);
 int rtmon(const char *config);
 int show_key_id(const char *file);
-int topomon(const char *config);
 
 enum {
 	TOOL_UNKNOWN = 0,
+	TOOL_DBMON,
 	TOOL_DVPN,
 	TOOL_GENCERT,
 	TOOL_HOSTMON,
 	TOOL_RTMON,
 	TOOL_SHOW_KEY_ID,
-	TOOL_TOPOMON,
 };
 
 static int tool = TOOL_UNKNOWN;
@@ -69,6 +69,11 @@ static void try_determine_tool(char *argv0)
 		t = delim + 1;
 	}
 
+	if (!strcmp(t, "dbmon") || !strcmp(t, "dvpn-dbmon")) {
+		tool = TOOL_DBMON;
+		return;
+	}
+
 	if (!strcmp(t, "dvpn")) {
 		tool = TOOL_DVPN;
 		return;
@@ -93,22 +98,17 @@ static void try_determine_tool(char *argv0)
 		tool = TOOL_SHOW_KEY_ID;
 		return;
 	}
-
-	if (!strcmp(t, "topomon") || !strcmp(t, "dvpn-topomon")) {
-		tool = TOOL_TOPOMON;
-		return;
-	}
 }
 
 int main(int argc, char *argv[])
 {
 	static struct option long_options[] = {
 		{ "config-file", required_argument, 0, 'c' },
+		{ "dbmon", no_argument, 0, 'd' },
 		{ "gencert", no_argument, 0, 'g' },
 		{ "hostmon", no_argument, 0, 'h' },
 		{ "rtmon", no_argument, 0, 'r' },
 		{ "show-key-id", no_argument, 0, 's' },
-		{ "topomon", no_argument, 0, 't' },
 		{ 0, 0, 0, 0, },
 	};
 	const char *config = "/etc/dvpn.ini";
@@ -123,6 +123,10 @@ int main(int argc, char *argv[])
 		switch (c) {
 		case 'c':
 			config = optarg;
+			break;
+
+		case 'd':
+			set_tool(TOOL_DBMON);
 			break;
 
 		case 'g':
@@ -141,10 +145,6 @@ int main(int argc, char *argv[])
 			set_tool(TOOL_SHOW_KEY_ID);
 			break;
 
-		case 't':
-			set_tool(TOOL_TOPOMON);
-			break;
-
 		case '?':
 			fprintf(stderr, "syntax: %s [-c <config.ini>]\n",
 				argv[0]);
@@ -159,6 +159,8 @@ int main(int argc, char *argv[])
 		try_determine_tool(argv[0]);
 
 	switch (tool) {
+	case TOOL_DBMON:
+		return dbmon(config);
 	case TOOL_DVPN:
 		return dvpn(config);
 	case TOOL_GENCERT:
@@ -169,8 +171,6 @@ int main(int argc, char *argv[])
 		return rtmon(config);
 	case TOOL_SHOW_KEY_ID:
 		return show_key_id(argv[optind]);
-	case TOOL_TOPOMON:
-		return topomon(config);
 	}
 
 	return dvpn(config);

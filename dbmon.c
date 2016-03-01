@@ -53,7 +53,7 @@ static void got_sigusr1(void *_dummy)
 	loc_rib_print(stderr, &loc_rib);
 }
 
-int topomon(const char *config)
+int dbmon(const char *config)
 {
 	struct conf *conf;
 	gnutls_x509_privkey_t privkey;
