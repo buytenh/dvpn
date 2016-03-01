@@ -89,13 +89,13 @@ static void rx_timeout(void *_cc)
 	client_conn_kill(cc, 1);
 }
 
-static int verify_key_id(void *_cc, const uint8_t *id)
+static int verify_key_ids(void *_cc, const uint8_t *ids, int num)
 {
 	struct client_conn *cc = _cc;
 	struct iv_avl_node *an;
 
 	fprintf(stderr, "conn%d: peer key ID ", cc->fd.fd);
-	print_fingerprint(stderr, id);
+	print_fingerprint(stderr, ids);
 
 	an = cc->tls->listen_entries.root;
 	while (an != NULL) {
@@ -104,7 +104,7 @@ static int verify_key_id(void *_cc, const uint8_t *id)
 
 		le = iv_container_of(an, struct tconn_listen_entry, an);
 
-		ret = memcmp(id, le->fingerprint, NODE_ID_LEN);
+		ret = memcmp(ids, le->fingerprint, NODE_ID_LEN);
 		if (ret == 0) {
 			fprintf(stderr, " - matches '%s'\n", le->name);
 			cc->tle = le;
@@ -254,7 +254,7 @@ static void got_connection(void *_ls)
 	cc->tconn.mykey = ls->mykey;
 	cc->tconn.mycrt = ls->mycrt;
 	cc->tconn.cookie = cc;
-	cc->tconn.verify_key_id = verify_key_id;
+	cc->tconn.verify_key_ids = verify_key_ids;
 	cc->tconn.handshake_done = handshake_done;
 	cc->tconn.record_received = record_received;
 	cc->tconn.connection_lost = connection_lost;

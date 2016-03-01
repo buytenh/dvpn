@@ -567,87 +567,119 @@ static void tconn_tx_task_handler(void *_tc)
 	abort();
 }
 
+static int cert_refers_to_nodeid(gnutls_x509_crt_t cert, uint8_t *nodeid)
+{
+	char expected_dn[128];
+	int i;
+	int ret;
+	gnutls_datum_t cert_dn;
+
+	sprintf(expected_dn, "CN=");
+	for (i = 0; i < NODE_ID_LEN; i++)
+		sprintf(expected_dn + 3 + (2 * i), "%.2x", nodeid[i]);
+	expected_dn[67] = 0;
+
+	ret = gnutls_x509_crt_get_dn2(cert, &cert_dn);
+	if (ret < 0) {
+		gtls_perror("gnutls_x509_crt_init", ret);
+		return 0;
+	}
+
+	if (strcmp(expected_dn, (char *)cert_dn.data)) {
+		gnutls_free(cert_dn.data);
+		return 0;
+	}
+
+	gnutls_free(cert_dn.data);
+
+	return 1;
+}
+
 static int tconn_verify_cert(gnutls_session_t sess)
 {
 	struct tconn *tc = gnutls_transport_get_ptr(sess);
-	const gnutls_datum_t *cert_list;
-	unsigned int cert_list_size;
-	gnutls_x509_crt_t peercert;
+	const gnutls_datum_t *certs;
+	unsigned int num_certs;
+	uint8_t *nodeids;
+	gnutls_x509_crt_t cert;
+	gnutls_pubkey_t key;
+	int i;
 	int ret;
-	gnutls_pubkey_t peerkey;
-	uint8_t peerid[NODE_ID_LEN];
+	int j;
 
-	/*
-	 * TBD: @@@
-	 * - verify that key is different from our key
-	 * - verify key length
-	 * - verify that certificate signature is correct
-	 * - verify that signature corresponds to given public key
-	 */
-
-	cert_list = gnutls_certificate_get_peers(tc->sess, &cert_list_size);
-	if (cert_list_size != 1) {
-		fprintf(stderr, "tconn_verify_cert: unexpected cert count\n");
+	certs = gnutls_certificate_get_peers(tc->sess, &num_certs);
+	if (num_certs < 1) {
+		fprintf(stderr, "tconn_verify_cert: no certificates found\n");
 		goto err;
 	}
 
-	ret = gnutls_x509_crt_init(&peercert);
+	nodeids = malloc(num_certs * NODE_ID_LEN);
+	if (nodeids == NULL)
+		goto err;
+
+	ret = gnutls_x509_crt_init(&cert);
 	if (ret) {
 		gtls_perror("gnutls_x509_crt_init", ret);
-		goto err;
+		goto err_free_ids;
 	}
 
-	ret = gnutls_x509_crt_import(peercert, &cert_list[0],
-				     GNUTLS_X509_FMT_DER);
-	if (ret) {
-		gtls_perror("gnutls_x509_crt_import", ret);
-		goto err_free_crt;
-	}
-
-	ret = gnutls_pubkey_init(&peerkey);
+	ret = gnutls_pubkey_init(&key);
 	if (ret) {
 		gtls_perror("gnutls_pubkey_init", ret);
 		goto err_free_crt;
 	}
 
-	ret = gnutls_pubkey_import_x509(peerkey, peercert, 0);
-	if (ret) {
-		gtls_perror("gnutls_pubkey_import_x509", ret);
-		goto err_free_key;
-	}
+	/*
+	 * TBD: @@@
+	 * - verify that signature verifies to embedded public key
+	 * - verify that fingerprint matches what we expect
+	 * - check validity in case of non self signed certificate
+	 */
+	for (i = 0, j = 0 ; i < num_certs; i++) {
+		uint8_t id[NODE_ID_LEN];
 
-	ret = get_pubkey_id(peerid, peerkey);
-	if (ret) {
-		gtls_perror("get_pubkey_id", ret);
-		goto err_free_key;
-	}
+		ret = gnutls_x509_crt_import(cert, &certs[i],
+					     GNUTLS_X509_FMT_DER);
+		if (ret) {
+			gtls_perror("gnutls_x509_crt_import", ret);
+			goto err_free_key;
+		}
 
-	if (0) {
-		fprintf(stderr, "%p: ", tc);
-		print_fingerprint(stderr, peerid);
-		fprintf(stderr, "\n");
-	}
+		ret = gnutls_pubkey_import_x509(key, cert, 0);
+		if (ret) {
+			gtls_perror("gnutls_pubkey_import_x509", ret);
+			goto err_free_key;
+		}
 
-	if (0) {
-		gnutls_datum_t cinfo;
+		ret = get_pubkey_id(id, key);
+		if (ret) {
+			gtls_perror("get_pubkey_id", ret);
+			goto err_free_key;
+		}
 
-		if (gnutls_x509_crt_print(peercert, GNUTLS_CRT_PRINT_FULL,
-					  &cinfo) == 0) {
-			printf("\t%s\n", cinfo.data);
-			free(cinfo.data);
+		if (i == 0 || cert_refers_to_nodeid(cert, nodeids)) {
+			memcpy(nodeids + (j * NODE_ID_LEN), id, NODE_ID_LEN);
+			j++;
 		}
 	}
 
-	gnutls_pubkey_deinit(peerkey);
-	gnutls_x509_crt_deinit(peercert);
+	gnutls_x509_crt_deinit(cert);
+	gnutls_pubkey_deinit(key);
 
-	return tc->verify_key_id(tc->cookie, peerid);
+	ret = tc->verify_key_ids(tc->cookie, nodeids, j);
+
+	free(nodeids);
+
+	return ret;
 
 err_free_key:
-	gnutls_pubkey_deinit(peerkey);
+	gnutls_pubkey_deinit(key);
 
 err_free_crt:
-	gnutls_x509_crt_deinit(peercert);
+	gnutls_x509_crt_deinit(cert);
+
+err_free_ids:
+	free(nodeids);
 
 err:
 	return 1;

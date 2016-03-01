@@ -50,14 +50,14 @@
 #define SHORT_RETRY_WAIT_TIME	2
 #define LONG_RETRY_WAIT_TIME	10
 
-static int verify_key_id(void *_tc, const uint8_t *id)
+static int verify_key_ids(void *_tc, const uint8_t *ids, int num)
 {
 	struct tconn_connect *tc = _tc;
 
 	fprintf(stderr, "%s: peer key ID ", tc->name);
-	print_fingerprint(stderr, id);
+	print_fingerprint(stderr, ids);
 
-	if (memcmp(tc->fingerprint, id, NODE_ID_LEN)) {
+	if (memcmp(tc->fingerprint, ids, NODE_ID_LEN)) {
 		fprintf(stderr, " - mismatch\n");
 		return 1;
 	}
@@ -190,7 +190,7 @@ static void connect_success(struct tconn_connect *tc)
 	tc->tconn.mykey = tc->mykey;
 	tc->tconn.mycrt = tc->mycrt;
 	tc->tconn.cookie = tc;
-	tc->tconn.verify_key_id = verify_key_id;
+	tc->tconn.verify_key_ids = verify_key_ids;
 	tc->tconn.handshake_done = handshake_done;
 	tc->tconn.record_received = record_received;
 	tc->tconn.connection_lost = connection_lost;
