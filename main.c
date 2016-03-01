@@ -24,7 +24,7 @@
 
 int dbmon(const char *config);
 int dvpn(const char *config);
-int gencert(const char *keyfile);
+int gencert(const char *nodekeyfile, const char *rolekeyfile);
 int hostmon(const char *config);
 int mkgraph(const char *config);
 int rtmon(const char *config);
@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
 	case TOOL_DVPN:
 		return dvpn(config);
 	case TOOL_GENCERT:
-		return gencert(argv[optind]);
+		return gencert(argv[optind], argv[optind + 1]);
 	case TOOL_HOSTMON:
 		return hostmon(config);
 	case TOOL_MKGRAPH:

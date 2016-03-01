@@ -24,26 +24,36 @@
 #include <unistd.h>
 #include "x509.h"
 
-int gencert(const char *keyfile)
+int gencert(const char *nodekeyfile, const char *rolekeyfile)
 {
-	gnutls_x509_privkey_t key;
+	gnutls_x509_privkey_t nodekey;
+	gnutls_x509_privkey_t rolekey;
 	gnutls_x509_crt_t crt;
 	uint8_t buf[4096];
 	size_t size;
 	int ret;
 
-	if (keyfile == NULL) {
-		fprintf(stderr, "usage: gencert [keyfile]\n");
+	if (nodekeyfile == NULL) {
+		fprintf(stderr, "usage: gencert [dvpn.key] <role.key>\n");
 		return 1;
 	}
 
 	gnutls_global_init();
 
-	if (x509_read_privkey(&key, keyfile) < 0)
+	if (x509_read_privkey(&nodekey, nodekeyfile) < 0)
 		goto err;
 
-	if (x509_generate_self_signed_cert(&crt, key) < 0)
-		goto err_deinit_priv;
+	if (rolekeyfile != NULL) {
+		if (x509_read_privkey(&rolekey, rolekeyfile) < 0)
+			goto err_deinit_nodekey;
+		ret = x509_generate_role_cert(&crt, nodekey, rolekey);
+	} else {
+		rolekey = NULL;
+		ret = x509_generate_self_signed_cert(&crt, nodekey);
+	}
+
+	if (ret < 0)
+		goto err_deinit_rolekey;
 
 	size = sizeof(buf);
 
@@ -56,7 +66,9 @@ int gencert(const char *keyfile)
 	write(1, buf, size);
 
 	gnutls_x509_crt_deinit(crt);
-	gnutls_x509_privkey_deinit(key);
+	gnutls_x509_privkey_deinit(nodekey);
+	if (rolekey != NULL)
+		gnutls_x509_privkey_deinit(rolekey);
 
 	gnutls_global_deinit();
 
@@ -65,8 +77,12 @@ int gencert(const char *keyfile)
 err_deinit_crt:
 	gnutls_x509_crt_deinit(crt);
 
-err_deinit_priv:
-	gnutls_x509_privkey_deinit(key);
+err_deinit_rolekey:
+	if (rolekey != NULL)
+		gnutls_x509_privkey_deinit(rolekey);
+
+err_deinit_nodekey:
+	gnutls_x509_privkey_deinit(nodekey);
 
 err:
 	gnutls_global_deinit();
