@@ -27,6 +27,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>
+#include "util.h"
 #include "x509.h"
 
 int x509_read_privkey(gnutls_x509_privkey_t *privkey, const char *file)
@@ -186,8 +187,9 @@ err:
 	return -1;
 }
 
-int x509_generate_self_signed_cert(gnutls_x509_crt_t *_crt,
-				   gnutls_x509_privkey_t x509_privkey)
+static int __x509_generate_self_signed_cert(gnutls_x509_crt_t *_crt,
+					    gnutls_x509_privkey_t x509_privkey,
+					    const char *dn)
 {
 	gnutls_privkey_t privkey;
 	int ret;
@@ -208,6 +210,12 @@ int x509_generate_self_signed_cert(gnutls_x509_crt_t *_crt,
 	ret = gnutls_x509_crt_set_serial(crt, "", 1);
 	if (ret < 0)
 		goto err_free_crt;
+
+	if (dn != NULL) {
+		ret = gnutls_x509_crt_set_dn(crt, dn, NULL);
+		if (ret < 0)
+			goto err_free_crt;
+	}
 
 	ret = gnutls_x509_crt_set_activation_time(crt, 0);
 	if (ret < 0)
@@ -240,8 +248,50 @@ err_free_priv:
 	gnutls_privkey_deinit(privkey);
 
 err:
-	fprintf(stderr, "x509_generate_self_signed_cert: ");
+	return ret;
+}
+
+int x509_generate_role_cert(gnutls_x509_crt_t *crt,
+			    gnutls_x509_privkey_t node_key,
+			    gnutls_x509_privkey_t role_key)
+{
+	uint8_t node_id[NODE_ID_LEN];
+	int ret;
+	char dn[128];
+	int i;
+
+	ret = x509_get_privkey_id(node_id, node_key);
+	if (ret < 0)
+		goto err;
+
+	sprintf(dn, "CN=");
+	for (i = 0; i < NODE_ID_LEN; i++)
+		sprintf(dn + 3 + (2 * i), "%.2x", node_id[i]);
+	dn[67] = 0;
+
+	ret = __x509_generate_self_signed_cert(crt, role_key, dn);
+	if (ret < 0)
+		goto err;
+
+	return 0;
+
+err:
+	fprintf(stderr, "x509_generate_role_cert: ");
 	gnutls_perror(ret);
 
 	return -1;
+}
+
+int x509_generate_self_signed_cert(gnutls_x509_crt_t *crt,
+				   gnutls_x509_privkey_t x509_privkey)
+{
+	int ret;
+
+	ret = __x509_generate_self_signed_cert(crt, x509_privkey, NULL);
+	if (ret < 0) {
+		fprintf(stderr, "x509_generate_self_signed_cert: ");
+		gnutls_perror(ret);
+	}
+
+	return ret;
 }
