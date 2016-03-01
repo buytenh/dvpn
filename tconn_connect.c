@@ -53,24 +53,32 @@
 static int verify_key_ids(void *_tc, const uint8_t *ids, int num)
 {
 	struct tconn_connect *tc = _tc;
+	int i;
 
 	fprintf(stderr, "%s: peer key ID ", tc->name);
 	print_fingerprint(stderr, ids);
 
-	if (memcmp(tc->fingerprint, ids, NODE_ID_LEN)) {
-		fprintf(stderr, " - mismatch\n");
-		return 1;
+	for (i = 0; i < num; i++) {
+		const uint8_t *id;
+
+		id = ids + (i * NODE_ID_LEN);
+		if (!memcmp(tc->fingerprint, id, NODE_ID_LEN)) {
+			fprintf(stderr, " - OK%s\n",
+				(i != 0) ? " (via role certificate)" : "");
+			memcpy(tc->id, ids, NODE_ID_LEN);
+			return 0;
+		}
 	}
 
-	fprintf(stderr, " - OK\n");
+	fprintf(stderr, " - no matches\n");
 
-	return 0;
+	return 1;
 }
 
 static void schedule_retry(struct tconn_connect *tc, int waittime)
 {
 	if (tc->state == STATE_CONNECTED)
-		tc->set_state(tc->cookie, 0);
+		tc->set_state(tc->cookie, tc->id, 0);
 
 	if (tc->state == STATE_TLS_HANDSHAKE || tc->state == STATE_CONNECTED) {
 		tconn_destroy(&tc->tconn);
@@ -137,7 +145,7 @@ static void handshake_done(void *_tc, char *desc)
 	tc->keepalive_timer.handler = send_keepalive;
 	iv_timer_register(&tc->keepalive_timer);
 
-	tc->set_state(tc->cookie, 1);
+	tc->set_state(tc->cookie, tc->id, 1);
 }
 
 static void record_received(void *_tc, const uint8_t *rec, int len)
@@ -394,7 +402,7 @@ static void rx_timeout_expired(void *_tc)
 			waittime = LONG_RETRY_WAIT_TIME;
 		} else if (tc->state == STATE_CONNECTED) {
 			fprintf(stderr, "receive timeout");
-			tc->set_state(tc->cookie, 0);
+			tc->set_state(tc->cookie, tc->id, 0);
 			tconn_destroy(&tc->tconn);
 			iv_fd_unregister(&tc->tconnfd);
 			close(tc->tconnfd.fd);

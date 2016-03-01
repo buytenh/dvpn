@@ -34,7 +34,8 @@ struct tconn_connect {
 	gnutls_x509_crt_t	mycrt;
 	uint8_t			*fingerprint;
 	void			*cookie;
-	void			(*set_state)(void *cookie, int up);
+	void			(*set_state)(void *cookie,
+					     const uint8_t *id, int up);
 	void			(*record_received)(void *cookie,
 						   const uint8_t *rec, int len);
 
@@ -53,6 +54,7 @@ struct tconn_connect {
 		struct {
 			struct iv_fd		tconnfd;
 			struct tconn		tconn;
+			uint8_t			id[NODE_ID_LEN];
 			struct iv_timer		keepalive_timer;
 		};
 	};

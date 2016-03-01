@@ -91,10 +91,15 @@ static void rt_mod(void *_dummy, uint8_t *dest, uint8_t *oldnh, uint8_t *newnh)
 
 static void rt_del(void *_dummy, uint8_t *dest, uint8_t *nh)
 {
+	const char *itfname;
+
 	if (nh != NULL)
-		itf_del_route_v6_direct(dest, peer_itfname(nh));
+		itfname = peer_itfname(nh);
 	else
-		itf_del_route_v6_direct(dest, peer_itfname(dest));
+		itfname = peer_itfname(dest);
+
+	if (itfname != NULL)
+		itf_del_route_v6_direct(dest, itfname);
 }
 
 static int compare_direct_peers(struct iv_avl_node *_a, struct iv_avl_node *_b)
@@ -293,7 +298,7 @@ static void cce_tun_got_packet(void *_cce, uint8_t *buf, int len)
 	tconn_connect_record_send(&cce->tc, sndbuf, len + 3);
 }
 
-static void cce_set_state(void *_cce, int up)
+static void cce_set_state(void *_cce, const uint8_t *id, int up)
 {
 	struct conf_connect_entry *cce = _cce;
 	char *tunitf;
@@ -307,6 +312,8 @@ static void cce_set_state(void *_cce, int up)
 		int mtu;
 		uint8_t addr[16];
 
+		memcpy(cce->peerid, id, NODE_ID_LEN);
+
 		if (cce->peer_type != CONF_PEER_TYPE_DBONLY) {
 			int cost;
 
@@ -317,7 +324,7 @@ static void cce_set_state(void *_cce, int up)
 					cost = 1;
 			}
 
-			mylsa_add_peer(cce->fingerprint, cce->peer_type, cost);
+			mylsa_add_peer(cce->peerid, cce->peer_type, cost);
 		}
 
 		maxseg = tconn_connect_get_maxseg(&cce->tc);
@@ -342,14 +349,20 @@ static void cce_set_state(void *_cce, int up)
 		v6_global_addr_from_key_id(addr, keyid);
 		itf_add_addr_v6(tunitf, addr, 128);
 
+		v6_global_addr_from_key_id(cce->dp.addr, id);
+		if (iv_avl_tree_insert(&direct_peers, &cce->dp.an))
+			abort();
+
 		dgp_connect_start(&cce->dc);
 	} else {
 		dgp_connect_stop(&cce->dc);
 
+		iv_avl_tree_delete(&direct_peers, &cce->dp.an);
+
 		itf_set_state(tunitf, 0);
 
 		if (cce->peer_type != CONF_PEER_TYPE_DBONLY)
-			mylsa_del_peer(cce->fingerprint);
+			mylsa_del_peer(cce->peerid);
 	}
 }
 
@@ -487,13 +500,10 @@ static int start_conf_connect_entry(struct conf_connect_entry *cce)
 	cce->tc.record_received = cce_record_received;
 	tconn_connect_start(&cce->tc);
 
-	v6_global_addr_from_key_id(cce->dp.addr, cce->fingerprint);
 	cce->dp.itfname = tun_interface_get_name(&cce->tun);
-	if (iv_avl_tree_insert(&direct_peers, &cce->dp.an))
-		abort();
 
 	cce->dc.myid = keyid;
-	cce->dc.remoteid = cce->fingerprint;
+	cce->dc.remoteid = cce->peerid;
 	cce->dc.ifindex = if_nametoindex(tun_interface_get_name(&cce->tun));
 	cce->dc.loc_rib = &loc_rib;
 
@@ -506,10 +516,9 @@ static void stop_conf_connect_entry(struct conf_connect_entry *cce)
 
 	if (cce->tconn_up) {
 		dgp_connect_stop(&cce->dc);
-		mylsa_del_peer(cce->fingerprint);
+		iv_avl_tree_delete(&direct_peers, &cce->dp.an);
+		mylsa_del_peer(cce->peerid);
 	}
-
-	iv_avl_tree_delete(&direct_peers, &cce->dp.an);
 
 	tconn_connect_destroy(&cce->tc);
 
