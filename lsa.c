@@ -24,9 +24,10 @@
 #include "lsa.h"
 #include "lsa_serialise.h"
 
-static size_t lsa_attr_size(struct lsa_attr *attr);
+static size_t lsa_attr_size(const struct lsa_attr *attr);
 
-static int lsa_attr_compare_keys(struct lsa_attr *a, struct lsa_attr *b)
+static int
+lsa_attr_compare_keys(struct lsa_attr *a, struct lsa_attr *b)
 {
 	int len;
 	int ret;
@@ -62,7 +63,7 @@ static int compare_attr_keys(struct iv_avl_node *_a, struct iv_avl_node *_b)
 	return lsa_attr_compare_keys(a, b);
 }
 
-struct lsa *lsa_alloc(uint8_t *id)
+struct lsa *lsa_alloc(const uint8_t *id)
 {
 	struct lsa *lsa;
 
@@ -118,11 +119,11 @@ void lsa_put(struct lsa *lsa)
 }
 
 static void lsa_attr_set_clone(struct lsa *lsa, struct lsa_attr_set *dst,
-			       struct lsa_attr_set *src)
+			       const struct lsa_attr_set *src)
 {
 	struct iv_avl_node *an;
 
-	iv_avl_tree_for_each (an, &src->attrs) {
+	iv_avl_tree_for_each (an, (struct iv_avl_tree *)&src->attrs) {
 		struct lsa_attr *attr;
 
 		attr = iv_container_of(an, struct lsa_attr, an);
@@ -146,7 +147,7 @@ static void lsa_attr_set_clone(struct lsa *lsa, struct lsa_attr_set *dst,
 	}
 }
 
-struct lsa *lsa_clone(struct lsa *lsa)
+struct lsa *lsa_clone(const struct lsa *lsa)
 {
 	struct lsa *newlsa;
 
@@ -179,13 +180,13 @@ void *lsa_attr_data(struct lsa_attr *attr)
 }
 
 struct lsa_attr *lsa_find_attr(struct lsa *lsa, int type,
-			       void *key, size_t keylen)
+			       const void *key, size_t keylen)
 {
 	return lsa_attr_set_find_attr(&lsa->root, type, key, keylen);
 }
 
-struct lsa_attr *lsa_attr_set_find_attr(struct lsa_attr_set *set,
-					int type, void *key, size_t keylen)
+struct lsa_attr *lsa_attr_set_find_attr(struct lsa_attr_set *set, int type,
+					const void *key, size_t keylen)
 {
 	struct {
 		struct lsa_attr		skey;
@@ -222,7 +223,7 @@ struct lsa_attr *lsa_attr_set_find_attr(struct lsa_attr_set *set,
 	return NULL;
 }
 
-static size_t lsa_attr_size(struct lsa_attr *attr)
+static size_t lsa_attr_size(const struct lsa_attr *attr)
 {
 	size_t size;
 
@@ -248,8 +249,8 @@ static size_t lsa_attr_size(struct lsa_attr *attr)
 	return size;
 }
 
-int lsa_add_attr(struct lsa *lsa, int type, int sign,
-		 void *key, size_t keylen, void *data, size_t datalen)
+int lsa_add_attr(struct lsa *lsa, int type, int sign, const void *key,
+		 size_t keylen, const void *data, size_t datalen)
 {
 	if (lsa->refcount != 1) {
 		fprintf(stderr, "lsa_add_attr: called on an LSA with "
@@ -290,8 +291,8 @@ static struct lsa_attr *attr_alloc(int type, size_t keylen, size_t datalen)
 }
 
 int lsa_attr_set_add_attr(struct lsa *lsa, struct lsa_attr_set *set,
-			  int type, int sign, void *key, size_t keylen,
-			  void *data, size_t datalen)
+			  int type, int sign, const void *key, size_t keylen,
+			  const void *data, size_t datalen)
 {
 	struct lsa_attr *attr;
 
@@ -326,7 +327,7 @@ int lsa_attr_set_add_attr(struct lsa *lsa, struct lsa_attr_set *set,
 }
 
 struct lsa_attr_set *lsa_add_attr_set(struct lsa *lsa, int type, int sign,
-				      void *key, size_t keylen)
+				      const void *key, size_t keylen)
 {
 	if (lsa->refcount != 1) {
 		fprintf(stderr, "lsa_add_attr_set: called on an LSA "
@@ -340,7 +341,7 @@ struct lsa_attr_set *lsa_add_attr_set(struct lsa *lsa, int type, int sign,
 
 struct lsa_attr_set *
 lsa_attr_set_add_attr_set(struct lsa *lsa, struct lsa_attr_set *set,
-			  int type, int sign, void *key, size_t keylen)
+			  int type, int sign, const void *key, size_t keylen)
 {
 	struct lsa_attr *attr;
 	struct lsa_attr_set *child;
@@ -397,7 +398,8 @@ void lsa_del_attr(struct lsa *lsa, struct lsa_attr *attr)
 	free(attr);
 }
 
-void lsa_del_attr_bykey(struct lsa *lsa, int type, void *key, size_t keylen)
+void lsa_del_attr_bykey(struct lsa *lsa, int type,
+			const void *key, size_t keylen)
 {
 	struct lsa_attr *attr;
 

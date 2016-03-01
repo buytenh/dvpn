@@ -35,10 +35,10 @@ struct lsa {
 	struct lsa_attr_set	root;
 };
 
-struct lsa *lsa_alloc(uint8_t *id);
+struct lsa *lsa_alloc(const uint8_t *id);
 struct lsa *lsa_get(struct lsa *lsa);
 void lsa_put(struct lsa *lsa);
-struct lsa *lsa_clone(struct lsa *lsa);
+struct lsa *lsa_clone(const struct lsa *lsa);
 
 
 struct lsa_attr {
@@ -55,26 +55,27 @@ void *lsa_attr_key(struct lsa_attr *attr);
 void *lsa_attr_data(struct lsa_attr *attr);
 
 struct lsa_attr *lsa_find_attr(struct lsa *lsa, int type,
-			       void *key, size_t keylen);
-struct lsa_attr *lsa_attr_set_find_attr(struct lsa_attr_set *set,
-					int type, void *key, size_t keylen);
+			       const void *key, size_t keylen);
+struct lsa_attr *lsa_attr_set_find_attr(struct lsa_attr_set *set, int type,
+					const void *key, size_t keylen);
 
-int lsa_add_attr(struct lsa *lsa, int type, int sign,
-		 void *key, size_t keylen, void *data, size_t datalen);
+int lsa_add_attr(struct lsa *lsa, int type, int sign, const void *key,
+		 size_t keylen, const void *data, size_t datalen);
 int lsa_attr_set_add_attr(struct lsa *lsa, struct lsa_attr_set *set,
-			  int type, int sign, void *key, size_t keylen,
-			  void *data, size_t datalen);
+			  int type, int sign, const void *key, size_t keylen,
+			  const void *data, size_t datalen);
 
 struct lsa_attr_set *lsa_add_attr_set(struct lsa *lsa, int type, int sign,
-				      void *key, size_t keylen);
+				      const void *key, size_t keylen);
 struct lsa_attr_set *lsa_attr_set_add_attr_set(struct lsa *lsa,
 					       struct lsa_attr_set *set,
 					       int type, int sign,
-					       void *key, size_t keylen);
+					       const void *key, size_t keylen);
 
 void lsa_del_attr(struct lsa *lsa, struct lsa_attr *attr);
 
-void lsa_del_attr_bykey(struct lsa *lsa, int type, void *key, size_t keylen);
+void lsa_del_attr_bykey(struct lsa *lsa, int type,
+			const void *key, size_t keylen);
 
 
 #endif
