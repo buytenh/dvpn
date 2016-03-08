@@ -49,7 +49,7 @@ client.ini:	server.key dvpn
 		@echo >> client.ini
 		@echo [server] >> client.ini
 		@echo Connect=localhost:19275 >> client.ini
-		@echo PeerFingerprint=`./dvpn --show-key-id server.key` >> client.ini
+		@echo PeerFingerprint=`./dvpn --show-key-id-hex server.key` >> client.ini
 		@echo PeerType=peer >> client.ini
 
 client.key:
@@ -61,7 +61,7 @@ client2.ini:	server.key dvpn
 		@echo >> client2.ini
 		@echo [server] >> client2.ini
 		@echo Connect=localhost:19275 >> client2.ini
-		@echo PeerFingerprint=`./dvpn --show-key-id server.key` >> client2.ini
+		@echo PeerFingerprint=`./dvpn --show-key-id-hex server.key` >> client2.ini
 		@echo PeerType=peer >> client2.ini
 
 client2.key:
@@ -73,12 +73,12 @@ server.ini:	client.key client2.key dvpn
 		@echo >> server.ini
 		@echo [client] >> server.ini
 		@echo Listen=0.0.0.0:19275 >> server.ini
-		@echo PeerFingerprint=`./dvpn --show-key-id client.key` >> server.ini
+		@echo PeerFingerprint=`./dvpn --show-key-id-hex client.key` >> server.ini
 		@echo PeerType=peer >> server.ini
 		@echo >> server.ini
 		@echo [client2] >> server.ini
 		@echo Listen=0.0.0.0:19275 >> server.ini
-		@echo PeerFingerprint=`./dvpn --show-key-id client2.key` >> server.ini
+		@echo PeerFingerprint=`./dvpn --show-key-id-hex client2.key` >> server.ini
 		@echo PeerType=peer >> server.ini
 
 server.key:
