@@ -1,6 +1,6 @@
 /*
  * dvpn, a multipoint vpn implementation
- * Copyright (C) 2015 Lennert Buytenhek
+ * Copyright (C) 2015, 2016 Lennert Buytenhek
  *
  * This library is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License version
@@ -23,30 +23,62 @@
 #include "util.h"
 #include "x509.h"
 
-int show_key_id(const char *file)
+static int read_key_id(uint8_t *id, const char *file)
 {
 	gnutls_x509_privkey_t privkey;
 	int ret;
-	uint8_t keyid[NODE_ID_LEN];
-
-	if (file == NULL) {
-		fprintf(stderr, "syntax: show-key-id <key.pem>\n");
-		return 1;
-	}
 
 	gnutls_global_init();
 
 	ret = x509_read_privkey(&privkey, file);
 	if (ret == 0) {
-		ret = x509_get_privkey_id(keyid, privkey);
-		if (ret == 0) {
-			print_fingerprint(stdout, keyid);
-			printf("\n");
-		}
+		ret = x509_get_privkey_id(id, privkey);
 		gnutls_x509_privkey_deinit(privkey);
 	}
 
 	gnutls_global_deinit();
 
 	return !!ret;
+}
+
+int show_key_id(const char *file)
+{
+	uint8_t keyid[NODE_ID_LEN];
+	int ret;
+
+	if (file == NULL) {
+		fprintf(stderr, "syntax: show-key-id <key.pem>\n");
+		return 1;
+	}
+
+	ret = read_key_id(keyid, file);
+	if (ret == 0) {
+		print_fingerprint(stdout, keyid);
+		printf("\n");
+	}
+
+	return ret;
+}
+
+int show_key_id_hex(const char *file)
+{
+	uint8_t keyid[NODE_ID_LEN];
+	int ret;
+
+	if (file == NULL) {
+		fprintf(stderr, "syntax: show-key-id-hex <key.pem>\n");
+		return 1;
+	}
+
+	ret = read_key_id(keyid, file);
+	if (ret == 0) {
+		int i;
+
+		for (i = 0; i < NODE_ID_LEN; i++) {
+			printf("%.2x%c", keyid[i],
+			       (i < NODE_ID_LEN - 1) ? ':' : '\n');
+		}
+	}
+
+	return ret;
 }

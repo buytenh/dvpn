@@ -28,6 +28,7 @@ int gencert(const char *keyfile);
 int hostmon(const char *config);
 int rtmon(const char *config);
 int show_key_id(const char *file);
+int show_key_id_hex(const char *file);
 
 enum {
 	TOOL_UNKNOWN = 0,
@@ -37,6 +38,7 @@ enum {
 	TOOL_HOSTMON,
 	TOOL_RTMON,
 	TOOL_SHOW_KEY_ID,
+	TOOL_SHOW_KEY_ID_HEX,
 };
 
 static int tool = TOOL_UNKNOWN;
@@ -98,6 +100,12 @@ static void try_determine_tool(char *argv0)
 		tool = TOOL_SHOW_KEY_ID;
 		return;
 	}
+
+	if (!strcmp(t, "show-key-id-hex") ||
+	    !strcmp(t, "dvpn-show-key-id-hex")) {
+		tool = TOOL_SHOW_KEY_ID_HEX;
+		return;
+	}
 }
 
 int main(int argc, char *argv[])
@@ -109,6 +117,7 @@ int main(int argc, char *argv[])
 		{ "hostmon", no_argument, 0, 'h' },
 		{ "rtmon", no_argument, 0, 'r' },
 		{ "show-key-id", no_argument, 0, 's' },
+		{ "show-key-id-hex", no_argument, 0, 'S' },
 		{ 0, 0, 0, 0, },
 	};
 	const char *config = "/etc/dvpn.ini";
@@ -145,6 +154,10 @@ int main(int argc, char *argv[])
 			set_tool(TOOL_SHOW_KEY_ID);
 			break;
 
+		case 'S':
+			set_tool(TOOL_SHOW_KEY_ID_HEX);
+			break;
+
 		case '?':
 			fprintf(stderr, "syntax: %s [-c <config.ini>]\n",
 				argv[0]);
@@ -171,6 +184,8 @@ int main(int argc, char *argv[])
 		return rtmon(config);
 	case TOOL_SHOW_KEY_ID:
 		return show_key_id(argv[optind]);
+	case TOOL_SHOW_KEY_ID_HEX:
+		return show_key_id_hex(argv[optind]);
 	}
 
 	return dvpn(config);

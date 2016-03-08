@@ -1,4 +1,4 @@
-all:		dbmon dvpn gencert hostmon rtmon show-key-id
+all:		dbmon dvpn gencert hostmon rtmon show-key-id show-key-id-hex
 
 clean:
 		rm -f *.dot
@@ -14,6 +14,7 @@ clean:
 		rm -f server.ini
 		rm -f server.key
 		rm -f show-key-id
+		rm -f show-key-id-hex
 
 install:	dvpn
 		install -m 0755 dvpn /usr/bin
@@ -36,6 +37,9 @@ rtmon:		dvpn
 
 show-key-id:	dvpn
 		ln -sf dvpn show-key-id
+
+show-key-id-hex:	dvpn
+		ln -sf dvpn show-key-id-hex
 
 test:		client.ini client.key client2.ini client2.key dvpn server.ini server.key
 
