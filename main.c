@@ -26,6 +26,7 @@ int dbmon(const char *config);
 int dvpn(const char *config);
 int gencert(const char *keyfile);
 int hostmon(const char *config);
+int mkgraph(const char *config);
 int rtmon(const char *config);
 int show_key_id(const char *file);
 int show_key_id_hex(const char *file);
@@ -36,6 +37,7 @@ enum {
 	TOOL_DVPN,
 	TOOL_GENCERT,
 	TOOL_HOSTMON,
+	TOOL_MKGRAPH,
 	TOOL_RTMON,
 	TOOL_SHOW_KEY_ID,
 	TOOL_SHOW_KEY_ID_HEX,
@@ -91,6 +93,11 @@ static void try_determine_tool(char *argv0)
 		return;
 	}
 
+	if (!strcmp(t, "mkgraph") || !strcmp(t, "dvpn-mkgraph")) {
+		tool = TOOL_MKGRAPH;
+		return;
+	}
+
 	if (!strcmp(t, "rtmon") || !strcmp(t, "dvpn-rtmon")) {
 		tool = TOOL_RTMON;
 		return;
@@ -115,6 +122,7 @@ int main(int argc, char *argv[])
 		{ "dbmon", no_argument, 0, 'd' },
 		{ "gencert", no_argument, 0, 'g' },
 		{ "hostmon", no_argument, 0, 'h' },
+		{ "mkgraph", no_argument, 0, 'm' },
 		{ "rtmon", no_argument, 0, 'r' },
 		{ "show-key-id", no_argument, 0, 's' },
 		{ "show-key-id-hex", no_argument, 0, 'S' },
@@ -144,6 +152,10 @@ int main(int argc, char *argv[])
 
 		case 'h':
 			set_tool(TOOL_HOSTMON);
+			break;
+
+		case 'm':
+			set_tool(TOOL_MKGRAPH);
 			break;
 
 		case 'r':
@@ -180,6 +192,8 @@ int main(int argc, char *argv[])
 		return gencert(argv[optind]);
 	case TOOL_HOSTMON:
 		return hostmon(config);
+	case TOOL_MKGRAPH:
+		return mkgraph(config);
 	case TOOL_RTMON:
 		return rtmon(config);
 	case TOOL_SHOW_KEY_ID:
