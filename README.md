@@ -2,7 +2,7 @@
 A multipoint VPN implementation
 
 ## Dependencies
-- libgnutls-devel
+- gnutls-devel
 - libini_config-devel
 - ivykis-devel
 - gnutls-utils
@@ -27,17 +27,24 @@ A multipoint VPN implementation
 `systemctl enable dvpn && systemctl start dvpn`
 
 ## Usage
-` ./dvpn [-c <config.ini>]` - runs dvpn with configuration specified
+`dvpn [-c <config.ini>]` - runs dvpn with configuration specified
 
-`./dvpn [--show-key-id <key.pem>]` - shows SHA256 node fingerprint which is used in configuration files
+`dvpn [--show-key-id <key.pem>]` - shows SHA256 node fingerprint which is used in configuration files
+
+###### Tools
+`rtmon`, `topomon` and `hostmon` are tools provided with dvpn package for administrative purposes. They connect to the local dvpn instance, pull out a copy of its routing database, and dump it in a certain way, they also dump changes as they are recieved.
+
+- `./topomon [-c <config.ini>]` - dumps the bare contents of the LSAs and the diffs
+- `./rtmon [-c <config.ini>]` - takes a routing table centric view
+- `./hostmon [-c <config.ini>]` - takes the point of view of a dns server wanting to provise resolving service for the overlay network
 
 ## Configuration
 
 ### General
 
-Default configuration location `/etc/dvpn.ini`.
+`/etc/dvpn.ini` - default configuration location.
 
-Private key generation `certtool --generate-privkey --rsa --sec-param=high --outfile <filename.key>`.
+`certtool --generate-privkey --rsa --sec-param=high --outfile <filename.key>` - generates private key
 
 ### dvpn.ini
 `PrivateKey` - path to generated key file
@@ -93,16 +100,15 @@ PeerType=peer
 
 **Note:** Configuration of Foo node contains fingerprint of Bar node and vice versa.
 
-On each node is added dvpn[0-9] interface defaulting to 2001:2f::/32 subset of 2001:20::/28 subnet [ORCHIDv2 RFC7343](https://tools.ietf.org/html/rfc7343).
-> ba:be:c0:01:ba:be:c0:01:ba:be:**c0:01:ba:be:c0:01:ba:be:c0:01:ba:be**:c0:01:ba:be:c0:01:ba:be:c0:01
+##### IPv6 Addresses in dvpn
 
-The remaining part of IPv6 address is a part of fingerprint thus makes address unspoofable and cryptographically secure.
+Each node has it's own interface _dvpn[0-9]_ since it is underlaying network.
 
+Network part of ip address is a 2001:2f::/32 subset of 2001:20::/28 subnet [ORCHIDv2 RFC7343](https://tools.ietf.org/html/rfc7343).
 
-## Tools
-`rtmon`, `topomon` and `hostmon` are tools provided with dvpn package for administrative purposes. They connect to the local dvpn instance, pull out a copy of its routing database, and dump it in a certain way, they also dump changes as they are recieved.
+Host part of IPv6 address is a 21-44th byte of fingerprint, thus makes address unspoofable and cryptographically secure (see below).
 
-- `./topomon [-c <config.ini>]` - dumps the bare contents of the LSAs and the diffs
-- `./rtmon [-c <config.ini>]` - takes a routing table centric view
-- `./hostmon [-c <config.ini>]` - takes the point of view of a dns server wanting to provise resolving service for the overlay network
+> Example fingerprint: _ba:be:c0:01:ba:be:c0:01:ba:be:**c0:01:ba:be:c0:01:ba:be:c0:01:ba:be**:c0:01:ba:be:c0:01:ba:be:c0:01_
+
+> Example IPv6 address: 2001:2f:c001:babe:c001:babe:c001:babe
 
