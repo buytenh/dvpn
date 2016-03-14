@@ -3,9 +3,9 @@ A multipoint VPN implementation
 
 ## Dependencies
 - gnutls-devel
+- gnutls-utils
 - libini_config-devel
 - ivykis-devel
-- gnutls-utils
 
 ### RHEL/CentOS
 [EPEL](https://fedoraproject.org/wiki/EPEL) is needed for ivykis-devel.
@@ -13,10 +13,10 @@ A multipoint VPN implementation
 ## Installation
 
 ### Makefile
-`make install` - will compile and copy dvpn to `/usr/bin`, dvpn.service is added to `/usr/lib/systemd/system`.
+`make install` - will compile and copy dvpn to `/usr/bin`, _dvpn.service_ is added to `/usr/lib/systemd/system`.
 > Note:  **no additional** configuration files and keys are generated.
 
-`make test` - compiles dvpn, creates sample configuration files (client.ini, client2.ini, server.ini) with corresponding keys (client.key, client2.key, server.key).
+`make test` - compiles dvpn, creates sample configuration files (_client.ini_, _client2.ini_, _server.ini_) with corresponding keys (_client.key_, _client2.key_, _server.key_).
 
 ### Fedora
 ```dnf install libgnutls-devel libini_config-devel ivykis-devel gnutls-utils```
@@ -29,14 +29,17 @@ A multipoint VPN implementation
 ## Usage
 `dvpn [-c <config.ini>]` - runs dvpn with configuration specified
 
-`dvpn [--show-key-id <key.pem>]` - shows SHA256 node fingerprint which is used in configuration files
+`dvpn [--show-key-id-hex <key.pem>]` - shows SHA256 node fingerprint which is used in configuration files
 
-###### Tools
-`rtmon`, `topomon` and `hostmon` are tools provided with dvpn package for administrative purposes. They connect to the local dvpn instance, pull out a copy of its routing database, and dump it in a certain way, they also dump changes as they are recieved.
+##### Tools
 
-- `./topomon [-c <config.ini>]` - dumps the bare contents of the LSAs and the diffs
-- `./rtmon [-c <config.ini>]` - takes a routing table centric view
-- `./hostmon [-c <config.ini>]` - takes the point of view of a dns server wanting to provise resolving service for the overlay network
+Dvpn package comes with additional tools for administrative purposes. They connect to the local dvpn instance, pull out a copy of its routing database, and dump it in a certain way, they also dump changes as they are recieved.
+
+`dvpn [-c <config.ini>] [--dbmon]` - dumps the bare contents of the LSAs and the diffs
+
+`dvpn [-c <config.ini>] [--rtmon]` - takes a routing table centric view
+
+`dvpn [-c <config.ini>] [--hostmon]` - takes the point of view of a dns server wanting to provise resolving service for the overlay network
 
 ## Configuration
 
@@ -110,5 +113,9 @@ Host part of IPv6 address is a 21-44th byte of fingerprint, thus makes address u
 
 > Example fingerprint: _ba:be:c0:01:ba:be:c0:01:ba:be:**c0:01:ba:be:c0:01:ba:be:c0:01:ba:be**:c0:01:ba:be:c0:01:ba:be:c0:01_
 
-> Example IPv6 address: 2001:2f:c001:babe:c001:babe:c001:babe
+> Example IPv6 address: _2001:2f:**c001:babe:c001:babe:c001:babe**_
 
+## ToDo
+- [x] update readme to 'tools' update
+- [ ] show-key-id desc
+- [ ] mkgraph desc
