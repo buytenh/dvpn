@@ -105,7 +105,7 @@ PeerType=peer
 
 ##### IPv6 Addresses in dvpn
 
-Each node has it's own interface _dvpn[0-9]_ since it is underlaying network.
+Each node has its own interface _dvpn[0-9]_ since it is underlaying network.
 
 Network part of ip address is a 2001:2f::/32 subset of 2001:20::/28 subnet [ORCHIDv2 RFC7343](https://tools.ietf.org/html/rfc7343).
 
