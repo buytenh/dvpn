@@ -13,23 +13,33 @@ A multipoint VPN implementation
 ## Installation
 
 ### Makefile
-`make install` - will compile only dvpn and copy it to `/usr/bin` and dvpn.service to `/usr/lib/systemd/system` note that **no additional** configuration files, keys or tools are created.
+`make install` - will compile and copy dvpn to `/usr/bin`, dvpn.service is added to `/usr/lib/systemd/system`.
+> Note:  **no additional** configuration files and keys are generated.
 
-`make test` - compiles dvpn with tools in current directory, creates sample configuration files (client.ini, client2.ini, server.ini) with corresponding keys (client.key, client2.key, server.key).
-
-If you would like to generate your own key use `certtool --generate-privkey --rsa --sec-param=high --outfile <filename.key>`.
+`make test` - compiles dvpn, creates sample configuration files (client.ini, client2.ini, server.ini) with corresponding keys (client.key, client2.key, server.key).
 
 ### Fedora
 ```dnf install libgnutls-devel libini_config-devel ivykis-devel gnutls-utils```
 
 ```git clone https://github.com/buytenh/dvpn.git && cd dvpn && make && make test```
 
+#### Autorun
+`systemctl enable dvpn && systemctl start dvpn`
+
 ## Usage
-` ./dvpn [-c <config.ini>]` - runs dvpn with configuration specified, by default without flag looks for configuration in `/etc/dvpn.ini`
+` ./dvpn [-c <config.ini>]` - runs dvpn with configuration specified
 
 `./dvpn [--show-key-id <key.pem>]` - shows SHA256 node fingerprint which is used in configuration files
 
 ## Configuration
+
+### General
+
+Default configuration location `/etc/dvpn.ini`.
+
+Private key generation `certtool --generate-privkey --rsa --sec-param=high --outfile <filename.key>`.
+
+### dvpn.ini
 `PrivateKey` - path to generated key file
 
 `NodeName` - name of the node used on network
@@ -50,7 +60,7 @@ If you would like to generate your own key use `certtool --generate-privkey --rs
 
 Route readvertising works basically like most ISPs. Customer routes are propagated to other customers, to transits and to peers while transit and peer routes are only propagated to customers.
 
-From\To | Customer | Transit | Peer
+From \ To | Customer | Transit | Peer
 --- | --- | --- | ---
 Customer | YES | YES | YES
 Transit | YES | NO | NO
@@ -58,7 +68,7 @@ Peer | YES | NO | NO
 
 There are two route types, readvertisable and nonreadvertisable. Readvertisable can be advertised to transits, and then it stays readvertisable, nonreadvertisable can only be advertised to customers, but if you advertise a readvertisable route to a customer or a peer, it thereby becomes nonreadvertisable.
 
-### Example
+#### Example
 Foo node
 ```
 PrivateKey=foo.key
@@ -83,7 +93,7 @@ PeerType=peer
 
 **Note:** Configuration of Foo node contains fingerprint of Bar node and vice versa.
 
-On each node is added dvpn[0-9] interface defaulting to 2001:2f::/32 subnet.
+On each node is added dvpn[0-9] interface defaulting to 2001:2f::/32 subset of 2001:20::/28 subnet [ORCHIDv2 RFC7343](https://tools.ietf.org/html/rfc7343).
 > ba:be:c0:01:ba:be:c0:01:ba:be:**c0:01:ba:be:c0:01:ba:be:c0:01:ba:be**:c0:01:ba:be:c0:01:ba:be:c0:01
 
 The remaining part of IPv6 address is a part of fingerprint thus makes address unspoofable and cryptographically secure.
@@ -96,4 +106,3 @@ The remaining part of IPv6 address is a part of fingerprint thus makes address u
 - `./rtmon [-c <config.ini>]` - takes a routing table centric view
 - `./hostmon [-c <config.ini>]` - takes the point of view of a dns server wanting to provise resolving service for the overlay network
 
-As mentioned above these tools also look for default configuration in `/etc/dvpn.ini` as dvpn itself without flag specified.
