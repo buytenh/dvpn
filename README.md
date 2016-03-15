@@ -109,7 +109,7 @@ Each node has its own interface _dvpn[0-9]_ since it is underlaying network.
 
 Network part of ip address is a 2001:2f::/32 subset of 2001:20::/28 subnet [ORCHIDv2 RFC7343](https://tools.ietf.org/html/rfc7343).
 
-Host part of IPv6 address is a 21-44th byte of fingerprint, thus makes address unspoofable and cryptographically secure (see below).
+Host part of IPv6 address is 11-22nd (inclusive) group of fingerprint, each group representing one octet separated by colons, thus makes address unspoofable and cryptographically secure (see example below).
 
 > Example fingerprint: _ba:be:c0:01:ba:be:c0:01:ba:be:**c0:01:ba:be:c0:01:ba:be:c0:01:ba:be**:c0:01:ba:be:c0:01:ba:be:c0:01_
 
@@ -119,3 +119,6 @@ Host part of IPv6 address is a 21-44th byte of fingerprint, thus makes address u
 - [x] update readme to 'tools' update
 - [ ] show-key-id desc
 - [ ] mkgraph desc
+
+##### Credits
+This project is maintained by [Lennert Buytenhek](https://github.com/buytenh)
