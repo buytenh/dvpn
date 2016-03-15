@@ -192,10 +192,10 @@ static int base64char(char c)
 	if (c >= '0' && c <= '9')
 		return 52 + (c - '0');
 
-	if (c == '+')
+	if (c == '+' || c == '-')
 		return 62;
 
-	if (c == '/')
+	if (c == '/' || c == '_')
 		return 63;
 
 	return -1;
