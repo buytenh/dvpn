@@ -55,6 +55,19 @@ static void set_tool(int newtool)
 	tool = newtool;
 }
 
+static void usage(const char *argv0)
+{
+	fprintf(stderr, "usage: %s [-c <config.ini>]\n", argv0);
+	fprintf(stderr, "       %s --dbmon [-c <config.ini>]\n", argv0);
+	fprintf(stderr, "       %s --gencert <key.pem>\n", argv0);
+	fprintf(stderr, "       %s --help\n", argv0);
+	fprintf(stderr, "       %s --hostmon [-c <config.ini>]\n", argv0);
+	fprintf(stderr, "       %s --mkgraph [-c <config.ini>]\n", argv0);
+	fprintf(stderr, "       %s --rtmon [-c <config.ini>]\n", argv0);
+	fprintf(stderr, "       %s --show-key-id <key.pem>\n", argv0);
+	fprintf(stderr, "       %s --show-key-id-hex <key.pem>\n", argv0);
+}
+
 static void try_determine_tool(char *argv0)
 {
 	char *t;
@@ -121,7 +134,8 @@ int main(int argc, char *argv[])
 		{ "config-file", required_argument, 0, 'c' },
 		{ "dbmon", no_argument, 0, 'd' },
 		{ "gencert", no_argument, 0, 'g' },
-		{ "hostmon", no_argument, 0, 'h' },
+		{ "help", no_argument, 0, 'h' },
+		{ "hostmon", no_argument, 0, 'H' },
 		{ "mkgraph", no_argument, 0, 'm' },
 		{ "rtmon", no_argument, 0, 'r' },
 		{ "show-key-id", no_argument, 0, 's' },
@@ -133,7 +147,7 @@ int main(int argc, char *argv[])
 	while (1) {
 		int c;
 
-		c = getopt_long(argc, argv, "c:", long_options, NULL);
+		c = getopt_long(argc, argv, "c:h", long_options, NULL);
 		if (c == -1)
 			break;
 
@@ -151,6 +165,10 @@ int main(int argc, char *argv[])
 			break;
 
 		case 'h':
+			usage(argv[0]);
+			return 0;
+
+		case 'H':
 			set_tool(TOOL_HOSTMON);
 			break;
 
@@ -171,8 +189,7 @@ int main(int argc, char *argv[])
 			break;
 
 		case '?':
-			fprintf(stderr, "syntax: %s [-c <config.ini>]\n",
-				argv[0]);
+			usage(argv[0]);
 			return 1;
 
 		default:

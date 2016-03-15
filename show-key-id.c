@@ -47,7 +47,7 @@ int show_key_id(const char *file)
 	int ret;
 
 	if (file == NULL) {
-		fprintf(stderr, "syntax: show-key-id <key.pem>\n");
+		fprintf(stderr, "usage: show-key-id <key.pem>\n");
 		return 1;
 	}
 
@@ -66,7 +66,7 @@ int show_key_id_hex(const char *file)
 	int ret;
 
 	if (file == NULL) {
-		fprintf(stderr, "syntax: show-key-id-hex <key.pem>\n");
+		fprintf(stderr, "usage: show-key-id-hex <key.pem>\n");
 		return 1;
 	}
 
