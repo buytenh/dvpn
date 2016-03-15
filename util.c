@@ -145,7 +145,7 @@ void print_address(FILE *fp, const struct sockaddr *addr)
 }
 
 static char base64[] =
-	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
 void print_fingerprint(FILE *fp, const uint8_t *id)
 {
