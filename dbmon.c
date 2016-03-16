@@ -64,7 +64,7 @@ int dbmon(const char *config)
 
 	gnutls_global_init();
 
-	if (x509_read_privkey(&privkey, conf->private_key) < 0)
+	if (x509_read_privkey(&privkey, conf->private_key, 0) < 0)
 		return 1;
 
 	free_config(conf);

@@ -779,7 +779,7 @@ int dvpn(const char *_config)
 
 	gnutls_global_init();
 
-	if (x509_read_privkey(&privkey, conf->private_key) < 0)
+	if (x509_read_privkey(&privkey, conf->private_key, 0) < 0)
 		return 1;
 
 	if (x509_get_privkey_id(keyid, privkey) < 0)

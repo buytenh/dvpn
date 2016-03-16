@@ -30,7 +30,8 @@
 #include "util.h"
 #include "x509.h"
 
-int x509_read_privkey(gnutls_x509_privkey_t *privkey, const char *file)
+int x509_read_privkey(gnutls_x509_privkey_t *privkey, const char *file,
+		      int ignore_open_error)
 {
 	int fd;
 	uint8_t buf[65536];
@@ -40,6 +41,11 @@ int x509_read_privkey(gnutls_x509_privkey_t *privkey, const char *file)
 
 	fd = open(file, O_RDONLY);
 	if (fd < 0) {
+		if (ignore_open_error) {
+			*privkey = NULL;
+			return 0;
+		}
+
 		fprintf(stderr, "error opening %s: %s\n", file,
 			strerror(errno));
 		return -1;

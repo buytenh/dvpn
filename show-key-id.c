@@ -30,7 +30,7 @@ static int read_key_id(uint8_t *id, const char *file)
 
 	gnutls_global_init();
 
-	ret = x509_read_privkey(&privkey, file);
+	ret = x509_read_privkey(&privkey, file, 0);
 	if (ret == 0) {
 		ret = x509_get_privkey_id(id, privkey);
 		gnutls_x509_privkey_deinit(privkey);

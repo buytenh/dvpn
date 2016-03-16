@@ -40,11 +40,11 @@ int gencert(const char *nodekeyfile, const char *rolekeyfile)
 
 	gnutls_global_init();
 
-	if (x509_read_privkey(&nodekey, nodekeyfile) < 0)
+	if (x509_read_privkey(&nodekey, nodekeyfile, 0) < 0)
 		goto err;
 
 	if (rolekeyfile != NULL) {
-		if (x509_read_privkey(&rolekey, rolekeyfile) < 0)
+		if (x509_read_privkey(&rolekey, rolekeyfile, 0) < 0)
 			goto err_deinit_nodekey;
 		ret = x509_generate_role_cert(&crt, nodekey, rolekey);
 	} else {
