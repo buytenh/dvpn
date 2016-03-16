@@ -113,6 +113,7 @@ static int lsa_deserialise_attr_set(struct lsa *lsa, struct lsa_attr_set *dst,
 			key = SRC_GET_PTR(src, keylen);
 		} else {
 			keylen = 0;
+			key = NULL;
 		}
 
 		datalen = SRC_READ_SIZE_T(src);
