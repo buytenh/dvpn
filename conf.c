@@ -101,22 +101,6 @@ static int parse_config_default(struct local_conf *lc, struct ini_cfgobj *co)
 	struct value_obj *vo;
 	int ret;
 
-	ret = ini_get_config_valueobj("default", "PrivateKey", co,
-				      INI_GET_FIRST_VALUE, &vo);
-	if (ret == 0 && vo != NULL) {
-		char *key;
-
-		key = ini_get_string_config_value(vo, &ret);
-		if (ret) {
-			fprintf(stderr, "error retrieving PrivateKey value\n");
-			return -1;
-		}
-
-		lc->conf->private_key = key;
-	} else {
-		lc->conf->private_key = strdup("/etc/pki/tls/dvpn/dvpn.key");
-	}
-
 	ret = ini_get_config_valueobj("default", "NodeName", co,
 				      INI_GET_FIRST_VALUE, &vo);
 	if (ret == 0 && vo != NULL) {
@@ -143,6 +127,38 @@ static int parse_config_default(struct local_conf *lc, struct ini_cfgobj *co)
 
 			lc->conf->node_name = strdup(buf.nodename);
 		}
+	}
+
+	ret = ini_get_config_valueobj("default", "PrivateKey", co,
+				      INI_GET_FIRST_VALUE, &vo);
+	if (ret == 0 && vo != NULL) {
+		char *key;
+
+		key = ini_get_string_config_value(vo, &ret);
+		if (ret) {
+			fprintf(stderr, "error retrieving PrivateKey value\n");
+			return -1;
+		}
+
+		lc->conf->private_key = key;
+	} else {
+		lc->conf->private_key = strdup("/etc/pki/tls/dvpn/dvpn.key");
+	}
+
+	ret = ini_get_config_valueobj("default", "RoleKey", co,
+				      INI_GET_FIRST_VALUE, &vo);
+	if (ret == 0 && vo != NULL) {
+		char *key;
+
+		key = ini_get_string_config_value(vo, &ret);
+		if (ret) {
+			fprintf(stderr, "error retrieving RoleKey value\n");
+			return -1;
+		}
+
+		lc->conf->role_key = key;
+	} else {
+		lc->conf->role_key = strdup("/etc/pki/tls/dvpn/role.key");
 	}
 
 	ret = ini_get_config_valueobj("default", "DefaultPort", co,
@@ -643,9 +659,11 @@ void free_config(struct conf *conf)
 	struct iv_avl_node *an;
 	struct iv_avl_node *an2;
 
+	free(conf->node_name);
+
 	free(conf->private_key);
 
-	free(conf->node_name);
+	free(conf->role_key);
 
 	iv_avl_tree_for_each_safe (an, an2, &conf->connect_entries) {
 		struct conf_connect_entry *cce;

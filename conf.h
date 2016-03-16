@@ -30,9 +30,9 @@
 #include "tun.h"
 
 struct conf {
-	char			*private_key;
 	char			*node_name;
-
+	char			*private_key;
+	char			*role_key;
 	struct iv_avl_tree	connect_entries;
 	struct iv_avl_tree	listening_sockets;
 };
