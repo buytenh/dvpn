@@ -697,8 +697,8 @@ static int tconn_start_handshake(struct tconn *tc)
 
 	gnutls_certificate_set_verify_function(tc->cert, tconn_verify_cert);
 
-	ret = gnutls_certificate_set_x509_key(tc->cert, &tc->mycrt,
-					      1, tc->mykey);
+	ret = gnutls_certificate_set_x509_key(tc->cert, tc->mycrts,
+					      tc->numcrts, tc->mykey);
 	if (ret) {
 		gtls_perror("gnutls_certificate_set_x509_key", ret);
 		goto err_free;

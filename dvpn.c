@@ -501,7 +501,8 @@ static int start_conf_connect_entry(struct conf_connect_entry *cce)
 	cce->tc.hostname = cce->hostname;
 	cce->tc.port = cce->port;
 	cce->tc.mykey = privkey;
-	cce->tc.mycrt = crt;
+	cce->tc.numcrts = 1;
+	cce->tc.mycrts = &crt;
 	cce->tc.fingerprint = cce->fingerprint;
 	cce->tc.cookie = cce;
 	cce->tc.set_state = cce_set_state;
@@ -589,7 +590,8 @@ static int start_conf_listening_socket(struct conf_listening_socket *cls)
 
 	cls->tls.listen_address = cls->listen_address;
 	cls->tls.mykey = privkey;
-	cls->tls.mycrt = crt;
+	cls->tls.numcrts = 1;
+	cls->tls.mycrts = &crt;
 	if (tconn_listen_socket_register(&cls->tls))
 		return 1;
 
