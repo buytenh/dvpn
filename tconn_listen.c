@@ -40,6 +40,7 @@ struct client_conn {
 	struct iv_timer		rx_timeout;
 	struct iv_fd		fd;
 	struct tconn		tconn;
+	uint8_t			id[NODE_ID_LEN];
 	struct iv_timer		keepalive_timer;
 };
 
@@ -62,7 +63,7 @@ static void client_conn_kill(struct client_conn *cc, int notify)
 {
 	if (cc->tle != NULL) {
 		if (cc->state == STATE_CONNECTED && notify)
-			cc->tle->set_state(cc->tle->cookie, 0);
+			cc->tle->set_state(cc->tle->cookie, cc->id, 0);
 		cc->tle->current = NULL;
 	}
 
@@ -89,32 +90,50 @@ static void rx_timeout(void *_cc)
 	client_conn_kill(cc, 1);
 }
 
-static int verify_key_ids(void *_cc, const uint8_t *ids, int num)
+static struct tconn_listen_entry *
+find_listen_entry(struct tconn_listen_socket *tls, const uint8_t *id)
 {
-	struct client_conn *cc = _cc;
 	struct iv_avl_node *an;
 
-	fprintf(stderr, "conn%d: peer key ID ", cc->fd.fd);
-	print_fingerprint(stderr, ids);
-
-	an = cc->tls->listen_entries.root;
+	an = tls->listen_entries.root;
 	while (an != NULL) {
-		struct tconn_listen_entry *le;
+		struct tconn_listen_entry *tle;
 		int ret;
 
-		le = iv_container_of(an, struct tconn_listen_entry, an);
+		tle = iv_container_of(an, struct tconn_listen_entry, an);
 
-		ret = memcmp(ids, le->fingerprint, NODE_ID_LEN);
-		if (ret == 0) {
-			fprintf(stderr, " - matches '%s'\n", le->name);
-			cc->tle = le;
-			return 0;
-		}
+		ret = memcmp(id, tle->fingerprint, NODE_ID_LEN);
+		if (ret == 0)
+			return tle;
 
 		if (ret < 0)
 			an = an->left;
 		else
 			an = an->right;
+	}
+
+	return NULL;
+}
+
+static int verify_key_ids(void *_cc, const uint8_t *ids, int num)
+{
+	struct client_conn *cc = _cc;
+	int i;
+
+	fprintf(stderr, "conn%d: peer key ID ", cc->fd.fd);
+	print_fingerprint(stderr, ids);
+
+	for (i = 0; i < num; i++) {
+		struct tconn_listen_entry *tle;
+
+		tle = find_listen_entry(cc->tls, ids + (i * NODE_ID_LEN));
+		if (tle != NULL) {
+			fprintf(stderr, " - matches '%s'%s\n", tle->name,
+				(i != 0) ? " (via role certificate)" : "");
+			cc->tle = tle;
+			memcpy(cc->id, ids, NODE_ID_LEN);
+			return 0;
+		}
 	}
 
 	fprintf(stderr, " - no matches\n");
@@ -172,7 +191,7 @@ static void handshake_done(void *_cc, char *desc)
 	cc->keepalive_timer.handler = send_keepalive;
 	iv_timer_register(&cc->keepalive_timer);
 
-	cc->tle->set_state(cc->tle->cookie, 1);
+	cc->tle->set_state(cc->tle->cookie, cc->id, 1);
 }
 
 static void record_received(void *_cc, const uint8_t *rec, int len)

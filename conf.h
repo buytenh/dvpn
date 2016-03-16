@@ -95,6 +95,7 @@ struct conf_listen_entry {
 	struct tun_interface		tun;
 	struct tconn_listen_entry	tle;
 	int				tconn_up;
+	uint8_t				peerid[NODE_ID_LEN];
 	struct direct_peer		dp;
 	struct dgp_listen_socket	dls;
 	struct dgp_listen_entry		dle;

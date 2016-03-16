@@ -40,7 +40,8 @@ struct tconn_listen_entry {
 	char				*name;
 	uint8_t				*fingerprint;
 	void				*cookie;
-	void				(*set_state)(void *cookie, int up);
+	void				(*set_state)(void *cookie,
+						     const uint8_t *id, int up);
 	void				(*record_received)(void *cookie,
 							   const uint8_t *rec,
 							   int len);

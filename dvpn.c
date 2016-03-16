@@ -397,7 +397,7 @@ static void cle_tun_got_packet(void *_cle, uint8_t *buf, int len)
 	tconn_listen_entry_record_send(&cle->tle, sndbuf, len + 3);
 }
 
-static void cle_set_state(void *_cle, int up)
+static void cle_set_state(void *_cle, const uint8_t *id, int up)
 {
 	struct conf_listen_entry *cle = _cle;
 	char *tunitf;
@@ -411,6 +411,8 @@ static void cle_set_state(void *_cle, int up)
 		int mtu;
 		uint8_t addr[16];
 
+		memcpy(cle->peerid, id, NODE_ID_LEN);
+
 		if (cle->peer_type != CONF_PEER_TYPE_DBONLY) {
 			int cost;
 
@@ -421,7 +423,7 @@ static void cle_set_state(void *_cle, int up)
 					cost = 1;
 			}
 
-			mylsa_add_peer(cle->fingerprint, cle->peer_type, cost);
+			mylsa_add_peer(cle->peerid, cle->peer_type, cost);
 		}
 
 		maxseg = tconn_listen_entry_get_maxseg(&cle->tle);
@@ -446,16 +448,22 @@ static void cle_set_state(void *_cle, int up)
 		v6_global_addr_from_key_id(addr, keyid);
 		itf_add_addr_v6(tunitf, addr, 128);
 
+		v6_global_addr_from_key_id(cle->dp.addr, id);
+		if (iv_avl_tree_insert(&direct_peers, &cle->dp.an))
+			abort();
+
 		dgp_listen_socket_register(&cle->dls);
 		dgp_listen_entry_register(&cle->dle);
 	} else {
 		dgp_listen_entry_unregister(&cle->dle);
 		dgp_listen_socket_unregister(&cle->dls);
 
+		iv_avl_tree_delete(&direct_peers, &cle->dp.an);
+
 		itf_set_state(tunitf, 0);
 
 		if (cle->peer_type != CONF_PEER_TYPE_DBONLY)
-			mylsa_del_peer(cle->fingerprint);
+			mylsa_del_peer(cle->peerid);
 	}
 }
 
@@ -546,10 +554,7 @@ static int start_conf_listen_entry(struct conf_listening_socket *cls,
 	cle->tle.record_received = cle_record_received;
 	tconn_listen_entry_register(&cle->tle);
 
-	v6_global_addr_from_key_id(cle->dp.addr, cle->fingerprint);
 	cle->dp.itfname = tun_interface_get_name(&cle->tun);
-	if (iv_avl_tree_insert(&direct_peers, &cle->dp.an))
-		abort();
 
 	cle->dls.myid = keyid;
 	cle->dls.ifindex = if_nametoindex(tun_interface_get_name(&cle->tun));
@@ -557,7 +562,7 @@ static int start_conf_listen_entry(struct conf_listening_socket *cls,
 	cle->dls.permit_readonly = 0;
 
 	cle->dle.dls = &cle->dls;
-	cle->dle.remoteid = cle->fingerprint;
+	cle->dle.remoteid = cle->peerid;
 
 	return 0;
 }
@@ -569,10 +574,9 @@ static void stop_conf_listen_entry(struct conf_listen_entry *cle)
 	if (cle->tconn_up) {
 		dgp_listen_entry_unregister(&cle->dle);
 		dgp_listen_socket_unregister(&cle->dls);
+		iv_avl_tree_delete(&direct_peers, &cle->dp.an);
 		mylsa_del_peer(cle->fingerprint);
 	}
-
-	iv_avl_tree_delete(&direct_peers, &cle->dp.an);
 
 	tconn_listen_entry_unregister(&cle->tle);
 
