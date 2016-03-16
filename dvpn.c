@@ -41,8 +41,10 @@
 #include "x509.h"
 
 static gnutls_x509_privkey_t privkey;
+static gnutls_x509_privkey_t rolekey;
 static uint8_t keyid[NODE_ID_LEN];
-static gnutls_x509_crt_t crt;
+static int numcrts;
+static gnutls_x509_crt_t crt[2];
 static struct loc_rib loc_rib;
 static struct rt_builder rb;
 static struct iv_avl_tree direct_peers;
@@ -501,8 +503,8 @@ static int start_conf_connect_entry(struct conf_connect_entry *cce)
 	cce->tc.hostname = cce->hostname;
 	cce->tc.port = cce->port;
 	cce->tc.mykey = privkey;
-	cce->tc.numcrts = 1;
-	cce->tc.mycrts = &crt;
+	cce->tc.numcrts = numcrts;
+	cce->tc.mycrts = crt;
 	cce->tc.fingerprint = cce->fingerprint;
 	cce->tc.cookie = cce;
 	cce->tc.set_state = cce_set_state;
@@ -590,8 +592,8 @@ static int start_conf_listening_socket(struct conf_listening_socket *cls)
 
 	cls->tls.listen_address = cls->listen_address;
 	cls->tls.mykey = privkey;
-	cls->tls.numcrts = 1;
-	cls->tls.mycrts = &crt;
+	cls->tls.numcrts = numcrts;
+	cls->tls.mycrts = crt;
 	if (tconn_listen_socket_register(&cls->tls))
 		return 1;
 
@@ -779,18 +781,69 @@ int dvpn(const char *_config)
 
 	gnutls_global_init();
 
-	if (x509_read_privkey(&privkey, conf->private_key, 0) < 0)
+	if (x509_read_privkey(&rolekey, conf->role_key, 1) < 0)
 		return 1;
+
+	if (rolekey != NULL) {
+		if (x509_read_privkey(&privkey, conf->private_key, 1) < 0)
+			return 1;
+
+		if (privkey == NULL) {
+			int ret;
+
+			fprintf(stderr, "dvpn: no valid PrivateKey specified, "
+					"generating one\n");
+
+			ret = gnutls_x509_privkey_init(&privkey);
+			if (ret < 0) {
+				fprintf(stderr, "gnutls_x509_privkey_init: ");
+				gnutls_perror(ret);
+				return 1;
+			}
+
+			ret = gnutls_x509_privkey_generate(privkey,
+							   GNUTLS_PK_RSA,
+							   4096, 0);
+			if (ret < 0) {
+				fprintf(stderr,
+					"gnutls_x509_privkey_generate: ");
+				gnutls_perror(ret);
+				return 1;
+			}
+		}
+	} else {
+		if (x509_read_privkey(&privkey, conf->private_key, 0) < 0)
+			return 1;
+	}
 
 	if (x509_get_privkey_id(keyid, privkey) < 0)
 		return 1;
 
-	if (x509_generate_self_signed_cert(&crt, privkey) < 0)
+	if (x509_generate_self_signed_cert(&crt[0], privkey) < 0)
 		return 1;
+
+	if (rolekey != NULL) {
+		numcrts = 2;
+		if (x509_generate_role_cert(&crt[1], privkey, rolekey) < 0)
+			return 1;
+	} else {
+		numcrts = 1;
+	}
 
 	fprintf(stderr, "dvpn: using key ID ");
 	print_fingerprint(stderr, keyid);
 	fprintf(stderr, "\n");
+
+	if (rolekey != NULL) {
+		uint8_t rolekeyid[NODE_ID_LEN];
+
+		if (x509_get_privkey_id(rolekeyid, rolekey) < 0)
+			return 1;
+
+		fprintf(stderr, "dvpn: using role key ID ");
+		print_fingerprint(stderr, rolekeyid);
+		fprintf(stderr, "\n");
+	}
 
 	iv_init();
 
@@ -859,7 +912,12 @@ int dvpn(const char *_config)
 
 	iv_deinit();
 
-	gnutls_x509_crt_deinit(crt);
+	gnutls_x509_crt_deinit(crt[0]);
+	if (numcrts == 2)
+		gnutls_x509_crt_deinit(crt[1]);
+
+	if (rolekey != NULL)
+		gnutls_x509_privkey_deinit(rolekey);
 
 	gnutls_x509_privkey_deinit(privkey);
 
