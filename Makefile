@@ -15,6 +15,7 @@ clean:
 		rm -f rtmon
 		rm -f server.ini
 		rm -f server.key
+		rm -f server-role.key
 		rm -f show-key-id
 		rm -f show-key-id-hex
 
@@ -46,27 +47,29 @@ show-key-id:	dvpn
 show-key-id-hex:	dvpn
 		ln -sf dvpn show-key-id-hex
 
-test:		client.ini client.key client2.ini client2.key dvpn server.ini server.key
+test:		client.ini client.key client2.ini client2.key dvpn server.ini server.key server-role.key
 
-client.ini:	server.key dvpn
-		@echo PrivateKey=client.key > client.ini
+client.ini:	server-role.key dvpn
+		@echo PrivateKey= > client.ini
+		@echo RoleKey=client.key >> client.ini
 		@echo NodeName=client >> client.ini
 		@echo >> client.ini
 		@echo [server] >> client.ini
 		@echo Connect=localhost:19275 >> client.ini
-		@echo PeerFingerprint=`./dvpn --show-key-id-hex server.key` >> client.ini
+		@echo PeerFingerprint=`./dvpn --show-key-id-hex server-role.key` >> client.ini
 		@echo PeerType=peer >> client.ini
 
 client.key:
 		certtool --generate-privkey --rsa --sec-param=high --outfile client.key
 
-client2.ini:	server.key dvpn
-		@echo PrivateKey=client2.key > client2.ini
+client2.ini:	server-role.key dvpn
+		@echo PrivateKey= > client2.ini
+		@echo RoleKey=client2.key >> client2.ini
 		@echo NodeName=client2 >> client2.ini
 		@echo >> client2.ini
 		@echo [server] >> client2.ini
 		@echo Connect=localhost:19275 >> client2.ini
-		@echo PeerFingerprint=`./dvpn --show-key-id-hex server.key` >> client2.ini
+		@echo PeerFingerprint=`./dvpn --show-key-id-hex server-role.key` >> client2.ini
 		@echo PeerType=peer >> client2.ini
 
 client2.key:
@@ -74,6 +77,7 @@ client2.key:
 
 server.ini:	client.key client2.key dvpn
 		@echo PrivateKey=server.key > server.ini
+		@echo RoleKey=server-role.key >> server.ini
 		@echo NodeName=server >> server.ini
 		@echo >> server.ini
 		@echo [client] >> server.ini
@@ -88,3 +92,6 @@ server.ini:	client.key client2.key dvpn
 
 server.key:
 		certtool --generate-privkey --rsa --sec-param=high --outfile server.key
+
+server-role.key:
+		certtool --generate-privkey --rsa --sec-param=high --outfile server-role.key
