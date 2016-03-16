@@ -232,7 +232,8 @@ static void lsa_sign(struct lsa *lsa)
 	gnutls_free(sig.data);
 }
 
-static void mylsa_add_peer(uint8_t *id, enum conf_peer_type type, int cost)
+static void
+mylsa_add_peer(const uint8_t *id, enum conf_peer_type type, int cost)
 {
 	struct lsa *newme;
 	struct lsa_attr_set *set;
@@ -261,7 +262,7 @@ static void mylsa_add_peer(uint8_t *id, enum conf_peer_type type, int cost)
 	me = newme;
 }
 
-static void mylsa_del_peer(uint8_t *id)
+static void mylsa_del_peer(const uint8_t *id)
 {
 	struct lsa *newme;
 

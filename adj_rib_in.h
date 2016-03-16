@@ -29,8 +29,8 @@
 #define LSA_MAX_BYTES		32768
 
 struct adj_rib_in {
-	uint8_t			*myid;
-	uint8_t			*remoteid;
+	const uint8_t		*myid;
+	const uint8_t		*remoteid;
 
 	struct iv_avl_tree	lsas;
 	int			size;

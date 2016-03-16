@@ -30,7 +30,7 @@ struct dst {
 	size_t		off;
 };
 
-static void dst_append(struct dst *dst, uint8_t *buf, size_t buflen)
+static void dst_append(struct dst *dst, const uint8_t *buf, size_t buflen)
 {
 	size_t off;
 
@@ -76,11 +76,12 @@ static void dst_append_int(struct dst *dst, uint64_t value)
 	dst_append(dst, val + i, sizeof(val) - i);
 }
 
-static size_t lsa_attr_set_serialise_length(struct lsa_attr_set *set,
-					    int signed_only, uint8_t *preid);
+static size_t
+lsa_attr_set_serialise_length(struct lsa_attr_set *set,
+			      int signed_only, const uint8_t *preid);
 
 static void __lsa_attr_serialise(struct dst *dst, struct lsa_attr *attr,
-				 int signed_only, uint8_t *preid)
+				 int signed_only, const uint8_t *preid)
 {
 	int flags;
 
@@ -131,7 +132,7 @@ static void __lsa_attr_serialise(struct dst *dst, struct lsa_attr *attr,
 }
 
 static void lsa_attrs_serialise(struct dst *dst, struct iv_avl_tree *attrs,
-				int signed_only, uint8_t *preid)
+				int signed_only, const uint8_t *preid)
 {
 	struct iv_avl_node *an;
 
@@ -147,8 +148,9 @@ static void lsa_attrs_serialise(struct dst *dst, struct iv_avl_tree *attrs,
 	}
 }
 
-static size_t lsa_attr_set_serialise_length(struct lsa_attr_set *set,
-					    int signed_only, uint8_t *preid)
+static size_t
+lsa_attr_set_serialise_length(struct lsa_attr_set *set,
+			      int signed_only, const uint8_t *preid)
 {
 	struct dst dst;
 
@@ -161,14 +163,15 @@ static size_t lsa_attr_set_serialise_length(struct lsa_attr_set *set,
 	return dst.off;
 }
 
-size_t lsa_serialise_length(struct lsa *lsa, int signed_only, uint8_t *preid)
+size_t lsa_serialise_length(struct lsa *lsa, int signed_only,
+			    const uint8_t *preid)
 {
 	return NODE_ID_LEN +
 		lsa_attr_set_serialise_length(&lsa->root, signed_only, preid);
 }
 
 size_t lsa_serialise(uint8_t *buf, size_t buflen, size_t serlen,
-		     struct lsa *lsa, int signed_only, uint8_t *preid)
+		     struct lsa *lsa, int signed_only, const uint8_t *preid)
 {
 	struct dst dst;
 

@@ -26,7 +26,7 @@
 #include "dgp_writer.h"
 
 struct dgp_listen_socket {
-	uint8_t			*myid;
+	const uint8_t		*myid;
 	int			ifindex;
 	struct loc_rib		*loc_rib;
 	int			permit_readonly;
@@ -41,7 +41,7 @@ void dgp_listen_socket_unregister(struct dgp_listen_socket *dls);
 
 struct dgp_listen_entry {
 	struct dgp_listen_socket	*dls;
-	uint8_t				*remoteid;
+	const uint8_t			*remoteid;
 
 	struct iv_list_head		list;
 	struct conn			*current;

@@ -186,7 +186,7 @@ void timespec_add_ms(struct timespec *ts, int minms, int maxms)
 	}
 }
 
-void v6_global_addr_from_key_id(uint8_t *addr, uint8_t *id)
+void v6_global_addr_from_key_id(uint8_t *addr, const uint8_t *id)
 {
 	addr[0] = 0x20;
 	addr[1] = 0x01;
@@ -195,7 +195,7 @@ void v6_global_addr_from_key_id(uint8_t *addr, uint8_t *id)
 	memcpy(addr + 4, id + ((NODE_ID_LEN - 12) / 2), 12);
 }
 
-void v6_linklocal_addr_from_key_id(uint8_t *addr, uint8_t *id)
+void v6_linklocal_addr_from_key_id(uint8_t *addr, const uint8_t *id)
 {
 	addr[0] = 0xfe;
 	addr[1] = 0x80;

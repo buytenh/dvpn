@@ -27,8 +27,8 @@
 #include "rib_listener_to_loc.h"
 
 struct dgp_reader {
-	uint8_t			*myid;
-	uint8_t			*remoteid;
+	const uint8_t		*myid;
+	const uint8_t		*remoteid;
 	struct loc_rib		*rib;
 	void			*cookie;
 	void			(*io_error)(void *cookie);

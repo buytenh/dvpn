@@ -26,8 +26,8 @@
 
 struct dgp_writer {
 	int			fd;
-	uint8_t			*myid;
-	uint8_t			*remoteid;
+	const uint8_t		*myid;
+	const uint8_t		*remoteid;
 	struct loc_rib		*rib;
 	void			*cookie;
 	void			(*io_error)(void *cookie);

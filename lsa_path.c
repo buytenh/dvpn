@@ -23,7 +23,7 @@
 #include "lsa.h"
 #include "lsa_type.h"
 
-int lsa_path_contains(struct lsa_attr *attr, uint8_t *id)
+int lsa_path_contains(struct lsa_attr *attr, const uint8_t *id)
 {
 	void *data;
 	size_t i;

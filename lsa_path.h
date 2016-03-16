@@ -20,7 +20,7 @@
 #ifndef __LSA_PATH_H
 #define __LSA_PATH_H
 
-int lsa_path_contains(struct lsa_attr *attr, uint8_t *id);
+int lsa_path_contains(struct lsa_attr *attr, const uint8_t *id);
 
 
 #endif
