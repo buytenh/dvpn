@@ -26,6 +26,7 @@
 #include <string.h>
 #include "lsa_diff.h"
 #include "lsa_path.h"
+#include "lsa_peer.h"
 #include "lsa_type.h"
 #include "loc_rib.h"
 
@@ -80,47 +81,6 @@ static struct lsa *find_recent_lsa(struct loc_rib *rib, const uint8_t *id)
 	return lsa;
 }
 
-static int get_peer_metric_flags(struct lsa *lsa, const uint8_t *peer,
-				 uint16_t *metric, uint8_t *flags)
-{
-	struct lsa_attr *attr;
-	struct lsa_attr_set *set;
-
-	attr = lsa_find_attr(lsa, LSA_ATTR_TYPE_PEER, peer, NODE_ID_LEN);
-	if (attr == NULL || !attr->attr_signed)
-		return -1;
-
-	if (!attr->data_is_attr_set)
-		return -1;
-
-	set = lsa_attr_data(attr);
-
-	if (metric != NULL) {
-		struct lsa_attr *attr2;
-
-		attr2 = lsa_attr_set_find_attr(set, LSA_PEER_ATTR_TYPE_METRIC,
-					       NULL, 0);
-		if (attr2 == NULL || !attr2->attr_signed || attr2->datalen != 2)
-			return -1;
-
-		*metric = ntohs(*((uint16_t *)lsa_attr_data(attr2)));
-	}
-
-	if (flags != NULL) {
-		struct lsa_attr *attr2;
-
-		attr2 = lsa_attr_set_find_attr(set,
-					       LSA_PEER_ATTR_TYPE_PEER_FLAGS,
-					       NULL, 0);
-		if (attr2 == NULL || !attr2->attr_signed || attr2->datalen != 1)
-			return -1;
-
-		*flags = *((uint8_t *)lsa_attr_data(attr2));
-	}
-
-	return 0;
-}
-
 static uint32_t
 lsa_path_cost(struct loc_rib *rib, struct loc_rib_id *rid, struct lsa *lsa)
 {
@@ -156,9 +116,8 @@ lsa_path_cost(struct loc_rib *rib, struct loc_rib_id *rid, struct lsa *lsa)
 	cost = 0;
 	for (i = 0; i < pathlen; i += NODE_ID_LEN) {
 		struct lsa *to;
-		uint16_t ametric;
-		uint8_t aflags;
-		uint8_t bflags;
+		struct lsa_peer_info forward;
+		struct lsa_peer_info reverse;
 
 		to = find_recent_lsa(rib, path + i);
 		if (to == NULL)
@@ -169,25 +128,25 @@ lsa_path_cost(struct loc_rib *rib, struct loc_rib_id *rid, struct lsa *lsa)
 			continue;
 		}
 
-		if (get_peer_metric_flags(from, to->id, &ametric, &aflags) < 0)
+		if (lsa_get_peer_info(&forward, from, to->id) < 0)
 			return RIB_COST_UNREACHABLE;
 
-		if (get_peer_metric_flags(to, from->id, NULL, &bflags) < 0)
+		if (lsa_get_peer_info(&reverse, to, from->id) < 0)
 			return RIB_COST_UNREACHABLE;
 
 		if (traversing_transits) {
-			if (!(aflags & LSA_PEER_FLAGS_TRANSIT))
+			if (!(forward.flags & LSA_PEER_FLAGS_TRANSIT))
 				traversing_transits = 0;
-			if (!(bflags & LSA_PEER_FLAGS_CUSTOMER))
+			if (!(reverse.flags & LSA_PEER_FLAGS_CUSTOMER))
 				traversing_transits = 0;
 		} else {
-			if (!(aflags & LSA_PEER_FLAGS_CUSTOMER))
+			if (!(forward.flags & LSA_PEER_FLAGS_CUSTOMER))
 				return RIB_COST_UNREACHABLE;
-			if (!(bflags & LSA_PEER_FLAGS_TRANSIT))
+			if (!(reverse.flags & LSA_PEER_FLAGS_TRANSIT))
 				return RIB_COST_UNREACHABLE;
 		}
 
-		cost += ametric;
+		cost += forward.metric;
 
 		from = to;
 	}
