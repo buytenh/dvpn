@@ -59,7 +59,7 @@ static uint64_t lsa_get_version(struct lsa *lsa)
 	return version;
 }
 
-static struct lsa *find_recent_lsa(struct loc_rib *rib, uint8_t *id)
+static struct lsa *find_recent_lsa(struct loc_rib *rib, const uint8_t *id)
 {
 	struct loc_rib_id *rid;
 	struct iv_avl_node *an;
@@ -80,7 +80,7 @@ static struct lsa *find_recent_lsa(struct loc_rib *rib, uint8_t *id)
 	return lsa;
 }
 
-static int get_peer_metric_flags(struct lsa *lsa, uint8_t *peer,
+static int get_peer_metric_flags(struct lsa *lsa, const uint8_t *peer,
 				 uint16_t *metric, uint8_t *flags)
 {
 	struct lsa_attr *attr;
@@ -309,7 +309,7 @@ void loc_rib_deinit(struct loc_rib *rib)
 		iv_task_unregister(&rib->recompute);
 }
 
-struct loc_rib_id *loc_rib_find_id(struct loc_rib *rib, uint8_t *id)
+struct loc_rib_id *loc_rib_find_id(struct loc_rib *rib, const uint8_t *id)
 {
 	struct iv_avl_node *an;
 
@@ -371,7 +371,7 @@ static int compare_lsa_refs(struct iv_avl_node *_a, struct iv_avl_node *_b)
 	return ret;
 }
 
-static struct loc_rib_id *get_id(struct loc_rib *rib, uint8_t *id)
+static struct loc_rib_id *get_id(struct loc_rib *rib, const uint8_t *id)
 {
 	struct loc_rib_id *rid;
 

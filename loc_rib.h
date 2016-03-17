@@ -27,7 +27,7 @@
 #include "rib_listener.h"
 
 struct loc_rib {
-	uint8_t			*myid;
+	const uint8_t		*myid;
 
 	struct iv_avl_tree	ids;
 	struct iv_task		recompute;
@@ -51,7 +51,7 @@ struct loc_rib_lsa_ref {
 
 void loc_rib_init(struct loc_rib *rib);
 void loc_rib_deinit(struct loc_rib *rib);
-struct loc_rib_id *loc_rib_find_id(struct loc_rib *rib, uint8_t *id);
+struct loc_rib_id *loc_rib_find_id(struct loc_rib *rib, const uint8_t *id);
 void loc_rib_add_lsa(struct loc_rib *rib, struct lsa *lsa);
 void loc_rib_mod_lsa(struct loc_rib *rib, struct lsa *lsa, struct lsa *newlsa);
 void loc_rib_del_lsa(struct loc_rib *rib, struct lsa *lsa);
