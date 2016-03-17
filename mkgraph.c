@@ -27,6 +27,7 @@
 #include "dgp_connect.h"
 #include "loc_rib.h"
 #include "lsa.h"
+#include "lsa_peer.h"
 #include "lsa_type.h"
 #include "util.h"
 #include "x509.h"
@@ -38,35 +39,36 @@ static struct rib_listener rib_listener;
 static struct dgp_connect dc;
 static struct iv_signal sigint;
 
-static void get_node_name(char *buf, size_t buflen, uint8_t *id)
+static int __get_lsa_node_name(char *buf, size_t buflen, struct lsa *lsa)
 {
-	struct loc_rib_id *rid;
-	char hexid[2 * NODE_ID_LEN + 16];
-	int i;
+	struct lsa_attr *attr;
 
-	rid = loc_rib_find_id(&loc_rib, id);
-	if (rid != NULL && rid->best != NULL) {
-		struct lsa_attr *attr;
+	attr = lsa_find_attr(lsa, LSA_ATTR_TYPE_NODE_NAME, NULL, 0);
+	if (attr != NULL && attr->attr_signed) {
+		uint8_t *data;
+		size_t len;
+		int i;
 
-		attr = lsa_find_attr(rid->best, LSA_ATTR_TYPE_NODE_NAME,
-				     NULL, 0);
-		if (attr != NULL && attr->attr_signed) {
-			uint8_t *data;
-			size_t len;
+		data = lsa_attr_data(attr);
 
-			data = lsa_attr_data(attr);
+		len = attr->datalen;
+		if (len > buflen - 1)
+			len = buflen - 1;
 
-			len = attr->datalen;
-			if (len > buflen - 1)
-				len = buflen - 1;
+		for (i = 0; i < len; i++)
+			buf[i] = isalnum(data[i]) ? data[i] : '_';
+		buf[len] = 0;
 
-			for (i = 0; i < len; i++)
-				buf[i] = isalnum(data[i]) ? data[i] : '_';
-			buf[len] = 0;
-
-			return;
-		}
+		return 1;
 	}
+
+	return 0;
+}
+
+static void hex_node_name(char *buf, size_t buflen, const uint8_t *id)
+{
+	int i;
+	char hexid[2 * NODE_ID_LEN + 16];
 
 	for (i = 0; i < NODE_ID_LEN; i++)
 		sprintf(hexid + 2 * i, "%.2x", id[i]);
@@ -74,16 +76,92 @@ static void get_node_name(char *buf, size_t buflen, uint8_t *id)
 	strncpy(buf, hexid, buflen);
 }
 
-static void print_edge(FILE *fp, struct lsa *from, uint8_t *to)
+static void get_lsa_node_name(char *buf, size_t buflen, struct lsa *lsa)
+{
+	if (!__get_lsa_node_name(buf, buflen, lsa))
+		hex_node_name(buf, buflen, lsa->id);
+}
+
+static struct lsa *find_lsa(const uint8_t *id)
+{
+	struct loc_rib_id *rid;
+
+	rid = loc_rib_find_id(&loc_rib, id);
+	if (rid == NULL)
+		return NULL;
+
+	return rid->best;
+}
+
+static void print_edge(FILE *fp, struct lsa *from, uint8_t *toid)
 {
 	char fromname[128];
+	struct lsa_peer_info forward;
+	struct lsa *to;
 	char toname[128];
+	struct lsa_peer_info reverse;
 
-	get_node_name(fromname, sizeof(fromname), from->id);
-	get_node_name(toname, sizeof(toname), to);
+	get_lsa_node_name(fromname, sizeof(fromname), from);
 
-	if (memcmp(from->id, to, NODE_ID_LEN) < 0)
-		fprintf(fp, "\t\"%s\" -- \"%s\";\n", fromname, toname);
+	if (lsa_get_peer_info(&forward, from, toid) < 0) {
+		forward.metric = -1;
+		forward.flags = 0;
+	}
+
+	to = find_lsa(toid);
+	if (to == NULL) {
+		hex_node_name(toname, sizeof(toname), toid);
+		fprintf(fp, "\t\"%s\" [ color=red fontcolor=red ]\n", toname);
+		fprintf(fp, "\t\"%s\" -> \"%s\" [ color=red fontcolor=red "
+			    "label=\"%d\" ];\n",
+			fromname, toname, forward.metric);
+		return;
+	}
+
+	if (memcmp(from->id, toid, NODE_ID_LEN) >= 0)
+		return;
+
+	get_lsa_node_name(toname, sizeof(toname), to);
+
+	if (lsa_get_peer_info(&reverse, to, from->id) < 0) {
+		reverse.metric = -1;
+		reverse.flags = 0;
+	}
+
+	if (forward.flags == 0 && reverse.flags == 0) {
+		fprintf(fp, "\t\"%s\" -> \"%s\" ", fromname, toname);
+		fprintf(fp, "[ constraint=false dir=none ");
+		fprintf(fp, "label=\"%d", forward.metric);
+		if (forward.metric != reverse.metric)
+			fprintf(fp, "/%d", reverse.metric);
+		fprintf(fp, "\" ];\n");
+	} else if (forward.flags == LSA_PEER_FLAGS_CUSTOMER &&
+		   reverse.flags == LSA_PEER_FLAGS_TRANSIT) {
+		fprintf(fp, "\t\"%s\" -> \"%s\" ", toname, fromname);
+		fprintf(fp, "[ label=\"%d", forward.metric);
+		if (forward.metric != reverse.metric)
+			fprintf(fp, "/%d", reverse.metric);
+		fprintf(fp, "\" ];\n");
+	} else if (forward.flags == LSA_PEER_FLAGS_TRANSIT &&
+		   reverse.flags == LSA_PEER_FLAGS_CUSTOMER) {
+		fprintf(fp, "\t\"%s\" -> \"%s\" ", fromname, toname);
+		fprintf(fp, "[ label=\"%d", reverse.metric);
+		if (reverse.metric != forward.metric)
+			fprintf(fp, "/%d", forward.metric);
+		fprintf(fp, "\" ];\n");
+	} else if (forward.flags == (LSA_PEER_FLAGS_CUSTOMER |
+				     LSA_PEER_FLAGS_TRANSIT) &&
+		   reverse.flags == (LSA_PEER_FLAGS_CUSTOMER |
+				     LSA_PEER_FLAGS_TRANSIT)) {
+		fprintf(fp, "\t\"%s\" -> \"%s\" ", fromname, toname);
+		fprintf(fp, "[ dir=both label=\"%d", forward.metric);
+		if (forward.metric != reverse.metric)
+			fprintf(fp, "/%d", reverse.metric);
+		fprintf(fp, "\" ];\n");
+	} else {
+		fprintf(fp, "\t\"%s\" -> \"%s\" ", fromname, toname);
+		fprintf(fp, "[ color=blue dir=none ];\n");
+	}
 }
 
 static void dump_graph(void *_dummy)
@@ -97,7 +175,8 @@ static void dump_graph(void *_dummy)
 
 	fprintf(stderr, "dumping graph\n");
 
-	fprintf(fp, "graph g {\n");
+	fprintf(fp, "digraph g {\n");
+	fprintf(fp, "\trankdir = RL;\n");
 
 	iv_avl_tree_for_each (an, &loc_rib.ids) {
 		struct lsa *from;
