@@ -207,6 +207,9 @@ static void dump_graph(void *_dummy)
 	fclose(fp);
 
 	rename("graph.dot.new", "graph.dot");
+
+	system("dot -Tpng graph.dot > graph.png.new");
+	rename("graph.png.new", "graph.png");
 }
 
 static void schedule_graph_dump(void)

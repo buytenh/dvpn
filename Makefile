@@ -10,6 +10,8 @@ clean:
 		rm -f gencert
 		rm -f graph.dot
 		rm -f graph.dot.new
+		rm -f graph.png
+		rm -f graph.png.new
 		rm -f hostmon
 		rm -f mkgraph
 		rm -f rtmon
