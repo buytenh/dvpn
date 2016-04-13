@@ -223,16 +223,25 @@ static void connection_lost(void *_cc)
 static void got_connection(void *_ls)
 {
 	struct tconn_listen_socket *ls = _ls;
-	struct sockaddr_storage addr;
-	socklen_t addrlen;
+	struct sockaddr_storage peer;
+	socklen_t peerlen;
 	int fd;
+	struct sockaddr_storage local;
+	socklen_t locallen;
 	struct client_conn *cc;
 
-	addrlen = sizeof(addr);
+	peerlen = sizeof(peer);
 
-	fd = accept(ls->listen_fd.fd, (struct sockaddr *)&addr, &addrlen);
+	fd = accept(ls->listen_fd.fd, (struct sockaddr *)&peer, &peerlen);
 	if (fd < 0) {
 		perror("got_connection: accept");
+		return;
+	}
+
+	locallen = sizeof(local);
+	if (getsockname(fd, (struct sockaddr *)&local, &locallen) < 0) {
+		perror("getsockname");
+		close(fd);
 		return;
 	}
 
@@ -244,8 +253,10 @@ static void got_connection(void *_ls)
 	}
 
 	fprintf(stderr, "conn%d: incoming connection from ", fd);
-	print_address(stderr, (struct sockaddr *)&addr);
+	print_address(stderr, (struct sockaddr *)&peer);
 	fprintf(stderr, " to ");
+	print_address(stderr, (struct sockaddr *)&local);
+	fprintf(stderr, " via listen address ");
 	print_address(stderr, (struct sockaddr *)&ls->listen_address);
 	fprintf(stderr, "\n");
 
