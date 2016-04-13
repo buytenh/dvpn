@@ -34,7 +34,7 @@ int gencert(const char *nodekeyfile, const char *rolekeyfile)
 	int ret;
 
 	if (nodekeyfile == NULL) {
-		fprintf(stderr, "usage: gencert [dvpn.key] <role.key>\n");
+		fprintf(stderr, "usage: gencert <key.pem> [rolekey.pem]\n");
 		return 1;
 	}
 
