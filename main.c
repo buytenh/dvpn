@@ -59,7 +59,7 @@ static void usage(const char *argv0)
 {
 	fprintf(stderr, "usage: %s [-c <config.ini>]\n", argv0);
 	fprintf(stderr, "       %s --dbmon [-c <config.ini>]\n", argv0);
-	fprintf(stderr, "       %s --gencert <key.pem>\n", argv0);
+	fprintf(stderr, "       %s --gencert <key.pem> [rolekey.pem]\n", argv0);
 	fprintf(stderr, "       %s --help\n", argv0);
 	fprintf(stderr, "       %s --hostmon [-c <config.ini>]\n", argv0);
 	fprintf(stderr, "       %s --mkgraph [-c <config.ini>]\n", argv0);
