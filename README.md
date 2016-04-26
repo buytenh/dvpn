@@ -18,6 +18,14 @@ A multipoint VPN implementation
 
 `make test` - compiles dvpn, creates sample configuration files (_client.ini_, _client2.ini_, _server.ini_) with corresponding keys (_client.key_, _client2.key_, _server.key_).
 
+### CentOS
+
+```yum install epel-release```
+
+```yum install gnutls-devel libini_config-devel gnutls-utils ivykis-devel```
+
+```git clone https://github.com/buytenh/dvpn.git && cd dvpn && make && make test```
+
 ### Fedora
 ```dnf install libgnutls-devel libini_config-devel ivykis-devel gnutls-utils```
 
