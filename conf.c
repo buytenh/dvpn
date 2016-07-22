@@ -197,6 +197,29 @@ get_const_value(struct ini_cfgobj *co, const char *section, const char *name)
 	return value;
 }
 
+/*
+ * Alphabet: 0123456789bcdfghjklmnpqrstuvwxyz
+ * Excluded characters: a, e, i, o
+ */
+static int8_t base32idx[] = {
+	-1, 10, 11, 12, -1, 13, 14, 15, -1, 16, 17, 18, 19,
+	20, -1, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+};
+
+static int base32char(char c)
+{
+	if (c >= '0' && c <= '9')
+		return 0 + (c - '0');
+
+	if (c >= 'A' && c <= 'Z')
+		return base32idx[c - 'A'];
+
+	if (c >= 'a' && c <= 'z')
+		return base32idx[c - 'a'];
+
+	return -1;
+}
+
 static int base64char(char c)
 {
 	if (c >= 'A' && c <= 'Z')
@@ -231,6 +254,30 @@ static int parse_fingerprint(uint8_t *id, const char *fp)
 		   &id[20], &id[21], &id[22], &id[23],
 		   &id[24], &id[25], &id[26], &id[27],
 		   &id[28], &id[29], &id[30], &id[31]) == NODE_ID_LEN) {
+		return 0;
+	}
+
+	if (strlen(fp) == 52) {
+		int i;
+		int j;
+
+		memset(id, 0, NODE_ID_LEN);
+		for (i = 0, j = 0; i < 52; i++, j += 5) {
+			int v;
+			int byte;
+
+			v = base32char(fp[i]);
+			if (v < 0)
+				return -1;
+
+			v <<= j & 7;
+
+			byte = j >> 3;
+			id[byte] |= v & 0xff;
+			if ((v & 0xff00) && byte + 1 < NODE_ID_LEN)
+				id[byte + 1] |= v >> 8;
+		}
+
 		return 0;
 	}
 
