@@ -27,6 +27,7 @@ int dvpn(const char *config);
 int gencert(const char *nodekeyfile, const char *rolekeyfile);
 int hostmon(const char *config);
 int mkgraph(const char *config);
+int mkhosts(const char *config);
 int rtmon(const char *config);
 int show_key_id(const char *file);
 int show_key_id_hex(const char *file);
@@ -38,6 +39,7 @@ enum {
 	TOOL_GENCERT,
 	TOOL_HOSTMON,
 	TOOL_MKGRAPH,
+	TOOL_MKHOSTS,
 	TOOL_RTMON,
 	TOOL_SHOW_KEY_ID,
 	TOOL_SHOW_KEY_ID_HEX,
@@ -63,6 +65,7 @@ static void usage(const char *argv0)
 	fprintf(stderr, "       %s --help\n", argv0);
 	fprintf(stderr, "       %s --hostmon [-c <config.ini>]\n", argv0);
 	fprintf(stderr, "       %s --mkgraph [-c <config.ini>]\n", argv0);
+	fprintf(stderr, "       %s --mkhosts [-c <config.ini>]\n", argv0);
 	fprintf(stderr, "       %s --rtmon [-c <config.ini>]\n", argv0);
 	fprintf(stderr, "       %s --show-key-id <key.pem>\n", argv0);
 	fprintf(stderr, "       %s --show-key-id-hex <key.pem>\n", argv0);
@@ -111,6 +114,11 @@ static void try_determine_tool(char *argv0)
 		return;
 	}
 
+	if (!strcmp(t, "mkhosts") || !strcmp(t, "dvpn-mkhosts")) {
+		tool = TOOL_MKHOSTS;
+		return;
+	}
+
 	if (!strcmp(t, "rtmon") || !strcmp(t, "dvpn-rtmon")) {
 		tool = TOOL_RTMON;
 		return;
@@ -137,6 +145,7 @@ int main(int argc, char *argv[])
 		{ "help", no_argument, 0, 'h' },
 		{ "hostmon", no_argument, 0, 'H' },
 		{ "mkgraph", no_argument, 0, 'm' },
+		{ "mkhosts", no_argument, 0, 'M' },
 		{ "rtmon", no_argument, 0, 'r' },
 		{ "show-key-id", no_argument, 0, 's' },
 		{ "show-key-id-hex", no_argument, 0, 'S' },
@@ -176,6 +185,10 @@ int main(int argc, char *argv[])
 			set_tool(TOOL_MKGRAPH);
 			break;
 
+		case 'M':
+			set_tool(TOOL_MKHOSTS);
+			break;
+
 		case 'r':
 			set_tool(TOOL_RTMON);
 			break;
@@ -211,6 +224,8 @@ int main(int argc, char *argv[])
 		return hostmon(config);
 	case TOOL_MKGRAPH:
 		return mkgraph(config);
+	case TOOL_MKHOSTS:
+		return mkhosts(config);
 	case TOOL_RTMON:
 		return rtmon(config);
 	case TOOL_SHOW_KEY_ID:
