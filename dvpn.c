@@ -578,7 +578,7 @@ static void stop_conf_listen_entry(struct conf_listen_entry *cle)
 		dgp_listen_entry_unregister(&cle->dle);
 		dgp_listen_socket_unregister(&cle->dls);
 		iv_avl_tree_delete(&direct_peers, &cle->dp.an);
-		mylsa_del_peer(cle->fingerprint);
+		mylsa_del_peer(cle->peerid);
 	}
 
 	tconn_listen_entry_unregister(&cle->tle);
