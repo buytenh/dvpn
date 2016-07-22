@@ -528,7 +528,8 @@ static void stop_conf_connect_entry(struct conf_connect_entry *cce)
 	if (cce->tconn_up) {
 		dgp_connect_stop(&cce->dc);
 		iv_avl_tree_delete(&direct_peers, &cce->dp.an);
-		mylsa_del_peer(cce->peerid);
+		if (cce->peer_type != CONF_PEER_TYPE_DBONLY)
+			mylsa_del_peer(cce->peerid);
 	}
 
 	tconn_connect_destroy(&cce->tc);
@@ -578,7 +579,8 @@ static void stop_conf_listen_entry(struct conf_listen_entry *cle)
 		dgp_listen_entry_unregister(&cle->dle);
 		dgp_listen_socket_unregister(&cle->dls);
 		iv_avl_tree_delete(&direct_peers, &cle->dp.an);
-		mylsa_del_peer(cle->peerid);
+		if (cle->peer_type != CONF_PEER_TYPE_DBONLY)
+			mylsa_del_peer(cle->peerid);
 	}
 
 	tconn_listen_entry_unregister(&cle->tle);
