@@ -26,27 +26,36 @@
 #include <netinet/tcp.h>
 #include <string.h>
 #include "conf.h"
-#include "itf.h"
 #include "tconn.h"
 #include "tconn_listen.h"
 #include "util.h"
 #include "x509.h"
 
 struct client_conn {
-	struct iv_list_head		list_handshaking;
-	struct tconn_listen_socket	*tls;
-	struct tconn_listen_entry	*tle;
+	struct iv_list_head		list;
 
-	int			state;
-	struct iv_timer		rx_timeout;
-	struct iv_fd		fd;
-	struct tconn		tconn;
-	uint8_t			id[NODE_ID_LEN];
-	struct iv_timer		keepalive_timer;
+	struct tconn_listen_socket	*tls;
+	struct iv_fd			fd;
+	struct tconn			tconn;
+	struct iv_timer			rx_timeout;
+	int				state;
+
+	/*
+	 * state >= STATE_KEY_ID_VERIFIED
+	 */
+	struct tconn_listen_entry	*tle;
+	uint8_t				id[NODE_ID_LEN];
+
+	/*
+	 * state >= STATE_CONNECTED
+	 */
+	void				*cookie;
+	struct iv_timer			keepalive_timer;
 };
 
 #define STATE_TLS_HANDSHAKE	1
-#define STATE_CONNECTED		2
+#define STATE_KEY_ID_VERIFIED	2
+#define STATE_CONNECTED		3
 
 #define HANDSHAKE_TIMEOUT	15
 #define KEEPALIVE_INTERVAL	15
@@ -55,31 +64,24 @@ struct client_conn {
 static void print_name(FILE *fp, struct client_conn *cc)
 {
 	if (cc->tle != NULL)
-		fprintf(fp, "%s", cc->tle->name);
+		fprintf(fp, "%s[%d]", cc->tle->name, cc->fd.fd);
 	else
 		fprintf(fp, "conn%d", cc->fd.fd);
 }
 
 static void client_conn_kill(struct client_conn *cc, int notify)
 {
-	if (cc->state == STATE_TLS_HANDSHAKE) {
-		if (iv_list_empty(&cc->list_handshaking))
-			abort();
-		iv_list_del(&cc->list_handshaking);
-	}
+	if (cc->state == STATE_CONNECTED && notify)
+		cc->tle->disconnect(cc->cookie);
 
-	if (cc->tle != NULL) {
-		if (cc->state == STATE_CONNECTED && notify)
-			cc->tle->set_state(cc->tle->cookie, cc->id, 0);
-		cc->tle->current = NULL;
-	}
-
-	if (iv_timer_registered(&cc->rx_timeout))
-		iv_timer_unregister(&cc->rx_timeout);
+	iv_list_del(&cc->list);
 
 	tconn_destroy(&cc->tconn);
 	iv_fd_unregister(&cc->fd);
 	close(cc->fd.fd);
+
+	if (iv_timer_registered(&cc->rx_timeout))
+		iv_timer_unregister(&cc->rx_timeout);
 
 	if (cc->state == STATE_CONNECTED)
 		iv_timer_unregister(&cc->keepalive_timer);
@@ -137,11 +139,15 @@ static int verify_key_ids(void *_cc, const uint8_t *ids, int num)
 		if (tle != NULL) {
 			fprintf(stderr, " - matches '%s'%s\n", tle->name,
 				(i != 0) ? " (via role certificate)" : "");
-			iv_list_del(&cc->list_handshaking);
-			iv_list_add_tail(&cc->list_handshaking,
-					 &tle->conn_handshaking);
+
+			iv_list_del(&cc->list);
+			iv_list_add_tail(&cc->list, &tle->connections);
+
+			cc->state = STATE_KEY_ID_VERIFIED;
+
 			cc->tle = tle;
 			memcpy(cc->id, ids, NODE_ID_LEN);
+
 			return 0;
 		}
 	}
@@ -161,8 +167,8 @@ static void send_keepalive(void *_cc)
 	iv_timer_register(&cc->keepalive_timer);
 
 	if (tconn_record_send(&cc->tconn, keepalive, 3)) {
-		fprintf(stderr, "%s: error sending keepalive, disconnecting\n",
-			cc->tle->name);
+		print_name(stderr, cc);
+		fprintf(stderr, ": error sending keepalive, disconnecting\n");
 		client_conn_kill(cc, 1);
 	}
 }
@@ -171,21 +177,32 @@ static void handshake_done(void *_cc, char *desc)
 {
 	struct client_conn *cc = _cc;
 	struct tconn_listen_entry *le = cc->tle;
+	struct iv_list_head *lh;
+	struct iv_list_head *lh2;
+	void *cookie;
 
-	if (le->current != NULL) {
-		fprintf(stderr, "%s: handshake done, using %s, disconnecting "
-				"previous client\n", le->name, desc);
-		client_conn_kill(le->current, 1);
-	} else {
-		fprintf(stderr, "%s: handshake done, using %s\n",
-			le->name, desc);
+	iv_list_for_each_safe (lh, lh2, &le->connections) {
+		struct client_conn *oldcc;
+
+		oldcc = iv_list_entry(lh, struct client_conn, list);
+		if (oldcc != cc) {
+			print_name(stderr, oldcc);
+			fprintf(stderr, ": disconnecting previous client\n");
+			client_conn_kill(oldcc, 1);
+		}
 	}
 
-	le->current = cc;
+	cookie = le->new_conn(le->cookie, cc, cc->id);
+	if (cookie == NULL) {
+		print_name(stderr, cc);
+		fprintf(stderr, ": handshake done (%s), but new connection "
+				"refused\n", desc);
+		client_conn_kill(cc, 0);
+		return;
+	}
 
-	iv_list_del_init(&cc->list_handshaking);
-
-	cc->state = STATE_CONNECTED;
+	print_name(stderr, cc);
+	fprintf(stderr, ": handshake done, using %s\n", desc);
 
 	iv_validate_now();
 
@@ -195,6 +212,10 @@ static void handshake_done(void *_cc, char *desc)
 			1000 * KEEPALIVE_TIMEOUT, 1000 * KEEPALIVE_TIMEOUT);
 	iv_timer_register(&cc->rx_timeout);
 
+	cc->state = STATE_CONNECTED;
+
+	cc->cookie = cookie;
+
 	IV_TIMER_INIT(&cc->keepalive_timer);
 	cc->keepalive_timer.expires = iv_now;
 	timespec_add_ms(&cc->keepalive_timer.expires,
@@ -202,8 +223,6 @@ static void handshake_done(void *_cc, char *desc)
 	cc->keepalive_timer.cookie = cc;
 	cc->keepalive_timer.handler = send_keepalive;
 	iv_timer_register(&cc->keepalive_timer);
-
-	cc->tle->set_state(cc->tle->cookie, cc->id, 1);
 }
 
 static void record_received(void *_cc, const uint8_t *rec, int len)
@@ -219,7 +238,7 @@ static void record_received(void *_cc, const uint8_t *rec, int len)
 			1000 * KEEPALIVE_TIMEOUT, 1000 * KEEPALIVE_TIMEOUT);
 	iv_timer_register(&cc->rx_timeout);
 
-	tle->record_received(tle->cookie, rec, len);
+	tle->record_received(cc->cookie, rec, len);
 }
 
 static void connection_lost(void *_cc)
@@ -257,7 +276,7 @@ static void got_connection(void *_ls)
 		return;
 	}
 
-	cc = malloc(sizeof(*cc));
+	cc = calloc(1, sizeof(*cc));
 	if (cc == NULL) {
 		fprintf(stderr, "error allocating memory for cc object\n");
 		close(fd);
@@ -272,22 +291,9 @@ static void got_connection(void *_ls)
 	print_address(stderr, (struct sockaddr *)&ls->listen_address);
 	fprintf(stderr, "\n");
 
-	iv_list_add_tail(&cc->list_handshaking, &ls->conn_handshaking);
+	iv_list_add_tail(&cc->list, &ls->conn_handshaking);
 
 	cc->tls = ls;
-	cc->tle = NULL;
-
-	cc->state = STATE_TLS_HANDSHAKE;
-
-	iv_validate_now();
-
-	IV_TIMER_INIT(&cc->rx_timeout);
-	cc->rx_timeout.expires = iv_now;
-	timespec_add_ms(&cc->rx_timeout.expires,
-			1000 * HANDSHAKE_TIMEOUT, 1000 * HANDSHAKE_TIMEOUT);
-	cc->rx_timeout.cookie = cc;
-	cc->rx_timeout.handler = rx_timeout;
-	iv_timer_register(&cc->rx_timeout);
 
 	IV_FD_INIT(&cc->fd);
 	cc->fd.fd = fd;
@@ -304,6 +310,18 @@ static void got_connection(void *_ls)
 	cc->tconn.record_received = record_received;
 	cc->tconn.connection_lost = connection_lost;
 	tconn_start(&cc->tconn);
+
+	iv_validate_now();
+
+	IV_TIMER_INIT(&cc->rx_timeout);
+	cc->rx_timeout.expires = iv_now;
+	timespec_add_ms(&cc->rx_timeout.expires,
+			1000 * HANDSHAKE_TIMEOUT, 1000 * HANDSHAKE_TIMEOUT);
+	cc->rx_timeout.cookie = cc;
+	cc->rx_timeout.handler = rx_timeout;
+	iv_timer_register(&cc->rx_timeout);
+
+	cc->state = STATE_TLS_HANDSHAKE;
 }
 
 static int
@@ -375,7 +393,7 @@ void tconn_listen_socket_unregister(struct tconn_listen_socket *tls)
 	iv_list_for_each_safe (lh, lh2, &tls->conn_handshaking) {
 		struct client_conn *cc;
 
-		cc = iv_list_entry(lh, struct client_conn, list_handshaking);
+		cc = iv_list_entry(lh, struct client_conn, list);
 		client_conn_kill(cc, 0);
 	}
 
@@ -392,9 +410,7 @@ int tconn_listen_entry_register(struct tconn_listen_entry *tle)
 	if (iv_avl_tree_insert(&tle->tls->listen_entries, &tle->an))
 		return -1;
 
-	INIT_IV_LIST_HEAD(&tle->conn_handshaking);
-
-	tle->current = NULL;
+	INIT_IV_LIST_HEAD(&tle->connections);
 
 	return 0;
 }
@@ -404,28 +420,21 @@ void tconn_listen_entry_unregister(struct tconn_listen_entry *tle)
 	struct iv_list_head *lh;
 	struct iv_list_head *lh2;
 
-	iv_list_for_each_safe (lh, lh2, &tle->conn_handshaking) {
+	iv_list_for_each_safe (lh, lh2, &tle->connections) {
 		struct client_conn *cc;
 
-		cc = iv_list_entry(lh, struct client_conn, list_handshaking);
+		cc = iv_list_entry(lh, struct client_conn, list);
 		client_conn_kill(cc, 0);
 	}
-
-	if (tle->current != NULL)
-		client_conn_kill(tle->current, 0);
 
 	iv_avl_tree_delete(&tle->tls->listen_entries, &tle->an);
 }
 
-int tconn_listen_entry_get_rtt(struct tconn_listen_entry *tle)
+int tconn_listen_entry_get_rtt(void *conn)
 {
-	struct client_conn *cc;
+	struct client_conn *cc = conn;
 	struct tcp_info info;
 	socklen_t len;
-
-	cc = tle->current;
-	if (cc == NULL)
-		return -1;
 
 	len = sizeof(info);
 	if (getsockopt(cc->fd.fd, SOL_TCP, TCP_INFO, &info, &len) < 0) {
@@ -436,15 +445,11 @@ int tconn_listen_entry_get_rtt(struct tconn_listen_entry *tle)
 	return info.tcpi_rtt / 1000;
 }
 
-int tconn_listen_entry_get_maxseg(struct tconn_listen_entry *tle)
+int tconn_listen_entry_get_maxseg(void *conn)
 {
-	struct client_conn *cc;
+	struct client_conn *cc = conn;
 	int mseg;
 	socklen_t len;
-
-	cc = tle->current;
-	if (cc == NULL)
-		return -1;
 
 	len = sizeof(mseg);
 	if (getsockopt(cc->fd.fd, SOL_TCP, TCP_MAXSEG, &mseg, &len) < 0) {
@@ -455,14 +460,9 @@ int tconn_listen_entry_get_maxseg(struct tconn_listen_entry *tle)
 	return mseg;
 }
 
-void tconn_listen_entry_record_send(struct tconn_listen_entry *tle,
-				    const uint8_t *rec, int len)
+void tconn_listen_entry_record_send(void *conn, const uint8_t *rec, int len)
 {
-	struct client_conn *cc;
-
-	cc = tle->current;
-	if (cc == NULL)
-		return;
+	struct client_conn *cc = conn;
 
 	iv_validate_now();
 
@@ -473,8 +473,8 @@ void tconn_listen_entry_record_send(struct tconn_listen_entry *tle,
 	iv_timer_register(&cc->keepalive_timer);
 
 	if (tconn_record_send(&cc->tconn, rec, len)) {
-		fprintf(stderr, "%s: error sending TLS record, disconnecting\n",
-			tle->name);
+		print_name(stderr, cc);
+		fprintf(stderr, ": error sending TLS record, disconnecting\n");
 		client_conn_kill(cc, 1);
 	}
 }

@@ -24,14 +24,14 @@
 #include "conf.h"
 
 struct tconn_listen_socket {
-	struct sockaddr_storage	listen_address;
-	gnutls_x509_privkey_t	mykey;
-	int			numcrts;
-	gnutls_x509_crt_t	*mycrts;
+	struct sockaddr_storage		listen_address;
+	gnutls_x509_privkey_t		mykey;
+	int				numcrts;
+	gnutls_x509_crt_t		*mycrts;
 
-	struct iv_fd		listen_fd;
-	struct iv_list_head	conn_handshaking;
-	struct iv_avl_tree	listen_entries;
+	struct iv_fd			listen_fd;
+	struct iv_list_head		conn_handshaking;
+	struct iv_avl_tree		listen_entries;
 };
 
 int tconn_listen_socket_register(struct tconn_listen_socket *tls);
@@ -42,23 +42,23 @@ struct tconn_listen_entry {
 	char				*name;
 	uint8_t				*fingerprint;
 	void				*cookie;
-	void				(*set_state)(void *cookie,
-						     const uint8_t *id, int up);
+	void				*(*new_conn)(void *cookie, void *conn,
+						     const uint8_t *id);
 	void				(*record_received)(void *cookie,
 							   const uint8_t *rec,
 							   int len);
+	void				(*disconnect)(void *cookie);
 
 	struct iv_avl_node		an;
-	struct iv_list_head		conn_handshaking;
-	struct client_conn		*current;
+	struct iv_list_head		connections;
 };
 
 int tconn_listen_entry_register(struct tconn_listen_entry *tle);
 void tconn_listen_entry_unregister(struct tconn_listen_entry *tle);
-int tconn_listen_entry_get_rtt(struct tconn_listen_entry *tle);
-int tconn_listen_entry_get_maxseg(struct tconn_listen_entry *tle);
-void tconn_listen_entry_record_send(struct tconn_listen_entry *tle,
-				    const uint8_t *rec, int len);
+
+int tconn_listen_entry_get_rtt(void *conn);
+int tconn_listen_entry_get_maxseg(void *conn);
+void tconn_listen_entry_record_send(void *conn, const uint8_t *rec, int len);
 
 
 #endif

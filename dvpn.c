@@ -389,84 +389,78 @@ static void cce_record_received(void *_cce, const uint8_t *rec, int len)
 static void cle_tun_got_packet(void *_cle, uint8_t *buf, int len)
 {
 	struct conf_listen_entry *cle = _cle;
-	uint8_t sndbuf[len + 3];
 
-	sndbuf[0] = 0x00;
-	sndbuf[1] = len >> 8;
-	sndbuf[2] = len & 0xff;
-	memcpy(sndbuf + 3, buf, len);
+	if (cle->tconn != NULL) {
+		uint8_t sndbuf[len + 3];
 
-	tconn_listen_entry_record_send(&cle->tle, sndbuf, len + 3);
+		sndbuf[0] = 0x00;
+		sndbuf[1] = len >> 8;
+		sndbuf[2] = len & 0xff;
+		memcpy(sndbuf + 3, buf, len);
+
+		tconn_listen_entry_record_send(cle->tconn, sndbuf, len + 3);
+	}
 }
 
-static void cle_set_state(void *_cle, const uint8_t *id, int up)
+static void *cle_new_conn(void *_cle, void *conn, const uint8_t *id)
 {
 	struct conf_listen_entry *cle = _cle;
+	int maxseg;
+	int mtu;
 	char *tunitf;
+	uint8_t addr[16];
+
+	if (cle->tconn != NULL)
+		abort();
+
+	cle->tconn = conn;
+	memcpy(cle->peerid, id, NODE_ID_LEN);
+
+	if (cle->peer_type != CONF_PEER_TYPE_DBONLY) {
+		int cost;
+
+		cost = cle->cost;
+		if (cost == 0) {
+			cost = tconn_listen_entry_get_rtt(conn);
+			if (cost < 1)
+				cost = 1;
+		}
+
+		mylsa_add_peer(cle->peerid, cle->peer_type, cost);
+	}
+
+	maxseg = tconn_listen_entry_get_maxseg(conn);
+	if (maxseg < 0)
+		abort();
+
+	mtu = maxseg - 5 - 8 - 3 - 16;
+	if (mtu < 1280)
+		mtu = 1280;
+	else if (mtu > 1500)
+		mtu = 1500;
+
+	fprintf(stderr, "%s: setting interface MTU to %d\n", cle->name, mtu);
 
 	tunitf = tun_interface_get_name(&cle->tun);
 
-	cle->tconn_up = up;
+	itf_set_mtu(tunitf, mtu);
 
-	if (up) {
-		int maxseg;
-		int mtu;
-		uint8_t addr[16];
+	itf_set_state(tunitf, 1);
 
-		memcpy(cle->peerid, id, NODE_ID_LEN);
+	v6_linklocal_addr_from_key_id(addr, keyid);
+	itf_add_addr_v6(tunitf, addr, 10);
 
-		if (cle->peer_type != CONF_PEER_TYPE_DBONLY) {
-			int cost;
+	v6_global_addr_from_key_id(addr, keyid);
+	itf_add_addr_v6(tunitf, addr, 128);
 
-			cost = cle->cost;
-			if (cost == 0) {
-				cost = tconn_listen_entry_get_rtt(&cle->tle);
-				if (cost < 1)
-					cost = 1;
-			}
+	v6_global_addr_from_key_id(cle->dp.addr, id);
+	if (iv_avl_tree_insert(&direct_peers, &cle->dp.an))
+		abort();
 
-			mylsa_add_peer(cle->peerid, cle->peer_type, cost);
-		}
+	dgp_listen_socket_register(&cle->dls);
+	dgp_listen_entry_register(&cle->dle);
 
-		maxseg = tconn_listen_entry_get_maxseg(&cle->tle);
-		if (maxseg < 0)
-			abort();
-
-		mtu = maxseg - 5 - 8 - 3 - 16;
-		if (mtu < 1280)
-			mtu = 1280;
-		else if (mtu > 1500)
-			mtu = 1500;
-
-		fprintf(stderr, "%s: setting interface MTU to %d\n",
-			cle->name, mtu);
-		itf_set_mtu(tunitf, mtu);
-
-		itf_set_state(tunitf, 1);
-
-		v6_linklocal_addr_from_key_id(addr, keyid);
-		itf_add_addr_v6(tunitf, addr, 10);
-
-		v6_global_addr_from_key_id(addr, keyid);
-		itf_add_addr_v6(tunitf, addr, 128);
-
-		v6_global_addr_from_key_id(cle->dp.addr, id);
-		if (iv_avl_tree_insert(&direct_peers, &cle->dp.an))
-			abort();
-
-		dgp_listen_socket_register(&cle->dls);
-		dgp_listen_entry_register(&cle->dle);
-	} else {
-		dgp_listen_entry_unregister(&cle->dle);
-		dgp_listen_socket_unregister(&cle->dls);
-
-		iv_avl_tree_delete(&direct_peers, &cle->dp.an);
-
-		itf_set_state(tunitf, 0);
-
-		if (cle->peer_type != CONF_PEER_TYPE_DBONLY)
-			mylsa_del_peer(cle->peerid);
-	}
+	return cle;
 }
 
 static void cle_record_received(void *_cle, const uint8_t *rec, int len)
@@ -485,6 +479,26 @@ static void cle_record_received(void *_cle, const uint8_t *rec, int len)
 		return;
 
 	tun_interface_send_packet(&cle->tun, rec + 3, rlen);
+}
+
+static void cle_disconnect(void *_cle)
+{
+	struct conf_listen_entry *cle = _cle;
+
+	if (cle->tconn == NULL)
+		abort();
+
+	cle->tconn = NULL;
+
+	dgp_listen_entry_unregister(&cle->dle);
+	dgp_listen_socket_unregister(&cle->dls);
+
+	iv_avl_tree_delete(&direct_peers, &cle->dp.an);
+
+	itf_set_state(tun_interface_get_name(&cle->tun), 0);
+
+	if (cle->peer_type != CONF_PEER_TYPE_DBONLY)
+		mylsa_del_peer(cle->peerid);
 }
 
 static int start_conf_connect_entry(struct conf_connect_entry *cce)
@@ -554,8 +568,9 @@ static int start_conf_listen_entry(struct conf_listening_socket *cls,
 	cle->tle.name = cle->name;
 	cle->tle.fingerprint = cle->fingerprint;
 	cle->tle.cookie = cle;
-	cle->tle.set_state = cle_set_state;
+	cle->tle.new_conn = cle_new_conn;
 	cle->tle.record_received = cle_record_received;
+	cle->tle.disconnect = cle_disconnect;
 	tconn_listen_entry_register(&cle->tle);
 
 	cle->dp.itfname = tun_interface_get_name(&cle->tun);
@@ -575,7 +590,7 @@ static void stop_conf_listen_entry(struct conf_listen_entry *cle)
 {
 	cle->registered = 0;
 
-	if (cle->tconn_up) {
+	if (cle->tconn != NULL) {
 		dgp_listen_entry_unregister(&cle->dle);
 		dgp_listen_socket_unregister(&cle->dls);
 		iv_avl_tree_delete(&direct_peers, &cle->dp.an);
