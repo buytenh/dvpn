@@ -90,6 +90,7 @@ struct conf_listen_entry {
 	enum conf_peer_type		peer_type;
 	char				*tunitf;
 	int				cost;
+	int				conn_limit;
 
 	int				registered;
 	struct tun_interface		tun;

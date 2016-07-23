@@ -467,7 +467,7 @@ get_listening_socket(struct local_conf *lc, const char *listen)
 static int
 add_listen_peer(struct local_conf *lc, const char *peer, const char *listen,
 		const uint8_t *fp, enum conf_peer_type peer_type,
-		const char *itf, int cost)
+		const char *itf, int cost, int conn_limit)
 {
 	struct conf_listening_socket *cls;
 	struct conf_listen_entry *cle;
@@ -489,6 +489,7 @@ add_listen_peer(struct local_conf *lc, const char *peer, const char *listen,
 	cle->peer_type = peer_type;
 	cle->tunitf = strdup(itf ? : "dvpn%d");
 	cle->cost = cost;
+	cle->conn_limit = conn_limit;
 
 	return 0;
 }
@@ -506,6 +507,7 @@ static int parse_config_peer(struct local_conf *lc,
 	struct value_obj *vo;
 	int ret;
 	int cost;
+	int conn_limit;
 
 	connect = get_const_value(co, peer, "Connect");
 	listen = get_const_value(co, peer, "Listen");
@@ -558,12 +560,30 @@ static int parse_config_peer(struct local_conf *lc,
 		cost = 0;
 	}
 
+	ret = ini_get_config_valueobj(peer, "ConnectionLimit", co,
+				      INI_GET_FIRST_VALUE, &vo);
+	if (ret == 0 && vo != NULL) {
+		conn_limit = ini_get_int_config_value(vo, 1, 0, &ret);
+		if (ret) {
+			fprintf(stderr, "error retrieving ConnectionLimit "
+					"value\n");
+			return -1;
+		}
+
+		if (conn_limit < 1) {
+			fprintf(stderr, "peer ConnectionLimit must be >= 1\n");
+			return -1;
+		}
+	} else {
+		conn_limit = 1;
+	}
+
 	if (connect != NULL) {
 		return add_connect_peer(lc, peer, connect, f,
 					peer_type, itf, cost);
 	} else {
 		return add_listen_peer(lc, peer, listen, f,
-				       peer_type, itf, cost);
+				       peer_type, itf, cost, conn_limit);
 	}
 
 	return 0;

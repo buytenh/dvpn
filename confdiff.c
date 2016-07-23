@@ -130,7 +130,8 @@ static void cle_mod(void *_op, struct iv_avl_node *_a, struct iv_avl_node *_b)
 	b = iv_container_of(_b, struct conf_listen_entry, an);
 
 	if (!memcmp(a->fingerprint, b->fingerprint, NODE_ID_LEN) &&
-	    a->peer_type == b->peer_type && !strcmp(a->tunitf, b->tunitf)) {
+	    a->peer_type == b->peer_type && !strcmp(a->tunitf, b->tunitf) &&
+	    a->cost == b->cost && a->conn_limit == b->conn_limit) {
 		return;
 	}
 
