@@ -33,6 +33,7 @@
 #include "x509.h"
 
 struct client_conn {
+	struct iv_list_head		list_handshaking;
 	struct tconn_listen_socket	*tls;
 	struct tconn_listen_entry	*tle;
 
@@ -61,6 +62,12 @@ static void print_name(FILE *fp, struct client_conn *cc)
 
 static void client_conn_kill(struct client_conn *cc, int notify)
 {
+	if (cc->state == STATE_TLS_HANDSHAKE) {
+		if (iv_list_empty(&cc->list_handshaking))
+			abort();
+		iv_list_del(&cc->list_handshaking);
+	}
+
 	if (cc->tle != NULL) {
 		if (cc->state == STATE_CONNECTED && notify)
 			cc->tle->set_state(cc->tle->cookie, cc->id, 0);
@@ -130,6 +137,9 @@ static int verify_key_ids(void *_cc, const uint8_t *ids, int num)
 		if (tle != NULL) {
 			fprintf(stderr, " - matches '%s'%s\n", tle->name,
 				(i != 0) ? " (via role certificate)" : "");
+			iv_list_del(&cc->list_handshaking);
+			iv_list_add_tail(&cc->list_handshaking,
+					 &tle->conn_handshaking);
 			cc->tle = tle;
 			memcpy(cc->id, ids, NODE_ID_LEN);
 			return 0;
@@ -172,6 +182,8 @@ static void handshake_done(void *_cc, char *desc)
 	}
 
 	le->current = cc;
+
+	iv_list_del_init(&cc->list_handshaking);
 
 	cc->state = STATE_CONNECTED;
 
@@ -260,6 +272,8 @@ static void got_connection(void *_ls)
 	print_address(stderr, (struct sockaddr *)&ls->listen_address);
 	fprintf(stderr, "\n");
 
+	iv_list_add_tail(&cc->list_handshaking, &ls->conn_handshaking);
+
 	cc->tls = ls;
 	cc->tle = NULL;
 
@@ -341,6 +355,8 @@ int tconn_listen_socket_register(struct tconn_listen_socket *tls)
 	tls->listen_fd.handler_in = got_connection;
 	iv_fd_register(&tls->listen_fd);
 
+	INIT_IV_LIST_HEAD(&tls->conn_handshaking);
+
 	INIT_IV_AVL_TREE(&tls->listen_entries, compare_listen_entries);
 
 	return 0;
@@ -348,11 +364,20 @@ int tconn_listen_socket_register(struct tconn_listen_socket *tls)
 
 void tconn_listen_socket_unregister(struct tconn_listen_socket *tls)
 {
+	struct iv_list_head *lh;
+	struct iv_list_head *lh2;
 	struct iv_avl_node *an;
 	struct iv_avl_node *an2;
 
 	iv_fd_unregister(&tls->listen_fd);
 	close(tls->listen_fd.fd);
+
+	iv_list_for_each_safe (lh, lh2, &tls->conn_handshaking) {
+		struct client_conn *cc;
+
+		cc = iv_list_entry(lh, struct client_conn, list_handshaking);
+		client_conn_kill(cc, 0);
+	}
 
 	iv_avl_tree_for_each_safe (an, an2, &tls->listen_entries) {
 		struct tconn_listen_entry *le;
@@ -367,6 +392,8 @@ int tconn_listen_entry_register(struct tconn_listen_entry *tle)
 	if (iv_avl_tree_insert(&tle->tls->listen_entries, &tle->an))
 		return -1;
 
+	INIT_IV_LIST_HEAD(&tle->conn_handshaking);
+
 	tle->current = NULL;
 
 	return 0;
@@ -374,6 +401,16 @@ int tconn_listen_entry_register(struct tconn_listen_entry *tle)
 
 void tconn_listen_entry_unregister(struct tconn_listen_entry *tle)
 {
+	struct iv_list_head *lh;
+	struct iv_list_head *lh2;
+
+	iv_list_for_each_safe (lh, lh2, &tle->conn_handshaking) {
+		struct client_conn *cc;
+
+		cc = iv_list_entry(lh, struct client_conn, list_handshaking);
+		client_conn_kill(cc, 0);
+	}
+
 	if (tle->current != NULL)
 		client_conn_kill(tle->current, 0);
 

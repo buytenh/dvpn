@@ -30,6 +30,7 @@ struct tconn_listen_socket {
 	gnutls_x509_crt_t	*mycrts;
 
 	struct iv_fd		listen_fd;
+	struct iv_list_head	conn_handshaking;
 	struct iv_avl_tree	listen_entries;
 };
 
@@ -48,6 +49,7 @@ struct tconn_listen_entry {
 							   int len);
 
 	struct iv_avl_node		an;
+	struct iv_list_head		conn_handshaking;
 	struct client_conn		*current;
 };
 
