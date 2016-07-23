@@ -478,3 +478,10 @@ void tconn_listen_entry_record_send(void *conn, const uint8_t *rec, int len)
 		client_conn_kill(cc, 1);
 	}
 }
+
+void tconn_listen_entry_disconnect(void *conn)
+{
+	struct client_conn *cc = conn;
+
+	client_conn_kill(cc, 0);
+}

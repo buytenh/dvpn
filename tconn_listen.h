@@ -59,6 +59,7 @@ void tconn_listen_entry_unregister(struct tconn_listen_entry *tle);
 int tconn_listen_entry_get_rtt(void *conn);
 int tconn_listen_entry_get_maxseg(void *conn);
 void tconn_listen_entry_record_send(void *conn, const uint8_t *rec, int len);
+void tconn_listen_entry_disconnect(void *conn);
 
 
 #endif
