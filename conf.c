@@ -455,6 +455,8 @@ static int parse_config_peer(struct local_conf *lc,
 {
 	const char *connect;
 	const char *listen;
+	int have_cfp;
+	uint8_t cfp[NODE_ID_LEN];
 	const char *fp;
 	uint8_t f[NODE_ID_LEN];
 	const char *peertype;
@@ -473,18 +475,40 @@ static int parse_config_peer(struct local_conf *lc,
 		return -1;
 	}
 
-	fp = get_const_value(co, peer, "PeerFingerprint");
-	if (fp == NULL) {
-		fprintf(stderr, "peer object for '%s' lacks a "
-				"PeerFingerprint directive\n", peer);
-		return -1;
-	}
+	have_cfp = 0;
+	if (connect != NULL && !parse_hostname_fingerprint(cfp, connect))
+		have_cfp = 1;
 
-	if (parse_fingerprint(f, fp) < 0) {
+	fp = get_const_value(co, peer, "PeerFingerprint");
+	if (fp != NULL && parse_fingerprint(f, fp) < 0) {
 		fprintf(stderr, "peer object for '%s' has an unparseable "
 				"PeerFingerprint '%s'\n", peer, fp);
 		return -1;
 	}
+
+	if (!have_cfp && fp == NULL) {
+		if (connect != NULL) {
+			fprintf(stderr, "peer object for '%s' needs either "
+					"a PeerFingerprint directive or a "
+					"Connect= hostname with embedded "
+					"fingerprint\n", peer);
+		} else {
+			fprintf(stderr, "peer object for '%s' lacks a "
+					"PeerFingerprint directive\n", peer);
+		}
+		return -1;
+	}
+
+	if (have_cfp && fp != NULL && memcmp(cfp, f, NODE_ID_LEN)) {
+		fprintf(stderr, "peer object for '%s' has a "
+				"PeerFingerprint directive that conflicts "
+				"with the fingerprint embedded in the "
+				"Connect= hostname\n", peer);
+		return -1;
+	}
+
+	if (have_cfp && fp == NULL)
+		memcpy(f, cfp, NODE_ID_LEN);
 
 	peertype = get_const_value(co, peer, "PeerType");
 	if (peertype != NULL) {
