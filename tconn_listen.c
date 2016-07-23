@@ -177,20 +177,7 @@ static void handshake_done(void *_cc, char *desc)
 {
 	struct client_conn *cc = _cc;
 	struct tconn_listen_entry *le = cc->tle;
-	struct iv_list_head *lh;
-	struct iv_list_head *lh2;
 	void *cookie;
-
-	iv_list_for_each_safe (lh, lh2, &le->connections) {
-		struct client_conn *oldcc;
-
-		oldcc = iv_list_entry(lh, struct client_conn, list);
-		if (oldcc != cc) {
-			print_name(stderr, oldcc);
-			fprintf(stderr, ": disconnecting previous client\n");
-			client_conn_kill(oldcc, 1);
-		}
-	}
 
 	cookie = le->new_conn(le->cookie, cc, cc->id);
 	if (cookie == NULL) {
