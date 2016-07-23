@@ -93,13 +93,9 @@ struct conf_listen_entry {
 	int				conn_limit;
 
 	int				registered;
-	struct tun_interface		tun;
 	struct tconn_listen_entry	tle;
-	void				*tconn;
-	uint8_t				peerid[NODE_ID_LEN];
-	struct direct_peer		dp;
-	struct dgp_listen_socket	dls;
-	struct dgp_listen_entry		dle;
+	int				num_connections;
+	struct iv_list_head		connections;
 };
 
 struct conf *parse_config(const char *file);

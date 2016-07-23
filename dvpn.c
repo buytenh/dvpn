@@ -51,7 +51,7 @@ static struct iv_avl_tree direct_peers;
 static struct dgp_listen_socket dls;
 static struct lsa *me;
 
-static char *peer_itfname(uint8_t *addr)
+static struct direct_peer *dp_find(uint8_t *addr)
 {
 	struct iv_avl_node *an;
 
@@ -64,13 +64,24 @@ static char *peer_itfname(uint8_t *addr)
 
 		ret = memcmp(addr, dp->addr, sizeof(dp->addr));
 		if (ret == 0)
-			return dp->itfname;
+			return dp;
 
 		if (ret < 0)
 			an = an->left;
 		else
 			an = an->right;
 	}
+
+	return NULL;
+}
+
+static char *peer_itfname(uint8_t *addr)
+{
+	struct direct_peer *dp;
+
+	dp = dp_find(addr);
+	if (dp != NULL)
+		return dp->itfname;
 
 	return NULL;
 }
@@ -386,35 +397,93 @@ static void cce_record_received(void *_cce, const uint8_t *rec, int len)
 	tun_interface_send_packet(&cce->tun, rec + 3, rlen);
 }
 
-static void cle_tun_got_packet(void *_cle, uint8_t *buf, int len)
+struct listen_entry_conn {
+	struct iv_list_head		list;
+
+	struct conf_listen_entry	*cle;
+	void				*conn;
+	uint8_t				peerid[NODE_ID_LEN];
+
+	struct tun_interface		tun;
+	struct direct_peer		dp;
+	struct dgp_listen_socket	dls;
+	struct dgp_listen_entry		dle;
+};
+
+static void lec_tun_got_packet(void *_lec, uint8_t *buf, int len)
 {
-	struct conf_listen_entry *cle = _cle;
+	struct listen_entry_conn *lec = _lec;
+	uint8_t sndbuf[len + 3];
 
-	if (cle->tconn != NULL) {
-		uint8_t sndbuf[len + 3];
+	sndbuf[0] = 0x00;
+	sndbuf[1] = len >> 8;
+	sndbuf[2] = len & 0xff;
+	memcpy(sndbuf + 3, buf, len);
 
-		sndbuf[0] = 0x00;
-		sndbuf[1] = len >> 8;
-		sndbuf[2] = len & 0xff;
-		memcpy(sndbuf + 3, buf, len);
+	tconn_listen_entry_record_send(lec->conn, sndbuf, len + 3);
+}
 
-		tconn_listen_entry_record_send(cle->tconn, sndbuf, len + 3);
-	}
+static void lec_destroy(struct listen_entry_conn *lec, int disconnect_tconn)
+{
+	iv_list_del(&lec->list);
+
+	lec->cle->num_connections--;
+
+	dgp_listen_entry_unregister(&lec->dle);
+	dgp_listen_socket_unregister(&lec->dls);
+
+	if (disconnect_tconn)
+		tconn_listen_entry_disconnect(lec->conn);
+
+	iv_avl_tree_delete(&direct_peers, &lec->dp.an);
+
+	tun_interface_unregister(&lec->tun);
+
+	if (lec->cle->peer_type != CONF_PEER_TYPE_DBONLY)
+		mylsa_del_peer(lec->peerid);
+
+	free(lec);
 }
 
 static void *cle_new_conn(void *_cle, void *conn, const uint8_t *id)
 {
 	struct conf_listen_entry *cle = _cle;
+	uint8_t addr[16];
+	struct listen_entry_conn *lec;
 	int maxseg;
 	int mtu;
 	char *tunitf;
-	uint8_t addr[16];
 
-	if (cle->tconn != NULL)
-		abort();
+	v6_global_addr_from_key_id(addr, id);
+	if (dp_find(addr) != NULL)
+		return NULL;
 
-	cle->tconn = conn;
-	memcpy(cle->peerid, id, NODE_ID_LEN);
+	lec = calloc(1, sizeof(*lec));
+	if (lec == NULL)
+		return NULL;
+
+	lec->cle = cle;
+	lec->conn = conn;
+	memcpy(lec->peerid, id, NODE_ID_LEN);
+
+	lec->tun.itfname = cle->tunitf;
+	lec->tun.cookie = lec;
+	lec->tun.got_packet = lec_tun_got_packet;
+	if (tun_interface_register(&lec->tun) < 0) {
+		free(lec);
+		return NULL;
+	}
+
+	if (cle->conn_limit == cle->num_connections) {
+		struct listen_entry_conn *oldlec;
+
+		fprintf(stderr, "%s: connection limit reached, disconnecting "
+				"previous client\n", cle->name);
+
+		oldlec = iv_list_entry(cle->connections.prev,
+				       struct listen_entry_conn, list);
+		lec_destroy(oldlec, 1);
+	}
 
 	if (cle->peer_type != CONF_PEER_TYPE_DBONLY) {
 		int cost;
@@ -426,7 +495,7 @@ static void *cle_new_conn(void *_cle, void *conn, const uint8_t *id)
 				cost = 1;
 		}
 
-		mylsa_add_peer(cle->peerid, cle->peer_type, cost);
+		mylsa_add_peer(lec->peerid, cle->peer_type, cost);
 	}
 
 	maxseg = tconn_listen_entry_get_maxseg(conn);
@@ -441,7 +510,7 @@ static void *cle_new_conn(void *_cle, void *conn, const uint8_t *id)
 
 	fprintf(stderr, "%s: setting interface MTU to %d\n", cle->name, mtu);
 
-	tunitf = tun_interface_get_name(&cle->tun);
+	tunitf = tun_interface_get_name(&lec->tun);
 
 	itf_set_mtu(tunitf, mtu);
 
@@ -453,19 +522,30 @@ static void *cle_new_conn(void *_cle, void *conn, const uint8_t *id)
 	v6_global_addr_from_key_id(addr, keyid);
 	itf_add_addr_v6(tunitf, addr, 128);
 
-	v6_global_addr_from_key_id(cle->dp.addr, id);
-	if (iv_avl_tree_insert(&direct_peers, &cle->dp.an))
+	v6_global_addr_from_key_id(lec->dp.addr, id);
+	lec->dp.itfname = tunitf;
+	if (iv_avl_tree_insert(&direct_peers, &lec->dp.an))
 		abort();
 
-	dgp_listen_socket_register(&cle->dls);
-	dgp_listen_entry_register(&cle->dle);
+	lec->dls.myid = keyid;
+	lec->dls.ifindex = if_nametoindex(tunitf);
+	lec->dls.loc_rib = &loc_rib;
+	lec->dls.permit_readonly = 0;
+	dgp_listen_socket_register(&lec->dls);
 
-	return cle;
+	lec->dle.dls = &lec->dls;
+	lec->dle.remoteid = lec->peerid;
+	dgp_listen_entry_register(&lec->dle);
+
+	cle->num_connections++;
+	iv_list_add_tail(&lec->list, &cle->connections);
+
+	return lec;
 }
 
-static void cle_record_received(void *_cle, const uint8_t *rec, int len)
+static void lec_record_received(void *_lec, const uint8_t *rec, int len)
 {
-	struct conf_listen_entry *cle = _cle;
+	struct listen_entry_conn *lec = _lec;
 	int rlen;
 
 	if (len <= 3)
@@ -478,27 +558,14 @@ static void cle_record_received(void *_cle, const uint8_t *rec, int len)
 	if (rlen + 3 != len)
 		return;
 
-	tun_interface_send_packet(&cle->tun, rec + 3, rlen);
+	tun_interface_send_packet(&lec->tun, rec + 3, rlen);
 }
 
-static void cle_disconnect(void *_cle)
+static void lec_disconnect(void *_lec)
 {
-	struct conf_listen_entry *cle = _cle;
+	struct listen_entry_conn *lec = _lec;
 
-	if (cle->tconn == NULL)
-		abort();
-
-	cle->tconn = NULL;
-
-	dgp_listen_entry_unregister(&cle->dle);
-	dgp_listen_socket_unregister(&cle->dls);
-
-	iv_avl_tree_delete(&direct_peers, &cle->dp.an);
-
-	itf_set_state(tun_interface_get_name(&cle->tun), 0);
-
-	if (cle->peer_type != CONF_PEER_TYPE_DBONLY)
-		mylsa_del_peer(cle->peerid);
+	lec_destroy(lec, 0);
 }
 
 static int start_conf_connect_entry(struct conf_connect_entry *cce)
@@ -554,53 +621,39 @@ static void stop_conf_connect_entry(struct conf_connect_entry *cce)
 static int start_conf_listen_entry(struct conf_listening_socket *cls,
 				   struct conf_listen_entry *cle)
 {
-	cle->tun.itfname = cle->tunitf;
-	cle->tun.cookie = cle;
-	cle->tun.got_packet = cle_tun_got_packet;
-	if (tun_interface_register(&cle->tun) < 0)
-		return 1;
-
 	cle->registered = 1;
-
-	itf_set_state(tun_interface_get_name(&cle->tun), 0);
 
 	cle->tle.tls = &cls->tls;
 	cle->tle.name = cle->name;
 	cle->tle.fingerprint = cle->fingerprint;
 	cle->tle.cookie = cle;
 	cle->tle.new_conn = cle_new_conn;
-	cle->tle.record_received = cle_record_received;
-	cle->tle.disconnect = cle_disconnect;
+	cle->tle.record_received = lec_record_received;
+	cle->tle.disconnect = lec_disconnect;
 	tconn_listen_entry_register(&cle->tle);
 
-	cle->dp.itfname = tun_interface_get_name(&cle->tun);
+	cle->num_connections = 0;
 
-	cle->dls.myid = keyid;
-	cle->dls.ifindex = if_nametoindex(tun_interface_get_name(&cle->tun));
-	cle->dls.loc_rib = &loc_rib;
-	cle->dls.permit_readonly = 0;
-
-	cle->dle.dls = &cle->dls;
-	cle->dle.remoteid = cle->peerid;
+	INIT_IV_LIST_HEAD(&cle->connections);
 
 	return 0;
 }
 
 static void stop_conf_listen_entry(struct conf_listen_entry *cle)
 {
+	struct iv_list_head *lh;
+	struct iv_list_head *lh2;
+
 	cle->registered = 0;
 
-	if (cle->tconn != NULL) {
-		dgp_listen_entry_unregister(&cle->dle);
-		dgp_listen_socket_unregister(&cle->dls);
-		iv_avl_tree_delete(&direct_peers, &cle->dp.an);
-		if (cle->peer_type != CONF_PEER_TYPE_DBONLY)
-			mylsa_del_peer(cle->peerid);
+	iv_list_for_each_safe (lh, lh2, &cle->connections) {
+		struct listen_entry_conn *lec;
+
+		lec = iv_list_entry(lh, struct listen_entry_conn, list);
+		lec_destroy(lec, 1);
 	}
 
 	tconn_listen_entry_unregister(&cle->tle);
-
-	tun_interface_unregister(&cle->tun);
 }
 
 static int start_conf_listening_socket(struct conf_listening_socket *cls)
