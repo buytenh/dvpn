@@ -33,6 +33,7 @@ void avl_diff(struct iv_avl_tree *a, struct iv_avl_tree *b, void *cookie,
 			       struct iv_avl_node *b),
 	      void (*item_del)(void *cookie, struct iv_avl_node *a));
 int parse_base32_fingerprint(uint8_t *id, const char *fp);
+int parse_hostname_fingerprint(uint8_t *id, const char *hostname);
 void print_address(FILE *fp, const struct sockaddr *addr);
 void print_fingerprint(FILE *fp, const uint8_t *id);
 void timespec_add_ms(struct timespec *ts, int minms, int maxms);

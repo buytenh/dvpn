@@ -169,6 +169,27 @@ int parse_base32_fingerprint(uint8_t *id, const char *fp)
 	return 0;
 }
 
+int parse_hostname_fingerprint(uint8_t *id, const char *hostname)
+{
+	while (strlen(hostname) > 56) {
+		const char *c;
+
+		if (!strncmp(hostname, "z2bq", 4) &&
+		    !parse_base32_fingerprint(id, hostname + 4) &&
+		    hostname[56] == '.') {
+			return 0;
+		}
+
+		c = strchr(hostname, '.');
+		if (c == NULL)
+			return -1;
+
+		hostname = c + 1;
+	}
+
+	return -1;
+}
+
 void print_address(FILE *fp, const struct sockaddr *addr)
 {
 	char dst[128];
