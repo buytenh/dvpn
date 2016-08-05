@@ -58,6 +58,21 @@ static int verify_key_ids(void *_tc, const uint8_t *ids, int num)
 	fprintf(stderr, "%s: peer key ID ", tc->name);
 	print_fingerprint(stderr, ids);
 
+	if (tc->have_cnameid) {
+		for (i = 0; i < num; i++) {
+			const uint8_t *id;
+
+			id = ids + (i * NODE_ID_LEN);
+			if (!memcmp(tc->cnameid, id, NODE_ID_LEN))
+				break;
+		}
+
+		if (i == num) {
+			fprintf(stderr, " - does not match its CNAME\n");
+			return 1;
+		}
+	}
+
 	for (i = 0; i < num; i++) {
 		const uint8_t *id;
 
@@ -180,8 +195,14 @@ static void connection_lost(void *_tc)
 
 static void connect_success(struct tconn_connect *tc)
 {
+	int have_cnameid;
+	uint8_t cnameid[NODE_ID_LEN];
+
 	fprintf(stderr, "%s: connection established, starting TLS handshake\n",
 		tc->name);
+
+	have_cnameid = (tc->res->ai_canonname != NULL) &&
+		!parse_hostname_fingerprint(cnameid, tc->res->ai_canonname);
 
 	freeaddrinfo(tc->res);
 
@@ -204,6 +225,10 @@ static void connect_success(struct tconn_connect *tc)
 	tc->tconn.record_received = record_received;
 	tc->tconn.connection_lost = connection_lost;
 	tconn_start(&tc->tconn);
+
+	tc->have_cnameid = have_cnameid;
+	if (have_cnameid)
+		memcpy(tc->cnameid, cnameid, NODE_ID_LEN);
 }
 
 static int try_connect_one(struct tconn_connect *tc)
@@ -345,7 +370,8 @@ static int start_resolve(struct tconn_connect *tc)
 	tc->hints.ai_family = PF_UNSPEC;
 	tc->hints.ai_socktype = SOCK_STREAM;
 	tc->hints.ai_protocol = 0;
-	tc->hints.ai_flags = AI_ADDRCONFIG | AI_V4MAPPED | AI_NUMERICSERV;
+	tc->hints.ai_flags = AI_CANONNAME | AI_V4MAPPED |
+			     AI_ADDRCONFIG | AI_NUMERICSERV;
 
 	tc->addrinfo.node = tc->hostname;
 	tc->addrinfo.service = tc->port;

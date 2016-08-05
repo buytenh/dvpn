@@ -43,20 +43,34 @@ struct tconn_connect {
 	int			state;
 	struct iv_timer		rx_timeout;
 	union {
+		/* STATE_RESOLVE.  */
 		struct {
 			struct addrinfo		hints;
 			struct iv_getaddrinfo	addrinfo;
 		};
+
+		/* STATE_CONNECT.  */
 		struct {
 			struct iv_fd		connectfd;
 			struct addrinfo		*res;
 			struct addrinfo		*rp;
 		};
+
+		/* STATE_{TLS_HANDSHAKE,CONNECTED}.  */
 		struct {
 			struct iv_fd		tconnfd;
 			struct tconn		tconn;
 			uint8_t			id[NODE_ID_LEN];
-			struct iv_timer		keepalive_timer;
+			union {
+				/* STATE_TLS_HANDSHAKE.  */
+				struct {
+					int		have_cnameid;
+					uint8_t		cnameid[NODE_ID_LEN];
+				};
+
+				/* STATE_CONNECTED.  */
+				struct iv_timer		keepalive_timer;
+			};
 		};
 	};
 };
