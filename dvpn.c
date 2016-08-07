@@ -586,7 +586,7 @@ static int start_conf_connect_entry(struct conf_connect_entry *cce)
 	cce->tc.mykey = privkey;
 	cce->tc.numcrts = numcrts;
 	cce->tc.mycrts = crt;
-	cce->tc.fp_type = CONF_FP_TYPE_MATCH;
+	cce->tc.fp_type = cce->fp_type;
 	cce->tc.fingerprint = cce->fingerprint;
 	cce->tc.cookie = cce;
 	cce->tc.set_state = cce_set_state;
@@ -626,7 +626,7 @@ static int start_conf_listen_entry(struct conf_listening_socket *cls,
 
 	cle->tle.tls = &cls->tls;
 	cle->tle.name = cle->name;
-	cle->tle.fp_type = CONF_FP_TYPE_MATCH;
+	cle->tle.fp_type = cle->fp_type;
 	cle->tle.fingerprint = cle->fingerprint;
 	cle->tle.cookie = cle;
 	cle->tle.new_conn = cle_new_conn;

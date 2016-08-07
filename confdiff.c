@@ -49,7 +49,9 @@ static void cce_mod(void *_req, struct iv_avl_node *_a, struct iv_avl_node *_b)
 	b = iv_container_of(_b, struct conf_connect_entry, an);
 
 	if (!strcmp(a->hostname, b->hostname) && !strcmp(a->port, b->port) &&
-	    !memcmp(a->fingerprint, b->fingerprint, NODE_ID_LEN) &&
+	    a->fp_type == b->fp_type &&
+	    (a->fp_type != CONF_FP_TYPE_MATCH ||
+	     !memcmp(a->fingerprint, b->fingerprint, NODE_ID_LEN)) &&
 	    a->peer_type == b->peer_type && !strcmp(a->tunitf, b->tunitf) &&
 	    a->cost == b->cost) {
 		return;
@@ -129,7 +131,9 @@ static void cle_mod(void *_op, struct iv_avl_node *_a, struct iv_avl_node *_b)
 	a = iv_container_of(_a, struct conf_listen_entry, an);
 	b = iv_container_of(_b, struct conf_listen_entry, an);
 
-	if (!memcmp(a->fingerprint, b->fingerprint, NODE_ID_LEN) &&
+	if (a->fp_type == b->fp_type &&
+	    (a->fp_type != CONF_FP_TYPE_MATCH ||
+	     !memcmp(a->fingerprint, b->fingerprint, NODE_ID_LEN)) &&
 	    a->peer_type == b->peer_type && !strcmp(a->tunitf, b->tunitf) &&
 	    a->cost == b->cost && a->conn_limit == b->conn_limit) {
 		return;

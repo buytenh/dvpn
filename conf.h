@@ -65,6 +65,7 @@ struct conf_connect_entry {
 	char			*name;
 	char			*hostname;
 	char			*port;
+	enum conf_fp_type	fp_type;
 	uint8_t			fingerprint[NODE_ID_LEN];
 	enum conf_peer_type	peer_type;
 	char			*tunitf;
@@ -83,6 +84,7 @@ struct conf_listening_socket {
 	struct iv_avl_node		an;
 
 	struct sockaddr_storage		listen_address;
+	int				have_wildcard_listen_entry;
 	struct iv_avl_tree		listen_entries;
 
 	int				registered;
@@ -93,6 +95,7 @@ struct conf_listen_entry {
 	struct iv_avl_node		an;
 
 	char				*name;
+	enum conf_fp_type		fp_type;
 	uint8_t				fingerprint[NODE_ID_LEN];
 	enum conf_peer_type		peer_type;
 	char				*tunitf;

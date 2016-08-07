@@ -244,8 +244,8 @@ static enum conf_peer_type parse_peer_type(const char *pt)
 
 static int
 add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
-		 const uint8_t *fp, enum conf_peer_type peer_type,
-		 const char *itf, int cost)
+		 enum conf_fp_type fp_type, const uint8_t *fp,
+		 enum conf_peer_type peer_type, const char *itf, int cost)
 {
 	struct conf_connect_entry *cce;
 	char *delim;
@@ -294,6 +294,7 @@ add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 			cce->hostname[delim - connect] = 0;
 	}
 	asprintf(&cce->port, "%d", port);
+	cce->fp_type = fp_type;
 	memcpy(cce->fingerprint, fp, NODE_ID_LEN);
 	cce->peer_type = peer_type;
 	cce->tunitf = strdup(itf ? : "dvpn%d");
@@ -415,6 +416,7 @@ get_listening_socket(struct local_conf *lc, const char *listen)
 	if (iv_avl_tree_insert(&lc->conf->listening_sockets, &cls->an) < 0)
 		abort();
 
+	cls->have_wildcard_listen_entry = 0;
 	INIT_IV_AVL_TREE(&cls->listen_entries, compare_listen_entries);
 
 	return cls;
@@ -422,8 +424,9 @@ get_listening_socket(struct local_conf *lc, const char *listen)
 
 static int
 add_listen_peer(struct local_conf *lc, const char *peer, const char *listen,
-		const uint8_t *fp, enum conf_peer_type peer_type,
-		const char *itf, int cost, int conn_limit)
+		enum conf_fp_type fp_type, const uint8_t *fp,
+		enum conf_peer_type peer_type, const char *itf, int cost,
+		int conn_limit)
 {
 	struct conf_listening_socket *cls;
 	struct conf_listen_entry *cle;
@@ -431,6 +434,13 @@ add_listen_peer(struct local_conf *lc, const char *peer, const char *listen,
 	cls = get_listening_socket(lc, listen);
 	if (cls == NULL)
 		return -1;
+
+	if (cls->have_wildcard_listen_entry && fp_type == CONF_FP_TYPE_ANY) {
+		fprintf(stderr, "error adding peer object for '%s': "
+				"already have a PeerFingerprint=any "
+				"object for this listening address\n", peer);
+		return -1;
+	}
 
 	cle = calloc(1, sizeof(*cle));
 	if (cle == NULL) {
@@ -441,11 +451,15 @@ add_listen_peer(struct local_conf *lc, const char *peer, const char *listen,
 	cle->name = strdup(peer);
 	iv_avl_tree_insert(&cls->listen_entries, &cle->an);
 
+	cle->fp_type = fp_type;
 	memcpy(cle->fingerprint, fp, NODE_ID_LEN);
 	cle->peer_type = peer_type;
 	cle->tunitf = strdup(itf ? : "dvpn%d");
 	cle->cost = cost;
 	cle->conn_limit = conn_limit;
+
+	if (fp_type == CONF_FP_TYPE_ANY)
+		cls->have_wildcard_listen_entry = 1;
 
 	return 0;
 }
@@ -459,6 +473,7 @@ static int parse_config_peer(struct local_conf *lc,
 	uint8_t cfp[NODE_ID_LEN];
 	const char *fp;
 	uint8_t f[NODE_ID_LEN];
+	int fp_type;
 	const char *peertype;
 	enum conf_peer_type peer_type;
 	const char *itf;
@@ -480,13 +495,27 @@ static int parse_config_peer(struct local_conf *lc,
 		have_cfp = 1;
 
 	fp = get_const_value(co, peer, "PeerFingerprint");
-	if (fp != NULL && parse_fingerprint(f, fp) < 0) {
+	if (fp == NULL) {
+		fp_type = -1;
+	} else if (!strcmp(fp, "any")) {
+		fp_type = CONF_FP_TYPE_ANY;
+	} else if (!strcmp(fp, "cname")) {
+		if (connect == NULL) {
+			fprintf(stderr, "peer object for '%s' is a listen "
+					"object yet specifies "
+					"PeerFingerprint=cname\n", peer);
+			return -1;
+		}
+		fp_type = CONF_FP_TYPE_CNAME;
+	} else if (parse_fingerprint(f, fp) == 0) {
+		fp_type = CONF_FP_TYPE_MATCH;
+	} else {
 		fprintf(stderr, "peer object for '%s' has an unparseable "
 				"PeerFingerprint '%s'\n", peer, fp);
 		return -1;
 	}
 
-	if (!have_cfp && fp == NULL) {
+	if (!have_cfp && fp_type == -1) {
 		if (connect != NULL) {
 			fprintf(stderr, "peer object for '%s' needs either "
 					"a PeerFingerprint directive or a "
@@ -499,16 +528,19 @@ static int parse_config_peer(struct local_conf *lc,
 		return -1;
 	}
 
-	if (have_cfp && fp != NULL && memcmp(cfp, f, NODE_ID_LEN)) {
+	if (have_cfp && fp_type == CONF_FP_TYPE_MATCH &&
+	    memcmp(cfp, f, NODE_ID_LEN)) {
 		fprintf(stderr, "peer object for '%s' has a "
-				"PeerFingerprint directive that conflicts "
+				"PeerFingerprint= value that conflicts "
 				"with the fingerprint embedded in the "
 				"Connect= hostname\n", peer);
 		return -1;
 	}
 
-	if (have_cfp && fp == NULL)
+	if (have_cfp && fp_type == -1) {
+		fp_type = CONF_FP_TYPE_MATCH;
 		memcpy(f, cfp, NODE_ID_LEN);
+	}
 
 	peertype = get_const_value(co, peer, "PeerType");
 	if (peertype != NULL) {
@@ -559,10 +591,10 @@ static int parse_config_peer(struct local_conf *lc,
 	}
 
 	if (connect != NULL) {
-		return add_connect_peer(lc, peer, connect, f,
+		return add_connect_peer(lc, peer, connect, fp_type, f,
 					peer_type, itf, cost);
 	} else {
-		return add_listen_peer(lc, peer, listen, f,
+		return add_listen_peer(lc, peer, listen, fp_type, f,
 				       peer_type, itf, cost, conn_limit);
 	}
 
