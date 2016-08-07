@@ -154,6 +154,28 @@ lsa_path_cost(struct loc_rib *rib, struct loc_rib_id *rid, struct lsa *lsa)
 	return cost;
 }
 
+static int lsa_has_shorter_adv_path(struct lsa *a, struct lsa *b)
+{
+	struct lsa_attr *apath;
+
+	apath = lsa_find_attr(a, LSA_ATTR_TYPE_ADV_PATH, NULL, 0);
+	if (apath == NULL)
+		abort();
+
+	if (b != NULL) {
+		struct lsa_attr *bpath;
+
+		bpath = lsa_find_attr(b, LSA_ATTR_TYPE_ADV_PATH, NULL, 0);
+		if (bpath == NULL)
+			abort();
+
+		if (apath->datalen < bpath->datalen)
+			return 1;
+	}
+
+	return 0;
+}
+
 static void recompute_rid(struct loc_rib *rib, struct loc_rib_id *rid)
 {
 	struct lsa *oldbest;
@@ -183,6 +205,9 @@ static void recompute_rid(struct loc_rib *rib, struct loc_rib_id *rid)
 		if (cost < bestcost) {
 			best = ref->lsa;
 			bestcost = cost;
+		} else if (cost == bestcost &&
+			   lsa_has_shorter_adv_path(ref->lsa, best)) {
+			best = ref->lsa;
 		}
 	}
 
