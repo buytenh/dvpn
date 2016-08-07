@@ -40,6 +40,7 @@ void tconn_listen_socket_unregister(struct tconn_listen_socket *tls);
 struct tconn_listen_entry {
 	struct tconn_listen_socket	*tls;
 	char				*name;
+	enum conf_fp_type		fp_type;
 	uint8_t				*fingerprint;
 	void				*cookie;
 	void				*(*new_conn)(void *cookie, void *conn,

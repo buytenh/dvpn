@@ -107,18 +107,39 @@ find_listen_entry(struct tconn_listen_socket *tls, const uint8_t *id)
 	an = tls->listen_entries.root;
 	while (an != NULL) {
 		struct tconn_listen_entry *tle;
-		int ret;
 
 		tle = iv_container_of(an, struct tconn_listen_entry, an);
-
-		ret = memcmp(id, tle->fingerprint, NODE_ID_LEN);
-		if (ret == 0)
-			return tle;
-
-		if (ret < 0)
-			an = an->left;
-		else
+		if (tle->fp_type == CONF_FP_TYPE_ANY) {
 			an = an->right;
+		} else {
+			int ret;
+
+			ret = memcmp(id, tle->fingerprint, NODE_ID_LEN);
+			if (ret == 0)
+				return tle;
+
+			if (ret < 0)
+				an = an->left;
+			else
+				an = an->right;
+		}
+	}
+
+	return NULL;
+}
+
+static struct tconn_listen_entry *
+find_wildcard_listen_entry(struct tconn_listen_socket *tls)
+{
+	struct iv_avl_node *an;
+
+	an = iv_avl_tree_min(&tls->listen_entries);
+	if (an != NULL) {
+		struct tconn_listen_entry *tle;
+
+		tle = iv_container_of(an, struct tconn_listen_entry, an);
+		if (tle->fp_type == CONF_FP_TYPE_ANY)
+			return tle;
 	}
 
 	return NULL;
@@ -128,33 +149,40 @@ static int verify_key_ids(void *_cc, const uint8_t *ids, int num)
 {
 	struct client_conn *cc = _cc;
 	int i;
+	struct tconn_listen_entry *tle;
 
 	fprintf(stderr, "conn%d: peer key ID ", cc->fd.fd);
 	print_fingerprint(stderr, ids);
 
 	for (i = 0; i < num; i++) {
-		struct tconn_listen_entry *tle;
-
 		tle = find_listen_entry(cc->tls, ids + (i * NODE_ID_LEN));
 		if (tle != NULL) {
 			fprintf(stderr, " - matches '%s'%s\n", tle->name,
 				(i != 0) ? " (via role certificate)" : "");
-
-			iv_list_del(&cc->list);
-			iv_list_add_tail(&cc->list, &tle->connections);
-
-			cc->state = STATE_KEY_ID_VERIFIED;
-
-			cc->tle = tle;
-			memcpy(cc->id, ids, NODE_ID_LEN);
-
-			return 0;
+			goto match;
 		}
+	}
+
+	tle = find_wildcard_listen_entry(cc->tls);
+	if (tle != NULL) {
+		fprintf(stderr, " - matches wildcard entry '%s'\n", tle->name);
+		goto match;
 	}
 
 	fprintf(stderr, " - no matches\n");
 
 	return 1;
+
+match:
+	iv_list_del(&cc->list);
+	iv_list_add_tail(&cc->list, &tle->connections);
+
+	cc->state = STATE_KEY_ID_VERIFIED;
+
+	cc->tle = tle;
+	memcpy(cc->id, ids, NODE_ID_LEN);
+
+	return 0;
 }
 
 static void send_keepalive(void *_cc)
@@ -319,6 +347,14 @@ compare_listen_entries(struct iv_avl_node *_a, struct iv_avl_node *_b)
 
 	a = iv_container_of(_a, struct tconn_listen_entry, an);
 	b = iv_container_of(_b, struct tconn_listen_entry, an);
+
+	if (a->fp_type == CONF_FP_TYPE_ANY) {
+		if (b->fp_type == CONF_FP_TYPE_ANY)
+			abort();
+		return -1;
+	} else if (b->fp_type == CONF_FP_TYPE_ANY) {
+		return 1;
+	}
 
 	return memcmp(a->fingerprint, b->fingerprint, NODE_ID_LEN);
 }
