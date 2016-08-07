@@ -23,6 +23,13 @@
 #include <iv_avl.h>
 #include <stdint.h>
 #include <sys/socket.h>
+
+enum conf_fp_type {
+	CONF_FP_TYPE_ANY,
+	CONF_FP_TYPE_CNAME,
+	CONF_FP_TYPE_MATCH,
+};
+
 #include "dgp_connect.h"
 #include "dgp_listen.h"
 #include "tconn_connect.h"

@@ -23,6 +23,7 @@
 #include <gnutls/x509.h>
 #include <iv.h>
 #include <netdb.h>
+#include "conf.h"
 #include "iv_getaddrinfo.h"
 #include "tconn.h"
 
@@ -33,6 +34,7 @@ struct tconn_connect {
 	gnutls_x509_privkey_t	mykey;
 	int			numcrts;
 	gnutls_x509_crt_t	*mycrts;
+	enum conf_fp_type	fp_type;
 	uint8_t			*fingerprint;
 	void			*cookie;
 	void			(*set_state)(void *cookie,

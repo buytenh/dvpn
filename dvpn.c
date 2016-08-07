@@ -586,6 +586,7 @@ static int start_conf_connect_entry(struct conf_connect_entry *cce)
 	cce->tc.mykey = privkey;
 	cce->tc.numcrts = numcrts;
 	cce->tc.mycrts = crt;
+	cce->tc.fp_type = CONF_FP_TYPE_MATCH;
 	cce->tc.fingerprint = cce->fingerprint;
 	cce->tc.cookie = cce;
 	cce->tc.set_state = cce_set_state;

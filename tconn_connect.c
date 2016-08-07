@@ -71,6 +71,22 @@ static int verify_key_ids(void *_tc, const uint8_t *ids, int num)
 			fprintf(stderr, " - does not match its CNAME\n");
 			return 1;
 		}
+
+		if (tc->fp_type == CONF_FP_TYPE_ANY ||
+		    tc->fp_type == CONF_FP_TYPE_CNAME) {
+			fprintf(stderr, " - have CNAME match\n");
+			return 0;
+		}
+	}
+
+	if (tc->fp_type == CONF_FP_TYPE_ANY) {
+		fprintf(stderr, " - matches 'any'\n");
+		return 0;
+	}
+
+	if (tc->fp_type == CONF_FP_TYPE_CNAME) {
+		fprintf(stderr, " - don't have CNAME match\n");
+		return 1;
 	}
 
 	for (i = 0; i < num; i++) {
