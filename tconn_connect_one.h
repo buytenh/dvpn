@@ -17,67 +17,50 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#ifndef __TCONN_CONNECT_H
-#define __TCONN_CONNECT_H
+#ifndef __TCONN_CONNECT_ONE_H
+#define __TCONN_CONNECT_ONE_H
 
 #include <gnutls/x509.h>
 #include <iv.h>
-#include <netdb.h>
 #include "conf.h"
-#include "iv_getaddrinfo.h"
-#include "tconn_connect_one.h"
+#include "tconn.h"
 
-struct tconn_connect {
+struct tconn_connect_one {
 	char			*name;
-	char			*hostname;
-	char			*port;
+	struct sockaddr		*addr;
+	socklen_t		addrlen;
 	gnutls_x509_privkey_t	mykey;
 	int			numcrts;
 	gnutls_x509_crt_t	*mycrts;
 	enum conf_fp_type	fp_type;
 	uint8_t			*fingerprint;
+	uint8_t			*cnameid;
 	void			*cookie;
-	void			(*set_state)(void *cookie,
-					     const uint8_t *id, int up);
+	void			(*connected)(void *cookie, const uint8_t *id);
 	void			(*record_received)(void *cookie,
 						   const uint8_t *rec, int len);
+	void			(*connection_failed)(void *cookie);
 
 	int			state;
-	union {
-		/* STATE_RESOLVE.  */
-		struct {
-			struct addrinfo			hints;
-			struct iv_getaddrinfo		addrinfo;
-			struct iv_timer			resolve_timeout;
-		};
 
-		/* STATE_CONNECT.  */
-		struct {
-			struct tconn_connect_one	tco_connect;
-			struct addrinfo			*res;
-			struct addrinfo			*rp;
-			uint8_t				cnameid[NODE_ID_LEN];
-		};
+	/* STATE_{CONNECT,TLS_HANDSHAKE,CONNECTED}.  */
+	struct iv_timer		rx_timeout;
+	struct iv_fd		fd;
 
-		/* STATE_CONNECTED.  */
-		struct {
-			struct tconn_connect_one	tco;
-			uint8_t				id[NODE_ID_LEN];
-		};
+	/* STATE_{TLS_HANDSHAKE,CONNECTED}.  */
+	struct tconn		tconn;
+	uint8_t			id[NODE_ID_LEN];
 
-		/* STATE_WAITING_RETRY.  */
-		struct {
-			struct iv_timer			retry_wait;
-		};
-	};
+	/* STATE_CONNECTED.  */
+	struct iv_timer		keepalive_timer;
 };
 
-void tconn_connect_start(struct tconn_connect *tc);
-void tconn_connect_destroy(struct tconn_connect *tc);
-int tconn_connect_get_rtt(struct tconn_connect *tc);
-int tconn_connect_get_maxseg(struct tconn_connect *tc);
-void tconn_connect_record_send(struct tconn_connect *tc,
-			       const uint8_t *rec, int len);
+int tconn_connect_one_connect(struct tconn_connect_one *tco);
+void tconn_connect_one_disconnect(struct tconn_connect_one *tco);
+int tconn_connect_one_get_rtt(struct tconn_connect_one *tco);
+int tconn_connect_one_get_maxseg(struct tconn_connect_one *tco);
+int tconn_connect_one_record_send(struct tconn_connect_one *tco,
+				  const uint8_t *rec, int len);
 
 
 #endif
