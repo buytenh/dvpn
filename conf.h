@@ -72,12 +72,8 @@ struct conf_connect_entry {
 	int			cost;
 
 	int			registered;
-	struct tun_interface	tun;
 	struct tconn_connect	tc;
-	void			*tconn;
-	uint8_t			peerid[NODE_ID_LEN];
-	struct direct_peer	dp;
-	struct dgp_connect	dc;
+	struct iv_list_head	connections;
 };
 
 struct conf_listening_socket {

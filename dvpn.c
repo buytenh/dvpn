@@ -298,35 +298,75 @@ static void mylsa_del_peer(const uint8_t *id)
 	me = newme;
 }
 
-static void cce_tun_got_packet(void *_cce, uint8_t *buf, int len)
+struct connect_entry_conn {
+	struct iv_list_head		list;
+
+	struct conf_connect_entry	*cce;
+	void				*conn;
+	uint8_t				peerid[NODE_ID_LEN];
+
+	struct tun_interface		tun;
+	struct direct_peer		dp;
+	struct dgp_connect		dc;
+};
+
+static void cec_tun_got_packet(void *_cec, uint8_t *buf, int len)
 {
-	struct conf_connect_entry *cce = _cce;
+	struct connect_entry_conn *cec = _cec;
+	uint8_t sndbuf[len + 3];
 
-	if (cce->tconn != NULL) {
-		uint8_t sndbuf[len + 3];
+	sndbuf[0] = 0x00;
+	sndbuf[1] = len >> 8;
+	sndbuf[2] = len & 0xff;
+	memcpy(sndbuf + 3, buf, len);
 
-		sndbuf[0] = 0x00;
-		sndbuf[1] = len >> 8;
-		sndbuf[2] = len & 0xff;
-		memcpy(sndbuf + 3, buf, len);
+	tconn_connect_record_send(cec->conn, sndbuf, len + 3);
+}
 
-		tconn_connect_record_send(cce->tconn, sndbuf, len + 3);
-	}
+static void cec_destroy(struct connect_entry_conn *cec)
+{
+	iv_list_del(&cec->list);
+
+	dgp_connect_stop(&cec->dc);
+
+	iv_avl_tree_delete(&direct_peers, &cec->dp.an);
+
+	tun_interface_unregister(&cec->tun);
+
+	if (cec->cce->peer_type != CONF_PEER_TYPE_DBONLY)
+		mylsa_del_peer(cec->peerid);
+
+	free(cec);
 }
 
 static void *cce_new_conn(void *_cce, void *conn, const uint8_t *id)
 {
 	struct conf_connect_entry *cce = _cce;
+	uint8_t addr[16];
+	struct connect_entry_conn *cec;
 	int maxseg;
 	int mtu;
 	char *tunitf;
-	uint8_t addr[16];
 
-	if (cce->tconn != NULL)
-		abort();
+	v6_global_addr_from_key_id(addr, keyid);
+	if (dp_find(addr) != NULL)
+		return NULL;
 
-	cce->tconn = conn;
-	memcpy(cce->peerid, id, NODE_ID_LEN);
+	cec = calloc(1, sizeof(*cec));
+	if (cec == NULL)
+		return NULL;
+
+	cec->cce = cce;
+	cec->conn = conn;
+	memcpy(cec->peerid, id, NODE_ID_LEN);
+
+	cec->tun.itfname = cce->tunitf;
+	cec->tun.cookie = cec;
+	cec->tun.got_packet = cec_tun_got_packet;
+	if (tun_interface_register(&cec->tun) < 0) {
+		free(cec);
+		return NULL;
+	}
 
 	if (cce->peer_type != CONF_PEER_TYPE_DBONLY) {
 		int cost;
@@ -338,7 +378,7 @@ static void *cce_new_conn(void *_cce, void *conn, const uint8_t *id)
 				cost = 1;
 		}
 
-		mylsa_add_peer(cce->peerid, cce->peer_type, cost);
+		mylsa_add_peer(cec->peerid, cce->peer_type, cost);
 	}
 
 	maxseg = tconn_connect_get_maxseg(conn);
@@ -353,7 +393,7 @@ static void *cce_new_conn(void *_cce, void *conn, const uint8_t *id)
 
 	fprintf(stderr, "%s: setting interface MTU to %d\n", cce->name, mtu);
 
-	tunitf = tun_interface_get_name(&cce->tun);
+	tunitf = tun_interface_get_name(&cec->tun);
 
 	itf_set_mtu(tunitf, mtu);
 
@@ -365,18 +405,25 @@ static void *cce_new_conn(void *_cce, void *conn, const uint8_t *id)
 	v6_global_addr_from_key_id(addr, keyid);
 	itf_add_addr_v6(tunitf, addr, 128);
 
-	v6_global_addr_from_key_id(cce->dp.addr, id);
-	if (iv_avl_tree_insert(&direct_peers, &cce->dp.an))
+	v6_global_addr_from_key_id(cec->dp.addr, id);
+	cec->dp.itfname = tunitf;
+	if (iv_avl_tree_insert(&direct_peers, &cec->dp.an))
 		abort();
 
-	dgp_connect_start(&cce->dc);
+	cec->dc.myid = keyid;
+	cec->dc.remoteid = cec->peerid;
+	cec->dc.ifindex = if_nametoindex(tunitf);
+	cec->dc.loc_rib = &loc_rib;
+	dgp_connect_start(&cec->dc);
 
-	return cce;
+	iv_list_add_tail(&cec->list, &cce->connections);
+
+	return cec;
 }
 
-static void cce_record_received(void *_cce, const uint8_t *rec, int len)
+static void cec_record_received(void *_cec, const uint8_t *rec, int len)
 {
-	struct conf_connect_entry *cce = _cce;
+	struct connect_entry_conn *cec = _cec;
 	int rlen;
 
 	if (len <= 3)
@@ -389,26 +436,14 @@ static void cce_record_received(void *_cce, const uint8_t *rec, int len)
 	if (rlen + 3 != len)
 		return;
 
-	tun_interface_send_packet(&cce->tun, rec + 3, rlen);
+	tun_interface_send_packet(&cec->tun, rec + 3, rlen);
 }
 
-static void cce_disconnect(void *_cce)
+static void cec_disconnect(void *_cec)
 {
-	struct conf_connect_entry *cce = _cce;
+	struct connect_entry_conn *cec = _cec;
 
-	if (cce->tconn == NULL)
-		abort();
-
-	cce->tconn = NULL;
-
-	dgp_connect_stop(&cce->dc);
-
-	iv_avl_tree_delete(&direct_peers, &cce->dp.an);
-
-	itf_set_state(tun_interface_get_name(&cce->tun), 0);
-
-	if (cce->peer_type != CONF_PEER_TYPE_DBONLY)
-		mylsa_del_peer(cce->peerid);
+	cec_destroy(cec);
 }
 
 struct listen_entry_conn {
@@ -584,15 +619,7 @@ static void lec_disconnect(void *_lec)
 
 static int start_conf_connect_entry(struct conf_connect_entry *cce)
 {
-	cce->tun.itfname = cce->tunitf;
-	cce->tun.cookie = cce;
-	cce->tun.got_packet = cce_tun_got_packet;
-	if (tun_interface_register(&cce->tun) < 0)
-		return 1;
-
 	cce->registered = 1;
-
-	itf_set_state(tun_interface_get_name(&cce->tun), 0);
 
 	cce->tc.name = cce->name;
 	cce->tc.hostname = cce->hostname;
@@ -604,34 +631,30 @@ static int start_conf_connect_entry(struct conf_connect_entry *cce)
 	cce->tc.fingerprint = cce->fingerprint;
 	cce->tc.cookie = cce;
 	cce->tc.new_conn = cce_new_conn;
-	cce->tc.record_received = cce_record_received;
-	cce->tc.disconnect = cce_disconnect;
+	cce->tc.record_received = cec_record_received;
+	cce->tc.disconnect = cec_disconnect;
 	tconn_connect_start(&cce->tc);
 
-	cce->dp.itfname = tun_interface_get_name(&cce->tun);
-
-	cce->dc.myid = keyid;
-	cce->dc.remoteid = cce->peerid;
-	cce->dc.ifindex = if_nametoindex(tun_interface_get_name(&cce->tun));
-	cce->dc.loc_rib = &loc_rib;
+	INIT_IV_LIST_HEAD(&cce->connections);
 
 	return 0;
 }
 
 static void stop_conf_connect_entry(struct conf_connect_entry *cce)
 {
+	struct iv_list_head *lh;
+	struct iv_list_head *lh2;
+
 	cce->registered = 0;
 
-	if (cce->tconn != NULL) {
-		dgp_connect_stop(&cce->dc);
-		iv_avl_tree_delete(&direct_peers, &cce->dp.an);
-		if (cce->peer_type != CONF_PEER_TYPE_DBONLY)
-			mylsa_del_peer(cce->peerid);
+	iv_list_for_each_safe(lh, lh2, &cce->connections) {
+		struct connect_entry_conn *cec;
+
+		cec = iv_list_entry(lh, struct connect_entry_conn, list);
+		cec_destroy(cec);
 	}
 
 	tconn_connect_destroy(&cce->tc);
-
-	tun_interface_unregister(&cce->tun);
 }
 
 static int start_conf_listen_entry(struct conf_listening_socket *cls,
