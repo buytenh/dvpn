@@ -42,26 +42,6 @@
 static void start_resolve(struct tconn_connect *tc);
 static void try_connect(struct tconn_connect *tc);
 
-static void connected(void *_tc, const uint8_t *id)
-{
-	struct tconn_connect *tc = _tc;
-
-	freeaddrinfo(tc->res);
-
-	tc->state = STATE_CONNECTED;
-
-	memcpy(tc->id, id, NODE_ID_LEN);
-
-	tc->set_state(tc->cookie, tc->id, 1);
-}
-
-static void record_received(void *_tc, const uint8_t *rec, int len)
-{
-	struct tconn_connect *tc = _tc;
-
-	tc->record_received(tc->cookie, rec, len);
-}
-
 static void retry_wait_time_expired(void *_tc)
 {
 	struct tconn_connect *tc = _tc;
@@ -72,7 +52,7 @@ static void retry_wait_time_expired(void *_tc)
 static void schedule_retry(struct tconn_connect *tc, int waittime)
 {
 	if (tc->state == STATE_CONNECTED)
-		tc->set_state(tc->cookie, tc->id, 0);
+		tc->disconnect(tc->conncookie);
 
 	tc->state = STATE_WAITING_RETRY;
 
@@ -84,6 +64,32 @@ static void schedule_retry(struct tconn_connect *tc, int waittime)
 	tc->retry_wait.cookie = tc;
 	tc->retry_wait.handler = retry_wait_time_expired;
 	iv_timer_register(&tc->retry_wait);
+}
+
+static void connected(void *_tc, const uint8_t *id)
+{
+	struct tconn_connect *tc = _tc;
+
+	freeaddrinfo(tc->res);
+
+	tc->state = STATE_CONNECTED;
+
+	tc->conncookie = tc->new_conn(tc->cookie, tc, id);
+	if (tc->conncookie == NULL) {
+		tconn_connect_one_disconnect(&tc->tco);
+
+		fprintf(stderr, "%s: handshake done but new connection "
+				"refused, retrying in %d seconds\n",
+			tc->name, SHORT_RETRY_WAIT_TIME);
+		schedule_retry(tc, SHORT_RETRY_WAIT_TIME);
+	}
+}
+
+static void record_received(void *_tc, const uint8_t *rec, int len)
+{
+	struct tconn_connect *tc = _tc;
+
+	tc->record_received(tc->conncookie, rec, len);
 }
 
 static void connection_failed(void *_tc)
@@ -244,25 +250,30 @@ void tconn_connect_destroy(struct tconn_connect *tc)
 	}
 }
 
-int tconn_connect_get_rtt(struct tconn_connect *tc)
+int tconn_connect_get_rtt(void *conn)
 {
+	struct tconn_connect *tc = conn;
+
 	if (tc->state != STATE_CONNECTED)
 		return -1;
 
 	return tconn_connect_one_get_rtt(&tc->tco);
 }
 
-int tconn_connect_get_maxseg(struct tconn_connect *tc)
+int tconn_connect_get_maxseg(void *conn)
 {
+	struct tconn_connect *tc = conn;
+
 	if (tc->state != STATE_CONNECTED)
 		return -1;
 
 	return tconn_connect_one_get_maxseg(&tc->tco);
 }
 
-void tconn_connect_record_send(struct tconn_connect *tc,
-			       const uint8_t *rec, int len)
+void tconn_connect_record_send(void *conn, const uint8_t *rec, int len)
 {
+	struct tconn_connect *tc = conn;
+
 	if (tc->state != STATE_CONNECTED)
 		return;
 

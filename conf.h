@@ -74,7 +74,7 @@ struct conf_connect_entry {
 	int			registered;
 	struct tun_interface	tun;
 	struct tconn_connect	tc;
-	int			tconn_up;
+	void			*tconn;
 	uint8_t			peerid[NODE_ID_LEN];
 	struct direct_peer	dp;
 	struct dgp_connect	dc;

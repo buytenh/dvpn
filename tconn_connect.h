@@ -37,10 +37,11 @@ struct tconn_connect {
 	enum conf_fp_type	fp_type;
 	uint8_t			*fingerprint;
 	void			*cookie;
-	void			(*set_state)(void *cookie,
-					     const uint8_t *id, int up);
+	void			*(*new_conn)(void *cookie, void *conn,
+					     const uint8_t *id);
 	void			(*record_received)(void *cookie,
 						   const uint8_t *rec, int len);
+	void			(*disconnect)(void *cookie);
 
 	int			state;
 	union {
@@ -62,7 +63,7 @@ struct tconn_connect {
 		/* STATE_CONNECTED.  */
 		struct {
 			struct tconn_connect_one	tco;
-			uint8_t				id[NODE_ID_LEN];
+			void				*conncookie;
 		};
 
 		/* STATE_WAITING_RETRY.  */
@@ -74,10 +75,10 @@ struct tconn_connect {
 
 void tconn_connect_start(struct tconn_connect *tc);
 void tconn_connect_destroy(struct tconn_connect *tc);
-int tconn_connect_get_rtt(struct tconn_connect *tc);
-int tconn_connect_get_maxseg(struct tconn_connect *tc);
-void tconn_connect_record_send(struct tconn_connect *tc,
-			       const uint8_t *rec, int len);
+
+int tconn_connect_get_rtt(void *conn);
+int tconn_connect_get_maxseg(void *conn);
+void tconn_connect_record_send(void *conn, const uint8_t *rec, int len);
 
 
 #endif

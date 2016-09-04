@@ -301,82 +301,77 @@ static void mylsa_del_peer(const uint8_t *id)
 static void cce_tun_got_packet(void *_cce, uint8_t *buf, int len)
 {
 	struct conf_connect_entry *cce = _cce;
-	uint8_t sndbuf[len + 3];
 
-	sndbuf[0] = 0x00;
-	sndbuf[1] = len >> 8;
-	sndbuf[2] = len & 0xff;
-	memcpy(sndbuf + 3, buf, len);
+	if (cce->tconn != NULL) {
+		uint8_t sndbuf[len + 3];
 
-	tconn_connect_record_send(&cce->tc, sndbuf, len + 3);
+		sndbuf[0] = 0x00;
+		sndbuf[1] = len >> 8;
+		sndbuf[2] = len & 0xff;
+		memcpy(sndbuf + 3, buf, len);
+
+		tconn_connect_record_send(cce->tconn, sndbuf, len + 3);
+	}
 }
 
-static void cce_set_state(void *_cce, const uint8_t *id, int up)
+static void *cce_new_conn(void *_cce, void *conn, const uint8_t *id)
 {
 	struct conf_connect_entry *cce = _cce;
+	int maxseg;
+	int mtu;
 	char *tunitf;
+	uint8_t addr[16];
+
+	if (cce->tconn != NULL)
+		abort();
+
+	cce->tconn = conn;
+	memcpy(cce->peerid, id, NODE_ID_LEN);
+
+	if (cce->peer_type != CONF_PEER_TYPE_DBONLY) {
+		int cost;
+
+		cost = cce->cost;
+		if (cost == 0) {
+			cost = tconn_connect_get_rtt(conn);
+			if (cost < 1)
+				cost = 1;
+		}
+
+		mylsa_add_peer(cce->peerid, cce->peer_type, cost);
+	}
+
+	maxseg = tconn_connect_get_maxseg(conn);
+	if (maxseg < 0)
+		abort();
+
+	mtu = maxseg - 5 - 8 - 3 - 16;
+	if (mtu < 1280)
+		mtu = 1280;
+	else if (mtu > 1500)
+		mtu = 1500;
+
+	fprintf(stderr, "%s: setting interface MTU to %d\n", cce->name, mtu);
 
 	tunitf = tun_interface_get_name(&cce->tun);
 
-	cce->tconn_up = up;
+	itf_set_mtu(tunitf, mtu);
 
-	if (up) {
-		int maxseg;
-		int mtu;
-		uint8_t addr[16];
+	itf_set_state(tunitf, 1);
 
-		memcpy(cce->peerid, id, NODE_ID_LEN);
+	v6_linklocal_addr_from_key_id(addr, keyid);
+	itf_add_addr_v6(tunitf, addr, 10);
 
-		if (cce->peer_type != CONF_PEER_TYPE_DBONLY) {
-			int cost;
+	v6_global_addr_from_key_id(addr, keyid);
+	itf_add_addr_v6(tunitf, addr, 128);
 
-			cost = cce->cost;
-			if (cost == 0) {
-				cost = tconn_connect_get_rtt(&cce->tc);
-				if (cost < 1)
-					cost = 1;
-			}
+	v6_global_addr_from_key_id(cce->dp.addr, id);
+	if (iv_avl_tree_insert(&direct_peers, &cce->dp.an))
+		abort();
 
-			mylsa_add_peer(cce->peerid, cce->peer_type, cost);
-		}
+	dgp_connect_start(&cce->dc);
 
-		maxseg = tconn_connect_get_maxseg(&cce->tc);
-		if (maxseg < 0)
-			abort();
-
-		mtu = maxseg - 5 - 8 - 3 - 16;
-		if (mtu < 1280)
-			mtu = 1280;
-		else if (mtu > 1500)
-			mtu = 1500;
-
-		fprintf(stderr, "%s: setting interface MTU to %d\n",
-			cce->name, mtu);
-		itf_set_mtu(tunitf, mtu);
-
-		itf_set_state(tunitf, 1);
-
-		v6_linklocal_addr_from_key_id(addr, keyid);
-		itf_add_addr_v6(tunitf, addr, 10);
-
-		v6_global_addr_from_key_id(addr, keyid);
-		itf_add_addr_v6(tunitf, addr, 128);
-
-		v6_global_addr_from_key_id(cce->dp.addr, id);
-		if (iv_avl_tree_insert(&direct_peers, &cce->dp.an))
-			abort();
-
-		dgp_connect_start(&cce->dc);
-	} else {
-		dgp_connect_stop(&cce->dc);
-
-		iv_avl_tree_delete(&direct_peers, &cce->dp.an);
-
-		itf_set_state(tunitf, 0);
-
-		if (cce->peer_type != CONF_PEER_TYPE_DBONLY)
-			mylsa_del_peer(cce->peerid);
-	}
+	return cce;
 }
 
 static void cce_record_received(void *_cce, const uint8_t *rec, int len)
@@ -395,6 +390,25 @@ static void cce_record_received(void *_cce, const uint8_t *rec, int len)
 		return;
 
 	tun_interface_send_packet(&cce->tun, rec + 3, rlen);
+}
+
+static void cce_disconnect(void *_cce)
+{
+	struct conf_connect_entry *cce = _cce;
+
+	if (cce->tconn == NULL)
+		abort();
+
+	cce->tconn = NULL;
+
+	dgp_connect_stop(&cce->dc);
+
+	iv_avl_tree_delete(&direct_peers, &cce->dp.an);
+
+	itf_set_state(tun_interface_get_name(&cce->tun), 0);
+
+	if (cce->peer_type != CONF_PEER_TYPE_DBONLY)
+		mylsa_del_peer(cce->peerid);
 }
 
 struct listen_entry_conn {
@@ -589,8 +603,9 @@ static int start_conf_connect_entry(struct conf_connect_entry *cce)
 	cce->tc.fp_type = cce->fp_type;
 	cce->tc.fingerprint = cce->fingerprint;
 	cce->tc.cookie = cce;
-	cce->tc.set_state = cce_set_state;
+	cce->tc.new_conn = cce_new_conn;
 	cce->tc.record_received = cce_record_received;
+	cce->tc.disconnect = cce_disconnect;
 	tconn_connect_start(&cce->tc);
 
 	cce->dp.itfname = tun_interface_get_name(&cce->tun);
@@ -607,7 +622,7 @@ static void stop_conf_connect_entry(struct conf_connect_entry *cce)
 {
 	cce->registered = 0;
 
-	if (cce->tconn_up) {
+	if (cce->tconn != NULL) {
 		dgp_connect_stop(&cce->dc);
 		iv_avl_tree_delete(&direct_peers, &cce->dp.an);
 		if (cce->peer_type != CONF_PEER_TYPE_DBONLY)
