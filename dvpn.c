@@ -96,10 +96,15 @@ static void rt_add(void *_dummy, uint8_t *dest, uint8_t *nh)
 
 static void rt_mod(void *_dummy, uint8_t *dest, uint8_t *oldnh, uint8_t *newnh)
 {
+	const char *itfname;
+
 	if (newnh != NULL)
-		itf_chg_route_v6_direct(dest, peer_itfname(newnh));
+		itfname = peer_itfname(newnh);
 	else
-		itf_chg_route_v6_direct(dest, peer_itfname(dest));
+		itfname = peer_itfname(dest);
+
+	if (itf_chg_route_v6_direct(dest, itfname) < 0)
+		itf_add_route_v6_direct(dest, itfname);
 }
 
 static void rt_del(void *_dummy, uint8_t *dest, uint8_t *nh)
