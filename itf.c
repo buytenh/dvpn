@@ -1,6 +1,6 @@
 /*
  * dvpn, a multipoint vpn implementation
- * Copyright (C) 2015 Lennert Buytenhek
+ * Copyright (C) 2015, 2016 Lennert Buytenhek
  *
  * This library is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License version
@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <string.h>
 #include <stdint.h>
@@ -29,11 +30,29 @@
 
 #define DEBUG	0
 
+static void print_args(char *const *argv)
+{
+	const char *sep = "";
+	char *const *ptr;
+
+	ptr = argv;
+	while (*ptr != NULL) {
+		fprintf(stderr, "%s%s", sep, *ptr);
+		sep = " ";
+		ptr++;
+	}
+}
+
 static int spawnvp(const char *file, char *const *argv)
 {
 	pid_t pid;
 	int status;
-	int ret;
+
+	if (DEBUG) {
+		fprintf(stderr, "running \"%s\", \"", file);
+		print_args(argv);
+		fprintf(stderr, "\"\n");
+	}
 
 	pid = fork();
 	if (pid < 0) {
@@ -42,33 +61,47 @@ static int spawnvp(const char *file, char *const *argv)
 	}
 
 	if (pid == 0) {
-#if DEBUG
-		char *const *ptr;
-
-		fprintf(stderr, "running");
-
-		ptr = argv;
-		while (*ptr != NULL) {
-			fprintf(stderr, " %s", *ptr);
-			ptr++;
-		}
-
-		fprintf(stderr, "\n");
-#endif
+		int err;
 
 		execvp(file, argv);
-		perror("execvp");
+
+		err = errno;
+		fprintf(stderr, "execvp(\"%s\", \"", file);
+		print_args(argv);
+		fprintf(stderr, "\"): %s\n", strerror(err));
+
 		exit(1);
 	}
 
-	ret = waitpid(pid, &status, 0);
-	if (ret < 0) {
-		perror("waitpid");
+	do {
+		int ret;
+
+		do {
+			ret = waitpid(pid, &status, 0);
+		} while (ret < 0 && errno == EINTR);
+
+		if (ret < 0) {
+			perror("waitpid");
+			return -1;
+		}
+	} while (!WIFEXITED(status) && !WIFSIGNALED(status));
+
+	if (WIFSIGNALED(status)) {
+		if (DEBUG) {
+			fprintf(stderr, "child died with signal %d%s\n",
+				WTERMSIG(status),
+				WCOREDUMP(status) ? " and dumped core" : "");
+		}
 		return -1;
 	}
 
-	if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+	if (WEXITSTATUS(status)) {
+		if (DEBUG) {
+			fprintf(stderr, "child terminated with exit code %d\n",
+				WEXITSTATUS(status));
+		}
 		return -1;
+	}
 
 	return 0;
 }
