@@ -55,6 +55,8 @@ Dvpn package comes with additional tools for administrative purposes. They conne
 
 `/etc/dvpn.ini` - default configuration location.
 
+`/etc/pki/tls/dvpn/dvpn.key` - default key file location if not specified in dvpn.ini
+
 `certtool --generate-privkey --rsa --sec-param=high --outfile <filename.key>` - generates private key
 
 ### dvpn.ini
