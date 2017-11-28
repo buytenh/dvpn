@@ -120,10 +120,11 @@ static void rt_del(void *_dummy, uint8_t *dest, uint8_t *nh)
 		itf_del_route_v6_direct(dest, itfname);
 }
 
-static int compare_direct_peers(struct iv_avl_node *_a, struct iv_avl_node *_b)
+static int compare_direct_peers(const struct iv_avl_node *_a,
+				const struct iv_avl_node *_b)
 {
-	struct direct_peer *a;
-	struct direct_peer *b;
+	const struct direct_peer *a;
+	const struct direct_peer *b;
 
 	a = iv_container_of(_a, struct direct_peer, an);
 	b = iv_container_of(_b, struct direct_peer, an);

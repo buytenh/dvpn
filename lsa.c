@@ -27,7 +27,7 @@
 static size_t lsa_attr_size(const struct lsa_attr *attr);
 
 static int
-lsa_attr_compare_keys(struct lsa_attr *a, struct lsa_attr *b)
+lsa_attr_compare_keys(const struct lsa_attr *a, const struct lsa_attr *b)
 {
 	int len;
 	int ret;
@@ -41,7 +41,8 @@ lsa_attr_compare_keys(struct lsa_attr *a, struct lsa_attr *b)
 	if (len > b->keylen)
 		len = b->keylen;
 
-	ret = memcmp(lsa_attr_key(a), lsa_attr_key(b), len);
+	ret = memcmp(lsa_attr_key((struct lsa_attr *)a),
+		     lsa_attr_key((struct lsa_attr *)b), len);
 	if (ret < 0)
 		return -1;
 	if (ret > 0)
@@ -55,10 +56,11 @@ lsa_attr_compare_keys(struct lsa_attr *a, struct lsa_attr *b)
 	return 0;
 }
 
-static int compare_attr_keys(struct iv_avl_node *_a, struct iv_avl_node *_b)
+static int compare_attr_keys(const struct iv_avl_node *_a,
+			     const struct iv_avl_node *_b)
 {
-	struct lsa_attr *a = iv_container_of(_a, struct lsa_attr, an);
-	struct lsa_attr *b = iv_container_of(_b, struct lsa_attr, an);
+	const struct lsa_attr *a = iv_container_of(_a, struct lsa_attr, an);
+	const struct lsa_attr *b = iv_container_of(_b, struct lsa_attr, an);
 
 	return lsa_attr_compare_keys(a, b);
 }

@@ -30,10 +30,11 @@
 #include "lsa_type.h"
 #include "loc_rib.h"
 
-static int compare_ids(struct iv_avl_node *_a, struct iv_avl_node *_b)
+static int
+compare_ids(const struct iv_avl_node *_a, const struct iv_avl_node *_b)
 {
-	struct loc_rib_id *a;
-	struct loc_rib_id *b;
+	const struct loc_rib_id *a;
+	const struct loc_rib_id *b;
 
 	a = iv_container_of(_a, struct loc_rib_id, an);
 	b = iv_container_of(_b, struct loc_rib_id, an);
@@ -41,13 +42,13 @@ static int compare_ids(struct iv_avl_node *_a, struct iv_avl_node *_b)
 	return memcmp(a->id, b->id, NODE_ID_LEN);
 }
 
-static uint64_t lsa_get_version(struct lsa *lsa)
+static uint64_t lsa_get_version(const struct lsa *lsa)
 {
 	struct lsa_attr *attr;
 	uint32_t *data;
 	uint64_t version;
 
-	attr = lsa_find_attr(lsa, LSA_ATTR_TYPE_VERSION, NULL, 0);
+	attr = lsa_find_attr((struct lsa *)lsa, LSA_ATTR_TYPE_VERSION, NULL, 0);
 	if (attr == NULL || !attr->attr_signed || attr->datalen != 8)
 		return 0;
 
@@ -317,7 +318,7 @@ struct loc_rib_id *loc_rib_find_id(struct loc_rib *rib, const uint8_t *id)
 	return NULL;
 }
 
-static int compare_lsas(struct lsa *a, struct lsa *b)
+static int compare_lsas(const struct lsa *a, const struct lsa *b)
 {
 	uint64_t aver;
 	uint64_t bver;
@@ -337,10 +338,11 @@ static int compare_lsas(struct lsa *a, struct lsa *b)
 	return 0;
 }
 
-static int compare_lsa_refs(struct iv_avl_node *_a, struct iv_avl_node *_b)
+static int
+compare_lsa_refs(const struct iv_avl_node *_a, const struct iv_avl_node *_b)
 {
-	struct lsa *a;
-	struct lsa *b;
+	const struct lsa *a;
+	const struct lsa *b;
 	int ret;
 
 	a = iv_container_of(_a, struct loc_rib_lsa_ref, an)->lsa;

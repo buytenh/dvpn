@@ -339,11 +339,11 @@ static void got_connection(void *_ls)
 	cc->state = STATE_TLS_HANDSHAKE;
 }
 
-static int
-compare_listen_entries(struct iv_avl_node *_a, struct iv_avl_node *_b)
+static int compare_listen_entries(const struct iv_avl_node *_a,
+				  const struct iv_avl_node *_b)
 {
-	struct tconn_listen_entry *a;
-	struct tconn_listen_entry *b;
+	const struct tconn_listen_entry *a;
+	const struct tconn_listen_entry *b;
 
 	a = iv_container_of(_a, struct tconn_listen_entry, an);
 	b = iv_container_of(_b, struct tconn_listen_entry, an);

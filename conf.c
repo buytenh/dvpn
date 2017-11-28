@@ -34,11 +34,11 @@ struct local_conf {
 	int		default_port;
 };
 
-static int
-compare_connect_entries(struct iv_avl_node *_a, struct iv_avl_node *_b)
+static int compare_connect_entries(const struct iv_avl_node *_a,
+				   const struct iv_avl_node *_b)
 {
-	struct conf_connect_entry *a;
-	struct conf_connect_entry *b;
+	const struct conf_connect_entry *a;
+	const struct conf_connect_entry *b;
 
 	a = iv_container_of(_a, struct conf_connect_entry, an);
 	b = iv_container_of(_b, struct conf_connect_entry, an);
@@ -46,11 +46,11 @@ compare_connect_entries(struct iv_avl_node *_a, struct iv_avl_node *_b)
 	return strcmp(a->name, b->name);
 }
 
-static int
-compare_listening_sockets(struct iv_avl_node *_a, struct iv_avl_node *_b)
+static int compare_listening_sockets(const struct iv_avl_node *_a,
+				     const struct iv_avl_node *_b)
 {
-	struct conf_listening_socket *a;
-	struct conf_listening_socket *b;
+	const struct conf_listening_socket *a;
+	const struct conf_listening_socket *b;
 
 	a = iv_container_of(_a, struct conf_listening_socket, an);
 	b = iv_container_of(_b, struct conf_listening_socket, an);
@@ -368,11 +368,11 @@ static int parse_listen_addr(struct sockaddr_storage *dst,
 	return ret;
 }
 
-static int
-compare_listen_entries(struct iv_avl_node *_a, struct iv_avl_node *_b)
+static int compare_listen_entries(const struct iv_avl_node *_a,
+				  const struct iv_avl_node *_b)
 {
-	struct conf_listen_entry *a;
-	struct conf_listen_entry *b;
+	const struct conf_listen_entry *a;
+	const struct conf_listen_entry *b;
 
 	a = iv_container_of(_a, struct conf_listen_entry, an);
 	b = iv_container_of(_b, struct conf_listen_entry, an);

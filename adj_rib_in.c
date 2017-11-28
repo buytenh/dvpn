@@ -36,10 +36,11 @@ struct adj_rib_in_lsa_ref {
 	struct lsa		*lsa;
 };
 
-static int compare_refs(struct iv_avl_node *_a, struct iv_avl_node *_b)
+static int
+compare_refs(const struct iv_avl_node *_a, const struct iv_avl_node *_b)
 {
-	struct adj_rib_in_lsa_ref *a;
-	struct adj_rib_in_lsa_ref *b;
+	const struct adj_rib_in_lsa_ref *a;
+	const struct adj_rib_in_lsa_ref *b;
 
 	a = iv_container_of(_a, struct adj_rib_in_lsa_ref, an);
 	b = iv_container_of(_b, struct adj_rib_in_lsa_ref, an);
