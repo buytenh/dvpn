@@ -27,7 +27,7 @@ A multipoint VPN implementation
 ```git clone https://github.com/buytenh/dvpn.git && cd dvpn && make && make test```
 
 ### Fedora
-```dnf install libgnutls-devel libini_config-devel ivykis-devel gnutls-utils```
+```dnf install gnutls-devel libini_config-devel ivykis-devel gnutls-utils```
 
 ```git clone https://github.com/buytenh/dvpn.git && cd dvpn && make && make test```
 
