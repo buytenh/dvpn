@@ -213,7 +213,7 @@ static int __x509_generate_self_signed_cert(gnutls_x509_crt_t *_crt,
 	if (ret < 0)
 		goto err_free_priv;
 
-	ret = gnutls_x509_crt_set_serial(crt, "", 1);
+	ret = gnutls_x509_crt_set_serial(crt, "\x01", 1);
 	if (ret < 0)
 		goto err_free_crt;
 
