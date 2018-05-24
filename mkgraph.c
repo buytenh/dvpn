@@ -130,8 +130,7 @@ static void print_edge(FILE *fp, struct lsa *from, uint8_t *toid)
 
 	if (forward.flags == 0 && reverse.flags == 0) {
 		fprintf(fp, "\t\"%s\" -> \"%s\" ", fromname, toname);
-		fprintf(fp, "[ constraint=false dir=none ");
-		fprintf(fp, "label=\"%d", forward.metric);
+		fprintf(fp, "[ dir=none label=\"%d", forward.metric);
 		if (forward.metric != reverse.metric)
 			fprintf(fp, "/%d", reverse.metric);
 		fprintf(fp, "\" ];\n");
@@ -154,8 +153,7 @@ static void print_edge(FILE *fp, struct lsa *from, uint8_t *toid)
 		   reverse.flags == (LSA_PEER_FLAGS_CUSTOMER |
 				     LSA_PEER_FLAGS_TRANSIT)) {
 		fprintf(fp, "\t\"%s\" -> \"%s\" ", fromname, toname);
-		fprintf(fp, "[ constraint=false dir=both ");
-		fprintf(fp, "label=\"%d", forward.metric);
+		fprintf(fp, "[ dir=both label=\"%d", forward.metric);
 		if (forward.metric != reverse.metric)
 			fprintf(fp, "/%d", reverse.metric);
 		fprintf(fp, "\" ];\n");
