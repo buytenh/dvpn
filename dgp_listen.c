@@ -160,6 +160,7 @@ int dgp_listen_socket_register(struct dgp_listen_socket *dls)
 {
 	int fd;
 	int yes;
+	int sndbuf;
 	uint8_t addr[16];
 	struct sockaddr_in6 saddr;
 
@@ -182,6 +183,9 @@ int dgp_listen_socket_register(struct dgp_listen_socket *dls)
 		close(fd);
 		return 1;
 	}
+
+	sndbuf = 1 << 24;
+	setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &sndbuf, sizeof(sndbuf));
 
 	if (!dls->ifindex)
 		v6_global_addr_from_key_id(addr, dls->myid);

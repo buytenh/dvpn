@@ -106,6 +106,7 @@ static void connect_pollout(void *_dc)
 static void try_connect(struct dgp_connect *dc)
 {
 	int fd;
+	int sndbuf;
 	uint8_t addr[16];
 	struct sockaddr_in6 saddr;
 	int ret;
@@ -115,6 +116,9 @@ static void try_connect(struct dgp_connect *dc)
 		perror("socket");
 		goto fail;
 	}
+
+	sndbuf = 1 << 24;
+	setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &sndbuf, sizeof(sndbuf));
 
 	if (dc->myid != NULL) {
 		if (!dc->ifindex)
