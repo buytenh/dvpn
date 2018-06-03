@@ -22,6 +22,7 @@
 #include <iv.h>
 #include <iv_avl.h>
 #include <iv_list.h>
+#include <limits.h>
 #include <netinet/in.h>
 #include <string.h>
 #include "lsa_diff.h"
@@ -146,6 +147,9 @@ lsa_path_cost(struct loc_rib *rib, struct loc_rib_id *rid, struct lsa *lsa)
 			if (!(reverse.flags & LSA_PEER_FLAGS_TRANSIT))
 				return RIB_COST_UNREACHABLE;
 		}
+
+		if (forward.metric > INT_MAX - cost)
+			return RIB_COST_UNREACHABLE;
 
 		cost += forward.metric;
 
