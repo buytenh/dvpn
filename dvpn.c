@@ -460,9 +460,9 @@ struct listen_entry_conn {
 	uint8_t				peerid[NODE_ID_LEN];
 
 	struct tun_interface		tun;
-	struct direct_peer		dp;
 	struct dgp_listen_socket	dls;
 	struct dgp_listen_entry		dle;
+	struct direct_peer		dp;
 };
 
 static void lec_tun_got_packet(void *_lec, uint8_t *buf, int len)
@@ -505,9 +505,9 @@ static void *cle_new_conn(void *_cle, void *conn, const uint8_t *id)
 	struct conf_listen_entry *cle = _cle;
 	uint8_t addr[16];
 	struct listen_entry_conn *lec;
+	char *tunitf;
 	int maxseg;
 	int mtu;
-	char *tunitf;
 
 	v6_global_addr_from_key_id(addr, id);
 	if (dp_find(addr) != NULL)
@@ -528,6 +528,22 @@ static void *cle_new_conn(void *_cle, void *conn, const uint8_t *id)
 		free(lec);
 		return NULL;
 	}
+
+	tunitf = tun_interface_get_name(&lec->tun);
+
+	lec->dls.myid = keyid;
+	lec->dls.ifindex = if_nametoindex(tunitf);
+	lec->dls.loc_rib = &loc_rib;
+	lec->dls.permit_readonly = 0;
+	if (dgp_listen_socket_register(&lec->dls)) {
+		tun_interface_unregister(&lec->tun);
+		free(lec);
+		return NULL;
+	}
+
+	lec->dle.dls = &lec->dls;
+	lec->dle.remoteid = lec->peerid;
+	dgp_listen_entry_register(&lec->dle);
 
 	if (cle->conn_limit == cle->num_connections) {
 		struct listen_entry_conn *oldlec;
@@ -565,8 +581,6 @@ static void *cle_new_conn(void *_cle, void *conn, const uint8_t *id)
 
 	fprintf(stderr, "%s: setting interface MTU to %d\n", cle->name, mtu);
 
-	tunitf = tun_interface_get_name(&lec->tun);
-
 	itf_set_mtu(tunitf, mtu);
 
 	itf_set_state(tunitf, 1);
@@ -581,16 +595,6 @@ static void *cle_new_conn(void *_cle, void *conn, const uint8_t *id)
 	lec->dp.itfname = tunitf;
 	if (iv_avl_tree_insert(&direct_peers, &lec->dp.an))
 		abort();
-
-	lec->dls.myid = keyid;
-	lec->dls.ifindex = if_nametoindex(tunitf);
-	lec->dls.loc_rib = &loc_rib;
-	lec->dls.permit_readonly = 0;
-	dgp_listen_socket_register(&lec->dls);
-
-	lec->dle.dls = &lec->dls;
-	lec->dle.remoteid = lec->peerid;
-	dgp_listen_entry_register(&lec->dle);
 
 	cle->num_connections++;
 	iv_list_add_tail(&lec->list, &cle->connections);
