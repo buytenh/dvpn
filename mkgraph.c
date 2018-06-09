@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <gnutls/abstract.h>
 #include <iv.h>
 #include <iv_signal.h>
 #include <string.h>
@@ -249,7 +250,7 @@ static void got_sigint(void *_dummy)
 int mkgraph(const char *config)
 {
 	struct conf *conf;
-	gnutls_x509_privkey_t privkey;
+	gnutls_pubkey_t pubkey;
 
 	conf = parse_config(config);
 	if (conf == NULL)
@@ -257,14 +258,14 @@ int mkgraph(const char *config)
 
 	gnutls_global_init();
 
-	if (x509_read_privkey(&privkey, conf->private_key, 0) < 0)
+	if (read_pubkey(&pubkey, conf->public_key) < 0)
 		return 1;
 
 	free_config(conf);
 
-	x509_get_privkey_id(myid, privkey);
+	get_pubkey_id(myid, pubkey);
 
-	gnutls_x509_privkey_deinit(privkey);
+	gnutls_pubkey_deinit(pubkey);
 
 	gnutls_global_deinit();
 

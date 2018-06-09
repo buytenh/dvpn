@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <arpa/inet.h>
 #include <ctype.h>
+#include <gnutls/abstract.h>
 #include <gnutls/x509.h>
 #include <string.h>
 #include "conf.h"
@@ -35,7 +36,7 @@ static uint8_t myid[NODE_ID_LEN];
 static void determine_myid(const char *config)
 {
 	struct conf *conf;
-	gnutls_x509_privkey_t privkey;
+	gnutls_pubkey_t pubkey;
 
 	conf = parse_config(config);
 	if (conf == NULL)
@@ -43,14 +44,14 @@ static void determine_myid(const char *config)
 
 	gnutls_global_init();
 
-	if (x509_read_privkey(&privkey, conf->private_key, 0) < 0)
+	if (read_pubkey(&pubkey, conf->public_key) < 0)
 		exit(1);
 
 	free_config(conf);
 
-	x509_get_privkey_id(myid, privkey);
+	get_pubkey_id(myid, pubkey);
 
-	gnutls_x509_privkey_deinit(privkey);
+	gnutls_pubkey_deinit(pubkey);
 
 	gnutls_global_deinit();
 }
