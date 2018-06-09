@@ -145,6 +145,22 @@ static int parse_config_default(struct local_conf *lc, struct ini_cfgobj *co)
 		lc->conf->private_key = strdup("/etc/pki/tls/dvpn/dvpn.key");
 	}
 
+	ret = ini_get_config_valueobj("default", "PublicKey", co,
+				      INI_GET_FIRST_VALUE, &vo);
+	if (ret == 0 && vo != NULL) {
+		char *key;
+
+		key = ini_get_string_config_value(vo, &ret);
+		if (ret) {
+			fprintf(stderr, "error retrieving PublicKey value\n");
+			return -1;
+		}
+
+		lc->conf->public_key = key;
+	} else {
+		lc->conf->public_key = strdup("/etc/pki/tls/dvpn/dvpn.pub");
+	}
+
 	ret = ini_get_config_valueobj("default", "RoleKey", co,
 				      INI_GET_FIRST_VALUE, &vo);
 	if (ret == 0 && vo != NULL) {
@@ -617,6 +633,7 @@ struct conf *parse_config(const char *file)
 	}
 
 	conf->private_key = NULL;
+	conf->public_key = NULL;
 	conf->node_name = NULL;
 	INIT_IV_AVL_TREE(&conf->connect_entries, compare_connect_entries);
 	INIT_IV_AVL_TREE(&conf->listening_sockets, compare_listening_sockets);
@@ -668,6 +685,8 @@ void free_config(struct conf *conf)
 	free(conf->node_name);
 
 	free(conf->private_key);
+
+	free(conf->public_key);
 
 	free(conf->role_key);
 

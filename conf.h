@@ -39,6 +39,7 @@ enum conf_fp_type {
 struct conf {
 	char			*node_name;
 	char			*private_key;
+	char			*public_key;
 	char			*role_key;
 	struct iv_avl_tree	connect_entries;
 	struct iv_avl_tree	listening_sockets;
