@@ -71,8 +71,10 @@ int tun_interface_register(struct tun_interface *ti)
 
 	memset(&ifr, 0, sizeof(ifr));
 	ifr.ifr_flags = IFF_TUN | IFF_NO_PI;
-	if (ti->itfname != NULL)
-		strncpy(ifr.ifr_name, ti->itfname, IFNAMSIZ);
+	if (ti->itfname != NULL) {
+		strncpy(ifr.ifr_name, ti->itfname, IFNAMSIZ - 1);
+		ifr.ifr_name[IFNAMSIZ - 1] = 0;
+	}
 
 	ret = ioctl(fd, TUNSETIFF, (void *)&ifr);
 	if (ret < 0) {
