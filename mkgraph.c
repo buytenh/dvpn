@@ -57,7 +57,7 @@ static int __get_lsa_node_name(char *buf, size_t buflen, struct lsa *lsa)
 			len = buflen - 1;
 
 		for (i = 0; i < len; i++)
-			buf[i] = isalnum(data[i]) ? data[i] : '_';
+			buf[i] = isdnchar(data[i]) ? data[i] : '_';
 		buf[len] = 0;
 
 		return 1;

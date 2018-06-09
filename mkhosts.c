@@ -73,7 +73,7 @@ static void rcvd_lsa(struct lsa *lsa)
 
 	data = lsa_attr_data(node_name);
 	for (i = 0; i < node_name->datalen; i++) {
-		if (isalnum(data[i]))
+		if (isdnchar(data[i]))
 			putchar(data[i]);
 		else
 			putchar('_');

@@ -75,7 +75,7 @@ static void print_node_name(FILE *fp, struct lsa_attr *attr)
 	int i;
 
 	for (i = 0; i < attr->datalen; i++) {
-		if (isalnum(data[i]))
+		if (isdnchar(data[i]))
 			fputc(data[i], fp);
 		else
 			fputc('_', fp);

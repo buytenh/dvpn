@@ -144,6 +144,23 @@ static int base32char(char c)
 	return -1;
 }
 
+int isdnchar(int c)
+{
+	if (c == '-')
+		return 1;
+
+	if (c >= '0' && c <= '9')
+		return 1;
+
+	if (c >= 'A' && c <= 'Z')
+		return 1;
+
+	if (c >= 'a' && c <= 'z')
+		return 1;
+
+	return 0;
+}
+
 int parse_base32_fingerprint(uint8_t *id, const char *fp)
 {
 	int i;

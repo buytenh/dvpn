@@ -52,7 +52,7 @@ static void lsa_chg(char chg, struct lsa *a, struct lsa_attr *node_name)
 
 	data = lsa_attr_data(node_name);
 	for (i = 0; i < node_name->datalen; i++) {
-		if (isalnum(data[i]))
+		if (isdnchar(data[i]))
 			putchar(data[i]);
 		else
 			putchar('_');
