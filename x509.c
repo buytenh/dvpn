@@ -81,6 +81,51 @@ int x509_read_privkey(gnutls_x509_privkey_t *privkey, const char *file,
 	return 0;
 }
 
+int read_pubkey(gnutls_pubkey_t *pubkey, const char *file)
+{
+	int fd;
+	uint8_t buf[65536];
+	int size;
+	int ret;
+	gnutls_datum_t datum;
+
+	fd = open(file, O_RDONLY);
+	if (fd < 0) {
+		fprintf(stderr, "error opening %s: %s\n", file,
+			strerror(errno));
+		return -1;
+	}
+
+	size = read(fd, buf, sizeof(buf));
+	if (size < 0) {
+		perror("read_pubkey: read");
+		close(fd);
+		return -1;
+	}
+
+	close(fd);
+
+	ret = gnutls_pubkey_init(pubkey);
+	if (ret) {
+		fprintf(stderr, "read_pubkey: ");
+		gnutls_perror(ret);
+		return -1;
+	}
+
+	datum.data = buf;
+	datum.size = size;
+
+	ret = gnutls_pubkey_import(*pubkey, &datum, GNUTLS_X509_FMT_PEM);
+	if (ret) {
+		fprintf(stderr, "read_pubkey: ");
+		gnutls_perror(ret);
+		gnutls_pubkey_deinit(*pubkey);
+		return -1;
+	}
+
+	return 0;
+}
+
 int x509_privkey_to_der_pubkey(uint8_t *buf, int buflen,
                                gnutls_x509_privkey_t x509_privkey)
 {
