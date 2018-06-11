@@ -377,12 +377,18 @@ static void *cce_new_conn(void *_cce, void *conn, const uint8_t *id)
 	if (cce->peer_type != CONF_PEER_TYPE_DBONLY) {
 		int cost;
 
-		cost = cce->cost;
-		if (cost == 0) {
+		cost = 0;
+		if (cce->cost_add_rtt) {
 			cost = tconn_connect_get_rtt(conn);
 			if (cost < 1)
 				cost = 1;
 		}
+
+		cost += cce->cost;
+		if (cost < 1)
+			cost = 1;
+		else if (cost > 32767)
+			cost = 32767;
 
 		mylsa_add_peer(cec->peerid, cce->peer_type, cost);
 	}
@@ -559,12 +565,18 @@ static void *cle_new_conn(void *_cle, void *conn, const uint8_t *id)
 	if (cle->peer_type != CONF_PEER_TYPE_DBONLY) {
 		int cost;
 
-		cost = cle->cost;
-		if (cost == 0) {
+		cost = 0;
+		if (cle->cost_add_rtt) {
 			cost = tconn_listen_entry_get_rtt(conn);
 			if (cost < 1)
 				cost = 1;
 		}
+
+		cost += cle->cost;
+		if (cost < 1)
+			cost = 1;
+		else if (cost > 32767)
+			cost = 32767;
 
 		mylsa_add_peer(lec->peerid, cle->peer_type, cost);
 	}

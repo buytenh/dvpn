@@ -261,7 +261,8 @@ static enum conf_peer_type parse_peer_type(const char *pt)
 static int
 add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 		 enum conf_fp_type fp_type, const uint8_t *fp,
-		 enum conf_peer_type peer_type, const char *itf, int cost)
+		 enum conf_peer_type peer_type, const char *itf, int cost,
+		 int cost_add_rtt)
 {
 	struct conf_connect_entry *cce;
 	char *delim;
@@ -315,6 +316,7 @@ add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 	cce->peer_type = peer_type;
 	cce->tunitf = strdup(itf ? : "dvpn%d");
 	cce->cost = cost;
+	cce->cost_add_rtt = cost_add_rtt;
 
 	return 0;
 }
@@ -442,7 +444,7 @@ static int
 add_listen_peer(struct local_conf *lc, const char *peer, const char *listen,
 		enum conf_fp_type fp_type, const uint8_t *fp,
 		enum conf_peer_type peer_type, const char *itf, int cost,
-		int conn_limit)
+		int cost_add_rtt, int conn_limit)
 {
 	struct conf_listening_socket *cls;
 	struct conf_listen_entry *cle;
@@ -472,6 +474,7 @@ add_listen_peer(struct local_conf *lc, const char *peer, const char *listen,
 	cle->peer_type = peer_type;
 	cle->tunitf = strdup(itf ? : "dvpn%d");
 	cle->cost = cost;
+	cle->cost_add_rtt = cost_add_rtt;
 	cle->conn_limit = conn_limit;
 
 	if (fp_type == CONF_FP_TYPE_ANY)
@@ -496,6 +499,7 @@ static int parse_config_peer(struct local_conf *lc,
 	struct value_obj *vo;
 	int ret;
 	int cost;
+	int cost_add_rtt;
 	int conn_limit;
 
 	connect = get_const_value(co, peer, "Connect");
@@ -574,18 +578,35 @@ static int parse_config_peer(struct local_conf *lc,
 	ret = ini_get_config_valueobj(peer, "Cost", co,
 				      INI_GET_FIRST_VALUE, &vo);
 	if (ret == 0 && vo != NULL) {
+		const char *str;
+
+		str = ini_get_const_string_config_value(vo, &ret);
+		if (ret) {
+			fprintf(stderr, "error retrieving Cost string\n");
+			return -1;
+		}
+
+		if (str[0] == '+')
+			cost_add_rtt = 1;
+		else
+			cost_add_rtt = 0;
+
 		cost = ini_get_int_config_value(vo, 1, 0, &ret);
 		if (ret) {
 			fprintf(stderr, "error retrieving Cost value\n");
 			return -1;
 		}
 
-		if (cost < 1 || cost > 32767) {
+		if (!cost_add_rtt && (cost < 1 || cost > 32767)) {
 			fprintf(stderr, "peer Cost must be in [1..32767]\n");
+			return -1;
+		} else if (cost_add_rtt && (cost < 0 || cost > 32767)) {
+			fprintf(stderr, "peer Cost must be in +[0..32767]\n");
 			return -1;
 		}
 	} else {
 		cost = 0;
+		cost_add_rtt = 1;
 	}
 
 	ret = ini_get_config_valueobj(peer, "ConnectionLimit", co,
@@ -608,10 +629,11 @@ static int parse_config_peer(struct local_conf *lc,
 
 	if (connect != NULL) {
 		return add_connect_peer(lc, peer, connect, fp_type, f,
-					peer_type, itf, cost);
+					peer_type, itf, cost, cost_add_rtt);
 	} else {
 		return add_listen_peer(lc, peer, listen, fp_type, f,
-				       peer_type, itf, cost, conn_limit);
+				       peer_type, itf, cost, cost_add_rtt,
+				       conn_limit);
 	}
 
 	return 0;
