@@ -339,7 +339,7 @@ int tconn_connect_one_get_rtt(struct tconn_connect_one *tco)
 		return -1;
 	}
 
-	return info.tcpi_rtt / 1000;
+	return (info.tcpi_rtt + 999) / 1000;
 }
 
 int tconn_connect_one_get_maxseg(struct tconn_connect_one *tco)

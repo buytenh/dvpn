@@ -465,7 +465,7 @@ int tconn_listen_entry_get_rtt(void *conn)
 		return -1;
 	}
 
-	return info.tcpi_rtt / 1000;
+	return (info.tcpi_rtt + 999) / 1000;
 }
 
 int tconn_listen_entry_get_maxseg(void *conn)
