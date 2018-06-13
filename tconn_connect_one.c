@@ -64,12 +64,13 @@ static void state_destroy(struct tconn_connect_one *tco)
 		iv_timer_unregister(&tco->keepalive_timer);
 }
 
-static void connection_failed(struct tconn_connect_one *tco)
+static void connection_failed(struct tconn_connect_one *tco, int notify_err)
 {
 	state_destroy(tco);
-
 	tco->state = STATE_FAILED;
-	tco->connection_failed(tco->cookie);
+
+	if (notify_err)
+		tco->connection_failed(tco->cookie);
 }
 
 static void rx_timeout_expired(void *_tco)
@@ -88,7 +89,7 @@ static void rx_timeout_expired(void *_tco)
 		break;
 	}
 
-	connection_failed(tco);
+	connection_failed(tco, 1);
 }
 
 static int verify_key_ids(void *_tco, const uint8_t *ids, int num)
@@ -162,7 +163,7 @@ static void send_keepalive(void *_tco)
 	if (tconn_record_send(&tco->tconn, keepalive, 3)) {
 		fprintf(stderr, "%s: error sending keepalive, disconnecting\n",
 			tco->name);
-		connection_failed(tco);
+		connection_failed(tco, 1);
 	}
 }
 
@@ -211,7 +212,7 @@ static void connection_lost(void *_tco)
 {
 	struct tconn_connect_one *tco = _tco;
 
-	connection_failed(tco);
+	connection_failed(tco, 1);
 }
 
 static int start_handshake(struct tconn_connect_one *tco)
@@ -264,12 +265,12 @@ static void connect_pollout(void *_tco)
 	if (ret) {
 		fprintf(stderr, "%s: connect error '%s'\n",
 			tco->name, strerror(ret));
-		connection_failed(tco);
+		connection_failed(tco, 1);
 		return;
 	}
 
 	if (start_handshake(tco))
-		connection_failed(tco);
+		connection_failed(tco, 1);
 }
 
 int tconn_connect_one_connect(struct tconn_connect_one *tco)
@@ -375,7 +376,7 @@ int tconn_connect_one_record_send(struct tconn_connect_one *tco,
 	if (tconn_record_send(&tco->tconn, rec, len)) {
 		fprintf(stderr, "%s: error sending TLS record, disconnecting\n",
 			tco->name);
-		connection_failed(tco);
+		connection_failed(tco, 0);
 		return -1;
 	}
 
