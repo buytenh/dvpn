@@ -25,6 +25,7 @@
 #include <stdint.h>
 
 struct tconn {
+	const char		*name;
 	struct iv_fd		*fd;
 	int			role;
 	gnutls_x509_privkey_t	mykey;

@@ -398,9 +398,11 @@ static int tconn_tx_flush(struct tconn *tc)
 	return 0;
 }
 
-static void gtls_perror(const char *str, int error)
+static void gtls_perror(struct tconn *tc, const char *str, int error)
 {
-	fprintf(stderr, "%s: %s\n", str, gnutls_strerror(error));
+	fprintf(stderr, "%s: %s: %s\n",
+		(tc->name != NULL) ? tc->name : "(none)",
+		str, gnutls_strerror(error));
 }
 
 static void tconn_connection_abort(struct tconn *tc, int notify_err)
@@ -432,7 +434,7 @@ static int tconn_do_handshake(struct tconn *tc, int notify_err)
 
 	if (ret) {
 		if (ret != GNUTLS_E_AGAIN) {
-			gtls_perror("gnutls_handshake", ret);
+			gtls_perror(tc, "gnutls_handshake", ret);
 			tconn_connection_abort(tc, notify_err);
 			return -1;
 		}
@@ -477,7 +479,7 @@ static void tconn_do_record_recv(struct tconn *tc)
 
 	if ((ret < 0 && ret != GNUTLS_E_REHANDSHAKE) || ret == 0) {
 		if (ret)
-			gtls_perror("gnutls_record_recv", ret);
+			gtls_perror(tc, "gnutls_record_recv", ret);
 		tconn_connection_abort(tc, 1);
 		return;
 	}
@@ -509,7 +511,7 @@ static void tconn_do_record_send(struct tconn *tc)
 	}
 
 	if (ret < 0) {
-		gtls_perror("gnutls_record_send", ret);
+		gtls_perror(tc, "gnutls_record_send", ret);
 		tconn_connection_abort(tc, 1);
 		return;
 	}
@@ -567,7 +569,8 @@ static void tconn_tx_task_handler(void *_tc)
 	abort();
 }
 
-static int cert_refers_to_nodeid(gnutls_x509_crt_t cert, uint8_t *nodeid)
+static int cert_refers_to_nodeid(struct tconn *tc, gnutls_x509_crt_t cert,
+				 uint8_t *nodeid)
 {
 	char expected_dn[128];
 	int i;
@@ -581,7 +584,7 @@ static int cert_refers_to_nodeid(gnutls_x509_crt_t cert, uint8_t *nodeid)
 
 	ret = gnutls_x509_crt_get_dn2(cert, &cert_dn);
 	if (ret < 0) {
-		gtls_perror("gnutls_x509_crt_init", ret);
+		gtls_perror(tc, "gnutls_x509_crt_init", ret);
 		return 0;
 	}
 
@@ -619,13 +622,13 @@ static int tconn_verify_cert(gnutls_session_t sess)
 
 	ret = gnutls_x509_crt_init(&cert);
 	if (ret) {
-		gtls_perror("gnutls_x509_crt_init", ret);
+		gtls_perror(tc, "gnutls_x509_crt_init", ret);
 		goto err_free_ids;
 	}
 
 	ret = gnutls_pubkey_init(&key);
 	if (ret) {
-		gtls_perror("gnutls_pubkey_init", ret);
+		gtls_perror(tc, "gnutls_pubkey_init", ret);
 		goto err_free_crt;
 	}
 
@@ -641,23 +644,23 @@ static int tconn_verify_cert(gnutls_session_t sess)
 		ret = gnutls_x509_crt_import(cert, &certs[i],
 					     GNUTLS_X509_FMT_DER);
 		if (ret) {
-			gtls_perror("gnutls_x509_crt_import", ret);
+			gtls_perror(tc, "gnutls_x509_crt_import", ret);
 			goto err_free_key;
 		}
 
 		ret = gnutls_pubkey_import_x509(key, cert, 0);
 		if (ret) {
-			gtls_perror("gnutls_pubkey_import_x509", ret);
+			gtls_perror(tc, "gnutls_pubkey_import_x509", ret);
 			goto err_free_key;
 		}
 
 		ret = get_pubkey_id(id, key);
 		if (ret) {
-			gtls_perror("get_pubkey_id", ret);
+			gtls_perror(tc, "get_pubkey_id", ret);
 			goto err_free_key;
 		}
 
-		if (i == 0 || cert_refers_to_nodeid(cert, nodeids)) {
+		if (i == 0 || cert_refers_to_nodeid(tc, cert, nodeids)) {
 			memcpy(nodeids + (j * NODE_ID_LEN), id, NODE_ID_LEN);
 			j++;
 		}
@@ -691,7 +694,7 @@ static int tconn_start_handshake(struct tconn *tc)
 
 	ret = gnutls_certificate_allocate_credentials(&tc->cert);
 	if (ret) {
-		gtls_perror("gnutls_certificate_allocate_credentials", ret);
+		gtls_perror(tc, "gnutls_certificate_allocate_credentials", ret);
 		goto err;
 	}
 
@@ -700,14 +703,14 @@ static int tconn_start_handshake(struct tconn *tc)
 	ret = gnutls_certificate_set_x509_key(tc->cert, tc->mycrts,
 					      tc->numcrts, tc->mykey);
 	if (ret) {
-		gtls_perror("gnutls_certificate_set_x509_key", ret);
+		gtls_perror(tc, "gnutls_certificate_set_x509_key", ret);
 		goto err_free;
 	}
 
 	ret = gnutls_credentials_set(tc->sess, GNUTLS_CRD_CERTIFICATE,
 				     tc->cert);
 	if (ret) {
-		gtls_perror("gnutls_credentials_set", ret);
+		gtls_perror(tc, "gnutls_credentials_set", ret);
 		goto err_free;
 	}
 
@@ -743,7 +746,7 @@ int tconn_start(struct tconn *tc)
 
 	ret = gnutls_init(&tc->sess, flags);
 	if (ret) {
-		gtls_perror("gnutls_init", ret);
+		gtls_perror(tc, "gnutls_init", ret);
 		goto err;
 	}
 
@@ -757,7 +760,7 @@ int tconn_start(struct tconn *tc)
 	if (ret) {
 		const char *p;
 
-		gtls_perror("gnutls_priority_set_direct", ret);
+		gtls_perror(tc, "gnutls_priority_set_direct", ret);
 
 		fprintf(stderr, "%s\n", prio);
 		for (p = prio; p < err; p++)
@@ -839,7 +842,7 @@ int tconn_record_send(struct tconn *tc, const uint8_t *rec, int len)
 		ret = gnutls_record_send(tc->sess, NULL, 0);
 
 	if (ret < 0 && ret != GNUTLS_E_AGAIN) {
-		gtls_perror("gnutls_record_send", ret);
+		gtls_perror(tc, "gnutls_record_send", ret);
 		tconn_connection_abort(tc, 0);
 		return -1;
 	}

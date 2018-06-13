@@ -177,6 +177,7 @@ match:
 	iv_list_del(&cc->list);
 	iv_list_add_tail(&cc->list, &tle->connections);
 
+	cc->tconn.name = tle->name;
 	cc->state = STATE_KEY_ID_VERIFIED;
 
 	cc->tle = tle;
@@ -314,6 +315,7 @@ static void got_connection(void *_ls)
 	cc->fd.fd = fd;
 	iv_fd_register(&cc->fd);
 
+	cc->tconn.name = NULL;
 	cc->tconn.fd = &cc->fd;
 	cc->tconn.role = TCONN_ROLE_SERVER;
 	cc->tconn.mykey = ls->mykey;

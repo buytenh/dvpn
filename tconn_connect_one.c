@@ -220,6 +220,7 @@ static int start_handshake(struct tconn_connect_one *tco)
 	fprintf(stderr, "%s: connection established, starting TLS handshake\n",
 		tco->name);
 
+	tco->tconn.name = tco->name;
 	tco->tconn.fd = &tco->fd;
 	tco->tconn.role = TCONN_ROLE_CLIENT;
 	tco->tconn.mykey = tco->mykey;
