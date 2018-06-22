@@ -270,10 +270,10 @@ static void connection_lost(void *_cc)
 static void got_connection(void *_ls)
 {
 	struct tconn_listen_socket *ls = _ls;
-	struct sockaddr_storage peer;
+	struct sockaddr_in6 peer;
 	socklen_t peerlen;
 	int fd;
-	struct sockaddr_storage local;
+	struct sockaddr_in6 local;
 	socklen_t locallen;
 	struct client_conn *cc;
 
