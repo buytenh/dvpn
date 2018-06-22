@@ -22,15 +22,15 @@
 #include <string.h>
 #include "util.h"
 
-int addrcmp(const struct sockaddr_storage *a, const struct sockaddr_storage *b)
+int addrcmp(const struct sockaddr *a, const struct sockaddr *b)
 {
-	if (a->ss_family < b->ss_family)
+	if (a->sa_family < b->sa_family)
 		return -1;
 
-	if (a->ss_family > b->ss_family)
+	if (a->sa_family > b->sa_family)
 		return 1;
 
-	if (a->ss_family == AF_INET) {
+	if (a->sa_family == AF_INET) {
 		const struct sockaddr_in *aa = (const struct sockaddr_in *)a;
 		const struct sockaddr_in *bb = (const struct sockaddr_in *)b;
 		int ret;
@@ -48,7 +48,7 @@ int addrcmp(const struct sockaddr_storage *a, const struct sockaddr_storage *b)
 		return 0;
 	}
 
-	if (a->ss_family == AF_INET6) {
+	if (a->sa_family == AF_INET6) {
 		const struct sockaddr_in6 *aa = (const struct sockaddr_in6 *)a;
 		const struct sockaddr_in6 *bb = (const struct sockaddr_in6 *)b;
 		int ret;
@@ -67,7 +67,7 @@ int addrcmp(const struct sockaddr_storage *a, const struct sockaddr_storage *b)
 	}
 
 	fprintf(stderr, "error comparing addresses of family %d\n",
-		a->ss_family);
+		a->sa_family);
 
 	abort();
 }

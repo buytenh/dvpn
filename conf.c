@@ -55,7 +55,8 @@ static int compare_listening_sockets(const struct iv_avl_node *_a,
 	a = iv_container_of(_a, struct conf_listening_socket, an);
 	b = iv_container_of(_b, struct conf_listening_socket, an);
 
-	return addrcmp(&a->listen_address, &b->listen_address);
+	return addrcmp((struct sockaddr *)&a->listen_address,
+		       (struct sockaddr *)&b->listen_address);
 }
 
 static struct ini_cfgobj *parse_cfgfile(const char *file)
@@ -414,7 +415,8 @@ get_listening_socket(struct local_conf *lc, const char *listen)
 
 		cls = iv_container_of(an, struct conf_listening_socket, an);
 
-		ret = addrcmp(&addr, &cls->listen_address);
+		ret = addrcmp((struct sockaddr *)&addr,
+			      (struct sockaddr *)&cls->listen_address);
 		if (ret == 0)
 			return cls;
 

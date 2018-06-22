@@ -25,8 +25,7 @@
 #include <stdint.h>
 #include "conf.h"
 
-int addrcmp(const struct sockaddr_storage *a,
-	    const struct sockaddr_storage *b);
+int addrcmp(const struct sockaddr *a, const struct sockaddr *b);
 void avl_diff(struct iv_avl_tree *a, struct iv_avl_tree *b, void *cookie,
 	      void (*item_add)(void *cookie, struct iv_avl_node *a),
 	      void (*item_mod)(void *cookie, struct iv_avl_node *a,
