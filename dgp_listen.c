@@ -87,9 +87,8 @@ static void got_connection(void *_dls)
 {
 	struct dgp_listen_socket *dls = _dls;
 	socklen_t addrlen;
-	struct sockaddr_storage addr;
+	struct sockaddr_in6 addr;
 	int fd;
-	struct sockaddr_in6 *addr6;
 	struct dgp_listen_entry *dle;
 	struct conn *conn;
 
@@ -101,14 +100,13 @@ static void got_connection(void *_dls)
 		return;
 	}
 
-	if (addr.ss_family != AF_INET6) {
+	if (addr.sin6_family != AF_INET6) {
 		close(fd);
 		return;
 	}
-	addr6 = (struct sockaddr_in6 *)&addr;
 
-	if (addr6->sin6_port == htons(173))
-		dle = find_entry_by_addr(dls, addr6->sin6_addr.s6_addr);
+	if (addr.sin6_port == htons(173))
+		dle = find_entry_by_addr(dls, addr.sin6_addr.s6_addr);
 	else
 		dle = NULL;
 
