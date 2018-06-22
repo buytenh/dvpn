@@ -366,7 +366,7 @@ int tconn_listen_socket_register(struct tconn_listen_socket *tls)
 	int fd;
 	int yes;
 
-	fd = socket(tls->listen_address.ss_family, SOCK_STREAM, 0);
+	fd = socket(tls->listen_address.sin6_family, SOCK_STREAM, 0);
 	if (fd < 0) {
 		perror("tconn_listen_socket: socket");
 		return 1;

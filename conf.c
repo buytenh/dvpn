@@ -322,7 +322,7 @@ add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 	return 0;
 }
 
-static int parse_listen_addr(struct sockaddr_storage *dst,
+static int parse_listen_addr(struct sockaddr_in6 *dst,
 			     const char *listen, int default_port)
 {
 	char *delim;
@@ -402,7 +402,7 @@ static int compare_listen_entries(const struct iv_avl_node *_a,
 static struct conf_listening_socket *
 get_listening_socket(struct local_conf *lc, const char *listen)
 {
-	struct sockaddr_storage addr;
+	struct sockaddr_in6 addr;
 	struct iv_avl_node *an;
 	struct conf_listening_socket *cls;
 

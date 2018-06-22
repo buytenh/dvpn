@@ -81,7 +81,7 @@ struct conf_connect_entry {
 struct conf_listening_socket {
 	struct iv_avl_node		an;
 
-	struct sockaddr_storage		listen_address;
+	struct sockaddr_in6		listen_address;
 	int				have_wildcard_listen_entry;
 	struct iv_avl_tree		listen_entries;
 

@@ -24,7 +24,7 @@
 #include "conf.h"
 
 struct tconn_listen_socket {
-	struct sockaddr_storage		listen_address;
+	struct sockaddr_in6		listen_address;
 	gnutls_x509_privkey_t		mykey;
 	int				numcrts;
 	gnutls_x509_crt_t		*mycrts;
