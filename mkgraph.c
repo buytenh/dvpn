@@ -164,16 +164,9 @@ static void print_edge(FILE *fp, struct lsa *from, uint8_t *toid)
 	}
 }
 
-static void dump_graph(void *_dummy)
+static void write_graph(FILE *fp)
 {
 	struct iv_avl_node *an;
-	FILE *fp;
-
-	fp = fopen("graph.dot.new", "w");
-	if (fp == NULL)
-		abort();
-
-	fprintf(stderr, "dumping graph\n");
 
 	fprintf(fp, "digraph g {\n");
 	fprintf(fp, "\trankdir = RL;\n");
@@ -202,7 +195,19 @@ static void dump_graph(void *_dummy)
 	}
 
 	fprintf(fp, "}\n");
+}
 
+static void dump_graph(void *_dummy)
+{
+	FILE *fp;
+
+	fp = fopen("graph.dot.new", "w");
+	if (fp == NULL)
+		abort();
+
+	fprintf(stderr, "dumping graph\n");
+
+	write_graph(fp);
 	fclose(fp);
 
 	rename("graph.dot.new", "graph.dot");
