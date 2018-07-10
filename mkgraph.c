@@ -17,9 +17,12 @@
  * Boston, MA 02110-1301, USA.
  */
 
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <fcntl.h>
 #include <gnutls/abstract.h>
 #include <iv.h>
 #include <iv_signal.h>
@@ -39,6 +42,8 @@ static struct iv_timer dump_timer;
 static struct rib_listener rib_listener;
 static struct dgp_connect dc;
 static struct iv_signal sigint;
+static int graph_written;
+static char graph[] = "/tmp/dvpn-graph-XXXXXX.png";
 
 static int __get_lsa_node_name(char *buf, size_t buflen, struct lsa *lsa)
 {
@@ -199,16 +204,33 @@ static void write_graph(FILE *fp)
 
 static void dump_graph(void *_dummy)
 {
-	FILE *fp;
+	char tmp[64];
 	int ret;
+	char cmd[128];
+	FILE *fp;
+
+	snprintf(tmp, sizeof(tmp), "/tmp/dvpn-graph-tmp-XXXXXX.png");
+
+	ret = mkostemps(tmp, 4, O_CLOEXEC);
+	if (ret < 0) {
+		perror("mkostemps");
+		if (graph_written)
+			unlink(graph);
+		exit(EXIT_FAILURE);
+	}
+
+	close(ret);
 
 	fprintf(stderr, "dumping graph\n");
 
-	fp = popen("dot -Tpng > graph.png.new", "we");
+	snprintf(cmd, sizeof(cmd), "dot -Tpng > %s", tmp);
+
+	fp = popen(cmd, "we");
 	if (fp == NULL) {
 		perror("popen");
-		unlink("graph.png");
-		unlink("graph.png.new");
+		unlink(tmp);
+		if (graph_written)
+			unlink(graph);
 		exit(EXIT_FAILURE);
 	}
 
@@ -217,12 +239,29 @@ static void dump_graph(void *_dummy)
 	ret = pclose(fp);
 	if (ret) {
 		fprintf(stderr, "dot returned %d\n", ret);
-		unlink("graph.png");
-		unlink("graph.png.new");
+		unlink(tmp);
+		if (graph_written)
+			unlink(graph);
 		exit(EXIT_FAILURE);
 	}
 
-	rename("graph.png.new", "graph.png");
+	if (!graph_written) {
+		ret = mkostemps(graph, 4, O_CLOEXEC);
+		if (ret < 0) {
+			perror("mkostemps");
+			unlink(tmp);
+			exit(EXIT_FAILURE);
+		}
+		close(ret);
+	}
+
+	rename(tmp, graph);
+
+	if (!graph_written) {
+		graph_written = 1;
+		if (fork() == 0)
+			execlp("eog", "eog", graph, NULL);
+	}
 }
 
 static void schedule_graph_dump(void)
@@ -260,7 +299,8 @@ static void got_sigint(void *_dummy)
 
 	iv_signal_unregister(&sigint);
 
-	unlink("graph.png");
+	if (graph_written)
+		unlink(graph);
 }
 
 int mkgraph(const char *config)
