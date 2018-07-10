@@ -250,6 +250,8 @@ static void got_sigint(void *_dummy)
 	dgp_connect_stop(&dc);
 
 	iv_signal_unregister(&sigint);
+
+	unlink("graph.png");
 }
 
 int mkgraph(const char *config)
