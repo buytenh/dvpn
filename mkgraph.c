@@ -200,19 +200,28 @@ static void write_graph(FILE *fp)
 static void dump_graph(void *_dummy)
 {
 	FILE *fp;
-
-	fp = fopen("graph.dot.new", "w");
-	if (fp == NULL)
-		abort();
+	int ret;
 
 	fprintf(stderr, "dumping graph\n");
 
+	fp = popen("dot -Tpng > graph.png.new", "we");
+	if (fp == NULL) {
+		perror("popen");
+		unlink("graph.png");
+		unlink("graph.png.new");
+		exit(EXIT_FAILURE);
+	}
+
 	write_graph(fp);
-	fclose(fp);
 
-	rename("graph.dot.new", "graph.dot");
+	ret = pclose(fp);
+	if (ret) {
+		fprintf(stderr, "dot returned %d\n", ret);
+		unlink("graph.png");
+		unlink("graph.png.new");
+		exit(EXIT_FAILURE);
+	}
 
-	system("dot -Tpng graph.dot > graph.png.new");
 	rename("graph.png.new", "graph.png");
 }
 
