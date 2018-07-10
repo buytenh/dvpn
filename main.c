@@ -27,7 +27,7 @@ int dvpn(const char *config);
 int gencert(const char *nodekeyfile, const char *rolekeyfile);
 int hostmon(const char *config);
 int mkgraph(const char *config);
-int mkhosts(const char *config);
+int mkhosts(const char *config, const char *suffix);
 int rtmon(const char *config);
 int show_key_id(const char *file);
 int show_key_id_hex(const char *file);
@@ -225,7 +225,7 @@ int main(int argc, char *argv[])
 	case TOOL_MKGRAPH:
 		return mkgraph(config);
 	case TOOL_MKHOSTS:
-		return mkhosts(config);
+		return mkhosts(config, argv[optind]);
 	case TOOL_RTMON:
 		return rtmon(config);
 	case TOOL_SHOW_KEY_ID:

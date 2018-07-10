@@ -56,7 +56,7 @@ static void determine_myid(const char *config)
 	gnutls_global_deinit();
 }
 
-static void rcvd_lsa(struct lsa *lsa)
+static void rcvd_lsa(struct lsa *lsa, const char *suffix)
 {
 	struct lsa_attr *node_name;
 	uint8_t addr[16];
@@ -79,10 +79,10 @@ static void rcvd_lsa(struct lsa *lsa)
 			putchar('_');
 	}
 
-	printf("\n");
+	printf("%s\n", (suffix != NULL) ? suffix : "");
 }
 
-static int read_lsas(int fd)
+static int read_lsas(int fd, const char *suffix)
 {
 	int bytes;
 	uint8_t buf[65536];
@@ -123,7 +123,7 @@ static int read_lsas(int fd)
 			if (lsa == NULL)
 				return 0;
 
-			rcvd_lsa(lsa);
+			rcvd_lsa(lsa, suffix);
 			lsa_put(lsa);
 
 			off += len;
@@ -136,7 +136,7 @@ static int read_lsas(int fd)
 	return -1;
 }
 
-int mkhosts(const char *config)
+int mkhosts(const char *config, const char *suffix)
 {
 	int fd;
 	struct sockaddr_in6 addr;
@@ -162,7 +162,7 @@ int mkhosts(const char *config)
 		return 1;
 	}
 
-	ret = read_lsas(fd);
+	ret = read_lsas(fd, suffix);
 	if (ret < 0)
 		return 1;
 
