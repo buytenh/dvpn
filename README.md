@@ -59,6 +59,11 @@ Dvpn package comes with additional tools for administrative purposes. They conne
 
 `certtool --generate-privkey --rsa --sec-param=high --outfile <filename.key>` - generates private key
 
+> Note: on newer versions for user-level commands such as `dvpn --hostmon` public key is required  
+`cd /etc/pki/tls/dvpn`  
+`openssl rsa -in dvpn.key -pubout -out dvpn.pub`  
+`chmod 0444 dvpn.pub`
+
 ### dvpn.ini
 `PrivateKey` - path to generated key file
 
