@@ -57,6 +57,18 @@ Dvpn package comes with additional tools for administrative purposes. They conne
 
 `/etc/pki/tls/dvpn/dvpn.key` - default key file location if not specified in dvpn.ini
 
+```
+cd /etc/pki/tls
+mkdir dvpn
+cd dvpn
+(umask 077; openssl genrsa 4096 > dvpn.key)
+chmod 0400 dvpn.key
+openssl rsa -in dvpn.key -pubout -out dvpn.pub
+chmod 0444 dvpn.pub
+dvpn --show-key-id-hex dvpn.pub
+```
+
+
 `certtool --generate-privkey --rsa --sec-param=high --outfile <filename.key>` - generates private key
 
 > Note: on newer versions for user-level commands such as `dvpn --hostmon` public key is required  
