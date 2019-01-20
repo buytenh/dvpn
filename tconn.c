@@ -732,8 +732,13 @@ err:
 int tconn_start(struct tconn *tc)
 {
 	static char prio[] =
+#if GNUTLS_VERSION_NUMBER >= 0x030603
 		"NONE:+CIPHER-ALL:+ECDHE-RSA:+MAC-ALL:+COMP-NULL:"
 		"+VERS-TLS1.3:+VERS-TLS1.2:+SIGN-ALL:+CURVE-SECP256R1";
+#else
+		"NONE:+CIPHER-ALL:+ECDHE-RSA:+MAC-ALL:+COMP-NULL:"
+		"+VERS-TLS1.2:+SIGN-ALL:+CURVE-SECP256R1";
+#endif
 	unsigned int flags;
 	int ret;
 	const char *err;
