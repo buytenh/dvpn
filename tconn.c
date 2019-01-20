@@ -733,7 +733,7 @@ int tconn_start(struct tconn *tc)
 {
 	static char prio[] =
 		"NONE:+CIPHER-ALL:+ECDHE-RSA:+MAC-ALL:+COMP-NULL:"
-		"+VERS-TLS1.2:+SIGN-ALL:+CURVE-SECP256R1:%SAFE_RENEGOTIATION";
+		"+VERS-TLS1.3:+VERS-TLS1.2:+SIGN-ALL:+CURVE-SECP256R1";
 	unsigned int flags;
 	int ret;
 	const char *err;
