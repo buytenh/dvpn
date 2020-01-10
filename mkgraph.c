@@ -42,6 +42,7 @@ static struct iv_timer dump_timer;
 static struct rib_listener rib_listener;
 static struct dgp_connect dc;
 static struct iv_signal sigint;
+static struct iv_signal sigterm;
 static int graph_written;
 static char graph[] = "/tmp/dvpn-graph-XXXXXX.png";
 
@@ -259,8 +260,14 @@ static void dump_graph(void *_dummy)
 
 	if (!graph_written) {
 		graph_written = 1;
-		if (fork() == 0)
-			execlp("eog", "eog", graph, NULL);
+		if (fork() == 0) {
+			ret = execlp("eog", "eog", graph, NULL);
+			if (ret < 0) {
+				perror("execlp");
+				kill(getppid(), SIGTERM);
+				exit(EXIT_FAILURE);
+			}
+		}
 	}
 }
 
@@ -290,17 +297,27 @@ static void lsa_del(void *_dummy, struct lsa *a, uint32_t cost)
 	schedule_graph_dump();
 }
 
-static void got_sigint(void *_dummy)
+static void shut_down(void)
 {
-	fprintf(stderr, "SIGINT received, shutting down\n");
-
 	loc_rib_listener_unregister(&loc_rib, &rib_listener);
 	dgp_connect_stop(&dc);
 
 	iv_signal_unregister(&sigint);
+	iv_signal_unregister(&sigterm);
 
 	if (graph_written)
 		unlink(graph);
+}
+
+static void got_sigint(void *_dummy)
+{
+	fprintf(stderr, "SIGINT received, shutting down\n");
+	shut_down();
+}
+
+static void got_sigterm(void *_dummy)
+{
+	shut_down();
 }
 
 int mkgraph(const char *config)
@@ -350,6 +367,13 @@ int mkgraph(const char *config)
 	sigint.cookie = NULL;
 	sigint.handler = got_sigint;
 	iv_signal_register(&sigint);
+
+	IV_SIGNAL_INIT(&sigterm);
+	sigterm.signum = SIGTERM;
+	sigterm.flags = 0;
+	sigterm.cookie = NULL;
+	sigterm.handler = got_sigterm;
+	iv_signal_register(&sigterm);
 
 	iv_main();
 
