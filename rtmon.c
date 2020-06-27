@@ -57,6 +57,8 @@ static void rt_add(void *_dummy, uint8_t *dest, uint8_t *nh)
 	printf(" via ");
 	print_addr(stdout, nh);
 	printf("\n");
+
+	fflush(stdout);
 }
 
 static void rt_mod(void *_dummy, uint8_t *dest, uint8_t *oldnh, uint8_t *newnh)
@@ -68,6 +70,8 @@ static void rt_mod(void *_dummy, uint8_t *dest, uint8_t *oldnh, uint8_t *newnh)
 	printf(" to ");
 	print_addr(stdout, newnh);
 	printf("\n");
+
+	fflush(stdout);
 }
 
 static void rt_del(void *_dummy, uint8_t *dest, uint8_t *nh)
@@ -77,6 +81,8 @@ static void rt_del(void *_dummy, uint8_t *dest, uint8_t *nh)
 	printf(" via ");
 	print_addr(stdout, nh);
 	printf("\n");
+
+	fflush(stdout);
 }
 
 static void got_sigint(void *_dummy)

@@ -115,6 +115,8 @@ static void lsa_add(void *cookie, struct lsa *a, uint32_t cost)
 	lsa_diff(NULL, a, cookie, attr_add, attr_mod, attr_del);
 
 	printf("\n");
+
+	fflush(stdout);
 }
 
 static void lsa_mod(void *cookie, struct lsa *a, uint32_t acost,
@@ -138,6 +140,8 @@ static void lsa_mod(void *cookie, struct lsa *a, uint32_t acost,
 	lsa_diff(a, b, cookie, attr_add, attr_mod, attr_del);
 
 	printf("\n");
+
+	fflush(stdout);
 }
 
 static void lsa_del(void *cookie, struct lsa *a, uint32_t cost)
@@ -159,6 +163,8 @@ static void lsa_del(void *cookie, struct lsa *a, uint32_t cost)
 	lsa_diff(a, NULL, cookie, attr_add, attr_mod, attr_del);
 
 	printf("\n");
+
+	fflush(stdout);
 }
 
 void rib_listener_debug_init(struct rib_listener_debug *rl)
