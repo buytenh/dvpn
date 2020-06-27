@@ -261,7 +261,10 @@ static void dump_graph(void *_dummy)
 	if (!graph_written) {
 		graph_written = 1;
 		if (fork() == 0) {
-			ret = execlp("eog", "eog", graph, NULL);
+			ret = execlp("feh", "feh", graph, NULL);
+			if (ret < 0 && errno == ENOENT)
+				ret = execlp("eog", "eog", graph, NULL);
+
 			if (ret < 0) {
 				perror("execlp");
 				kill(getppid(), SIGTERM);
