@@ -470,11 +470,68 @@ static void tconn_do_record_recv(struct tconn *tc)
 	uint8_t buf[32768];
 	int ret;
 
-	ret = gnutls_record_recv(tc->sess, buf, sizeof(buf));
+	/*
+	 * The documentation for gnutls_record_recv() states:
+	 *
+	 *	If 'GNUTLS_E_INTERRUPTED' or 'GNUTLS_E_AGAIN' is
+	 *	returned, you must call this function again to get
+	 *	the data.
+	 *
+	 * If you're familiar with the BSD sockets API, you could read
+	 * this (somewhat confusing) statement as saying that if you
+	 * get GNUTLS_E_AGAIN back, there is no more data to be read
+	 * and you'll have to wait for more data to arrive on the
+	 * underlying socket before calling gnutls_record_recv() again
+	 * -- but if you read it this way, you would be wrong.
+	 *
+	 * When your pull function returns EAGAIN, gnutls_record_recv()
+	 * will return GNUTLS_E_AGAIN, and that makes sense.  However,
+	 * gnutls_record_recv() can return GNUTLS_E_AGAIN even when your
+	 * pull function did return data -- and, in fact, even when your
+	 * pull function returned exactly the number of bytes that it
+	 * was asked to return.  Apparently it is possible for GnuTLS to
+	 * consume an application data record yet have nothing to return
+	 * from gnutls_record_recv(), and when this happens, GnuTLS
+	 * returns GNUTLS_E_AGAIN from gnutls_record_recv(), just like
+	 * when the underlying socket's receive buffer is empty.
+	 *
+	 * In other words, GNUTLS_E_AGAIN is used for both "your pull
+	 * function returned EAGAIN" and "the last TLS record that was
+	 * read did not yield data that can be returned from
+	 * gnutls_record_recv()", and when you get GNUTLS_E_AGAIN back,
+	 * it won't be immediately obvious which of the two will be
+	 * the case.  (Perhaps they shouldn't have used the same return
+	 * code for these two different cases.)
+	 *
+	 * What we'll do here is to call gnutls_record_recv() again
+	 * when GNUTLS_E_AGAIN is returned as long as there is data left
+	 * in the receive buffer and the call to gnutls_record_recv()
+	 * consumed at least one byte from the receive buffer.
+	 */
+	while (1) {
+		int rx_start;
 
-	if (ret == GNUTLS_E_AGAIN) {
-		verify_state(tc);
-		return;
+		rx_start = tc->rx_start;
+
+		ret = gnutls_record_recv(tc->sess, buf, sizeof(buf));
+		if (ret != GNUTLS_E_AGAIN)
+			break;
+
+		if (tc->rx_start == tc->rx_end) {
+			verify_state(tc);
+			return;
+		}
+
+		fprintf(stderr, "%s: gnutls_record_recv returned "
+				"GNUTLS_E_AGAIN with rx data left, "
+				"rx_start=%d->%d rx_end=%d\n",
+			(tc->name != NULL) ? tc->name : "",
+			rx_start, tc->rx_start, tc->rx_end);
+
+		if (tc->rx_start > rx_start)
+			continue;
+
+		abort();
 	}
 
 	if ((ret < 0 && ret != GNUTLS_E_REHANDSHAKE) || ret == 0) {
