@@ -142,6 +142,13 @@ Host part of IPv6 address is 11-22nd (inclusive) group of fingerprint, each grou
 
 > Example IPv6 address: _2001:2f:**c001:babe:c001:babe:c001:babe**_
 
+## Firewall
+
+In some cases your firewall might be dropping some packets due to dvpn's assymetric routing
+Make sure to add this rule in case
+
+`# ip6tables -t raw -D PREROUTING -m rpfilter --invert -j DROP`
+
 ## ToDo
 - [x] update readme to 'tools' update
 - [ ] show-key-id desc
