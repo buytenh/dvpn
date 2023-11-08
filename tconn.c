@@ -39,6 +39,16 @@
 #include "util.h"
 #include "x509.h"
 
+/*
+ * GNUTLS_NO_EXTENSIONS was renamed to GNUTLS_NO_DEFAULT_EXTENSIONS in
+ * GnuTLS 3.8.1, and a backward-compatibility define wasn't added until
+ * after the 3.8.1 release, and a GnuTLS version with that backward-
+ * compatibility define has not yet been released as of this writing.
+ */
+#ifndef GNUTLS_NO_EXTENSIONS
+#define GNUTLS_NO_EXTENSIONS GNUTLS_NO_DEFAULT_EXTENSIONS
+#endif
+
 #define STATE_HANDSHAKE		1
 #define STATE_RUNNING		2
 #define STATE_TX_CONGESTION	3
