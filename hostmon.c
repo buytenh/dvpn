@@ -59,6 +59,8 @@ static void lsa_chg(char chg, struct lsa *a, struct lsa_attr *node_name)
 	}
 
 	printf("\n");
+
+	fflush(stdout);
 }
 
 static struct lsa_attr *node_name(struct lsa *lsa)
