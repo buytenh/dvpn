@@ -86,8 +86,7 @@ dgp_writer_output_lsa(struct dgp_writer *dw, struct lsa *old, struct lsa *new)
 	iv_timer_unregister(&dw->keepalive_timer);
 	iv_validate_now();
 	dw->keepalive_timer.expires = iv_now;
-	timespec_add_ms(&dw->keepalive_timer.expires,
-			900 * KEEPALIVE_INTERVAL, 1100 * KEEPALIVE_INTERVAL);
+	timespec_add_ms(&dw->keepalive_timer.expires, 1, 1);
 	iv_timer_register(&dw->keepalive_timer);
 
 	return 0;
