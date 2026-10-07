@@ -266,7 +266,7 @@ add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 		 int cost_add_rtt)
 {
 	struct conf_connect_entry *cce;
-	char *delim;
+	const char *delim;
 	int port;
 
 	delim = strstr(connect, "]:");
@@ -302,10 +302,12 @@ add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 	}
 
 	if (connect[0] == '[') {
+		char *delim_modify;
+
 		cce->hostname = strdup(connect + 1);
-		delim = strchr(cce->hostname, ']');
-		if (delim != NULL)
-			*delim = 0;
+		delim_modify = strchr(cce->hostname, ']');
+		if (delim_modify != NULL)
+			*delim_modify = 0;
 	} else {
 		cce->hostname = strdup(connect);
 		if (delim != NULL)
@@ -325,7 +327,7 @@ add_connect_peer(struct local_conf *lc, const char *peer, const char *connect,
 static int parse_listen_addr(struct sockaddr_in6 *dst,
 			     const char *listen, int default_port)
 {
-	char *delim;
+	const char *delim;
 	int port;
 	char *l;
 	struct sockaddr_in6 *a6;
@@ -352,10 +354,12 @@ static int parse_listen_addr(struct sockaddr_in6 *dst,
 	}
 
 	if (listen[0] == '[') {
+		char *delim_modify;
+
 		l = strdup(listen + 1);
-		delim = strchr(l, ']');
-		if (delim != NULL)
-			*delim = 0;
+		delim_modify = strchr(l, ']');
+		if (delim_modify != NULL)
+			*delim_modify = 0;
 	} else {
 		l = strdup(listen);
 		if (delim != NULL)
