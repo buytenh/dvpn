@@ -22,6 +22,7 @@
 #include <iv_avl.h>
 #include <iv_list.h>
 #include <nettle/sha2.h>
+#include <nettle/version.h>
 #include <gnutls/abstract.h>
 #include <string.h>
 #include "adj_rib_in.h"
@@ -120,7 +121,11 @@ static struct lsa *map(struct adj_rib_in *rib, struct lsa *lsa)
 
 	sha256_init(&ctx);
 	sha256_update(&ctx, attr->datalen, lsa_attr_data(attr));
+#if NETTLE_VERSION_MAJOR >= 4
+	sha256_digest(&ctx, id);
+#else
 	sha256_digest(&ctx, SHA256_DIGEST_SIZE, id);
+#endif
 
 	if (memcmp(lsa->id, id, NODE_ID_LEN))
 		return NULL;

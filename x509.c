@@ -24,6 +24,7 @@
 #include <gnutls/abstract.h>
 #include <gnutls/x509.h>
 #include <nettle/sha2.h>
+#include <nettle/version.h>
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>
@@ -189,7 +190,11 @@ int get_pubkey_id(uint8_t *id, gnutls_pubkey_t pubkey)
 
 	sha256_init(&ctx);
 	sha256_update(&ctx, len, buf);
+#if NETTLE_VERSION_MAJOR >= 4
+	sha256_digest(&ctx, id);
+#else
 	sha256_digest(&ctx, SHA256_DIGEST_SIZE, id);
+#endif
 
 	return 0;
 }
